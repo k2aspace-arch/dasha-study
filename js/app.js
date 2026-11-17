@@ -21,7 +21,7 @@ const S = {
   }
 };
 let done = {};
-window.App = { $, esc, pl, S, keysOf, get done(){ return done }, setDone(k, on){ if(on) done[k] = Date.now(); else delete done[k]; saveDone(); } };
+window.App = { uploadPdf(b, f, sid, after){ sayTarget = sid; return handleFile(b, f, after).then(()=>{ sayTarget = sid; }).catch(e=>{ console.error(e); say("Не получилось загрузить файл. Проверь интернет и попробуй ещё раз.", true); }); }, $, esc, pl, S, keysOf, get done(){ return done }, setDone(k, on){ if(on) done[k] = Date.now(); else delete done[k]; saveDone(); } };
 function loadDone(){ done = Object.assign({}, S.progress().done || {}); }
 function saveDone(){ Store.set("progress", {done}); }
 const pct = b => { const k=keysOf(b); return k.length ? Math.round(100*k.filter(x=>done[x]).length/k.length) : 0 };
@@ -75,7 +75,8 @@ function renderHome(){
   $("main").innerHTML = `<div class="stack">
   <section class="panel"><div class="quoterow"><p class="quote" id="quote">${esc(q)}</p><button class="btn" id="nextq" type="button">Ещё фраза</button></div></section>
   ${Journal.soonPanel()}
-  <section class="panel dadrow"><div><h3>Похвастаться успехами</h3><p class="hint">Учитель Клод напишет папе, чего ты добилась и над чем стоит ещё немного поработать.</p></div><button class="btn primary" type="button" data-dad>Рассказать папе о моих успехах</button></section>
+  ${Study.recoHome()}
+  <section class="panel dadrow"><div><h3>Похвастаться успехами</h3><p class="hint">Учитель Клод коротко напишет папе, что всё идёт хорошо: успехи, пробные ОГЭ и перспективы.</p></div><button class="btn primary" type="button" data-dad>Рассказать папе о моих успехах</button></section>
   <section class="panel"><h3>Сколько осталось</h3>
     <div class="counts">${cnt.map(([n,l,s])=>`<div class="count"><div class="big">${Math.max(0,n)}</div><div class="lbl">${esc(l)}</div><div class="sm">${esc(s)}</div></div>`).join("")}</div>
     <p class="nowline">${esc(nowLine())}</p>
@@ -158,7 +159,8 @@ function renderAccount(openId){
   $("main").innerHTML = `<div class="stack">
   <section class="panel"><h2>Личный кабинет</h2><p class="hint" style="margin:6px 0 0">${who} Здесь загружаются PDF учебников и указываются страницы параграфов. После этого параграфы открываются на своей странице прямо из учебника.</p>
     ${Store.mode==="cloud"?`<div class="btnrow"><button class="btn" id="acclogout" type="button">Выйти из аккаунта</button></div>`:""}</section>
-  ${recoPanel()}
+  ${Study.accountPanels()}
+  <section class="panel"><h3>Учебники: PDF и страницы</h3><p class="hint" style="margin:0">Загрузи PDF каждого учебника и проверь страницы параграфов.</p></section>
   ${BOOKS.map(b=>{ const m = S.book(b.id), file = hasFile(b), set = Object.keys(m.pages||{}).length, total = keysOf(b).length;
     return `<section class="panel acc-book" style="border-left:5px solid ${b.color}" data-book="${b.id}">
       <h2>${esc(b.subject)}</h2><p class="meta" style="margin:0">${esc(b.title)}</p>
@@ -175,9 +177,9 @@ function renderAccount(openId){
         ${b.groups.map((g,gi)=>g.chapters.map((c,ci)=>`<div class="grade chrow" style="padding-left:0"><span style="flex:1;min-width:0">${esc(c.n)} ${esc(c.t)}</span><input class="pgin" type="number" min="1" max="999" data-cpk="${gi}.${ci}" value="${(m.chapterPages||{})[gi+"."+ci]||""}" placeholder="стр." aria-label="Страница главы: ${esc(c.t)}"></div><ol class="paras" style="padding:0 0 6px">${
           c.p.map((p,pi)=>{ const k=`${b.id}.${gi}.${ci}.${pi}`; return `<li><span class="pn">${ci+1}.${pi+1}</span><span class="pt" style="flex:1;min-width:0">${esc(p)}</span><input class="pgin" type="number" min="1" max="999" id="pg-${k.replace(/\./g,'-')}" data-pk="${k}" value="${m.pages[k]||""}" placeholder="стр." aria-label="Страница: ${esc(p)}"></li>`; }).join("")}</ol>`).join("")).join("")}
       </details>
-      <details class="pages-ed know-ed"><summary class="btn" style="display:inline-block;margin-top:6px">Насколько хорошо знаю темы</summary>
+      <details class="pages-ed know-ed"><summary class="btn" style="display:inline-block;margin-top:6px">Как знаю темы (по ответам)</summary>
         ${b.groups.map((g,gi)=>g.chapters.map((c,ci)=>`<div class="grade chrow" style="padding-left:0">${esc(c.n)} ${esc(c.t)}</div><ol class="paras" style="padding:0 0 6px">${
-          c.p.map((p,pi)=>{ const k=`${b.id}.${gi}.${ci}.${pi}`, v = Topic.know().k[k]; return `<li><span class="pn">${ci+1}.${pi+1}</span><a class="pt tlink" href="#t/${b.id}/${gi}.${ci}.${pi}" style="flex:1;min-width:0">${esc(p)}</a><select data-know="${k}" class="kn${v===undefined?"":v}" aria-label="Как знаю: ${esc(p)}"><option value="">—</option>${Topic.KNOW.map((n,i)=>`<option value="${i}" ${v===i?"selected":""}>${n}</option>`).join("")}</select></li>`; }).join("")}</ol>`).join("")).join("")}
+          c.p.map((p,pi)=>{ const k=`${b.id}.${gi}.${ci}.${pi}`, v = Topic.know().k[k]; return `<li><span class="pn">${ci+1}.${pi+1}</span><a class="pt tlink" href="#t/${b.id}/${gi}.${ci}.${pi}" style="flex:1;min-width:0">${esc(p)}</a><span class="knchip kn${v===undefined?"":v}">${v===undefined?"пока не проверено":esc(Topic.KNOW[v])}</span></li>`; }).join("")}</ol>`).join("")).join("")}
       </details></section>`; }).join("")}
   </div>`;
   const main = $("main");
@@ -187,7 +189,7 @@ function renderAccount(openId){
     fi.addEventListener("change",()=>{ const f = fi.files && fi.files[0]; fi.value = ""; sayTarget = "status-"+id;
       handleFile(b, f).catch(e=>{ console.error(e); say("Не получилось загрузить файл. Проверь интернет и попробуй ещё раз.", true); }); });
   });
-  main.querySelectorAll("[data-know]").forEach(sel=>sel.addEventListener("change",()=>{ Topic.setKnow(sel.dataset.know, sel.value); sel.className = "kn"+sel.value; const r = $("reco"); if(r) r.outerHTML = recoPanel(); }));
+  Study.bindAccount(main);
   main.querySelectorAll("[data-auto]").forEach(btn=>btn.addEventListener("click",()=>{ const b = BOOKS.find(x=>x.id===btn.dataset.auto); sayTarget = "status-"+b.id; btn.disabled = true; autoPages(b).catch(e=>{ console.error(e); say("Не получилось прочитать учебник: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
   main.querySelectorAll("[data-open]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(BOOKS.find(x=>x.id===btn.dataset.open), 0, "")));
   main.querySelectorAll("section[data-book]").forEach(sec=>{ const id = sec.dataset.book;
@@ -199,19 +201,6 @@ function renderAccount(openId){
   });
 }
 let sayTarget = "status";
-function recoPanel(){
-  const kd = Topic.know().k, scratch = [], brief = [];
-  BOOKS.forEach(b=>b.groups.forEach((g,gi)=>g.chapters.forEach((c,ci)=>c.p.forEach((p,pi)=>{ const k = `${b.id}.${gi}.${ci}.${pi}`, v = kd[k];
-    const item = `<a class="reco-i" href="#t/${b.id}/${gi}.${ci}.${pi}?__"><span class="dot" style="background:${b.color}"></span><span><b>${esc(b.subject)}</b> · ${esc(p)}</span></a>`;
-    if(v===0 || v===1) scratch.push(item.replace("?__","?scratch")); else if(v===2) brief.push(item.replace("?__","?brief")); }))));
-  const rated = Object.keys(kd).length;
-  return `<section class="panel reco" id="reco"><h3>Рекомендации учителя</h3>
-    ${rated ? `<div class="reco-cols">
-      <div><h4>Изучить с нуля${scratch.length?` · ${scratch.length}`:""}</h4>${scratch.length ? scratch.slice(0,10).join("") + (scratch.length>10?`<p class="sm">и ещё ${scratch.length-10}</p>`:"") : `<p class="hint">Таких тем нет.</p>`}</div>
-      <div><h4>Повторить кратко${brief.length?` · ${brief.length}`:""}</h4>${brief.length ? brief.slice(0,10).join("") + (brief.length>10?`<p class="sm">и ещё ${brief.length-10}</p>`:"") : `<p class="hint">Таких тем нет.</p>`}</div></div>
-      <p class="hint">Нажми на тему: учитель сразу начнёт объяснять с нуля или проведёт краткое повторение по учебнику. Итоговые вопросы по главе сами отмечают темы, которые стоит повторить.</p>`
-    : `<p class="hint">Оцени ниже, насколько хорошо знаешь темы каждого учебника («Насколько хорошо знаю темы»), и здесь появится список: что изучить с нуля, а что достаточно кратко повторить.</p>`}</section>`;
-}
 // Поиск страниц тем по тексту PDF: ищем заголовок каждой темы по порядку, пропуская оглавление.
 async function autoPages(b){
   const m = S.book(b.id), total = m.totalPages || 0, norm = t => t.toLowerCase().replace(/ё/g,"е").replace(/[^a-zа-я0-9]+/g," ").trim();
@@ -234,7 +223,7 @@ async function autoPages(b){
 function say(t, err){ const st = $(sayTarget); if(st){ st.textContent = t; st.classList.toggle("err", !!err); } }
 function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("script "+src)); document.head.appendChild(s); }); }
 
-async function handleFile(b, file){
+async function handleFile(b, file, after){
   if(!file) return;
   if(file.type && file.type !== "application/pdf"){ say("Нужен файл в формате PDF.", true); return; }
   say("Читаю файл…");
@@ -275,7 +264,7 @@ async function handleFile(b, file){
   await S.setBook(b.id, m);
   for(const c of old){ try{ await Store.removeFile(c.path) }catch(e){} }
   if(window.Reader) Reader.clearCache();
-  renderAccount();
+  if(after) after(); else renderAccount();
   say(`Готово: ${pl(n,"страница","страницы","страниц")}. ${Store.mode==="cloud"?"Учебник откроется на любом устройстве после входа.":"Учебник сохранён в этом браузере."}`);
 }
 
@@ -290,26 +279,22 @@ async function renderBoard(host){
   let cur = null; try{ cur = localStorage.getItem("dasha:board") }catch(e){}
   if(!B.list.find(x=>x.id===cur)) cur = B.list[0].id;
   B.cur = cur;
-  host.innerHTML = `<section class="panel"><h2>Доска</h2><p class="hint" style="margin:0 0 14px">Рисуй решение пальцем, стилусом или мышью. Лист сохраняется сам. Готовое решение можно отправить ИИ-учителю на проверку.</p>
-    <div class="boardsel">
-      <label for="bsel" class="sm">Лист</label><select id="bsel">${B.list.map(x=>`<option value="${x.id}" ${x.id===cur?"selected":""}>${esc(x.title)}</option>`).join("")}</select>
-      <input id="btitle" value="${esc((B.list.find(x=>x.id===cur)||{}).title||"")}" aria-label="Название листа" maxlength="60">
-      <button class="btn" id="bnew" type="button">Новый лист</button>
-      <button class="btn" id="bdel" type="button">Удалить лист</button>
-    </div>
+  host.innerHTML = `<section class="panel"><div class="boardhead"><h3 style="margin:0">Доска</h3>
+      <select id="bsel" aria-label="Лист">${B.list.map(x=>`<option value="${x.id}" ${x.id===cur?"selected":""}>${esc(x.title)}</option>`).join("")}</select>
+      <button class="ibtn" id="bnew" type="button" title="Новый лист" aria-label="Новый лист">＋</button></div>
     <div class="boardtools" role="toolbar" aria-label="Инструменты">
-      <button class="tool" data-tool="pen" type="button" aria-pressed="true">Ручка</button>
-      <button class="tool" data-tool="marker" type="button" aria-pressed="false">Маркер</button>
-      <button class="tool" data-tool="text" type="button" aria-pressed="false">Текст</button>
-      <button class="tool" data-tool="eraser" type="button" aria-pressed="false">Ластик</button>
-      <span class="sep"></span>
-      ${COLORS.map((c,i)=>`<button class="swatch" data-color="${c}" style="background:${c}" type="button" aria-label="Цвет ${i+1}" aria-pressed="${i===0}"></button>`).join("")}
-      <span class="sep"></span>
-      <label class="sm" for="bsize">Толщина</label><input type="range" id="bsize" min="2" max="24" value="4">
-      <span class="sep"></span>
-      <button class="tool" id="bundo" type="button">Отменить</button>
-      <button class="tool" id="bclear" type="button">Очистить</button>
-      <button class="btn primary" id="bask" type="button">Отправить учителю</button>
+      <button class="ibtn" data-tool="pen" type="button" aria-pressed="true" title="Ручка" aria-label="Ручка">✏️</button>
+      <button class="ibtn" data-tool="marker" type="button" aria-pressed="false" title="Маркер" aria-label="Маркер">🖍️</button>
+      <button class="ibtn" data-tool="text" type="button" aria-pressed="false" title="Текст" aria-label="Текст">T</button>
+      <button class="ibtn" data-tool="eraser" type="button" aria-pressed="false" title="Ластик" aria-label="Ластик">⌫</button>
+      ${COLORS.slice(0,4).map((c,i)=>`<button class="swatch sm-sw" data-color="${c}" style="background:${c}" type="button" aria-label="Цвет ${i+1}" aria-pressed="${i===0}"></button>`).join("")}
+      <button class="ibtn" id="bundo" type="button" title="Отменить" aria-label="Отменить">↶</button>
+      <details class="more"><summary class="ibtn" title="Ещё" aria-label="Ещё">⋯</summary><div class="morebox">
+        <label class="sm">Название листа<input id="btitle" value="${esc((B.list.find(x=>x.id===cur)||{}).title||"")}" maxlength="60"></label>
+        <label class="sm">Толщина<input type="range" id="bsize" min="2" max="24" value="4"></label>
+        <button class="btn" id="bclear" type="button">Очистить</button><button class="btn" id="bdel" type="button">Удалить лист</button></div></details>
+      <span style="flex:1"></span>
+      <button class="btn primary" id="bask" type="button">Учителю</button>
     </div>
     <div class="boardbox" id="bbox"><canvas id="bcanvas" width="${B.W}" height="${B.H}"></canvas><input id="boardtext" hidden aria-label="Текст на доске"></div>
     <p class="status" id="bstatus" aria-live="polite"></p></section>`;
@@ -392,6 +377,7 @@ let chat = []; try{ chat = JSON.parse(localStorage.getItem("dasha:chat")||"[]") 
 const saveChat = () => { try{ localStorage.setItem("dasha:chat", JSON.stringify(chat.slice(-40).map(m=>({role:m.role, content:m.content, board:!!m.board})))) }catch(e){} };
 const SUBJ_ALL = GRADE_SUBJECTS.map(([id,n])=>[id,n]);
 let tutorAv = null, tutorPhoto = null;
+let drawMode = false;
 function renderTutor(){
   const ok = Store.aiAvailable();
   let subj = "algebra"; try{ subj = localStorage.getItem("dasha:subj") || "algebra" }catch(e){}
@@ -402,19 +388,18 @@ function renderTutor(){
     <div class="chat" id="chatlog" aria-live="polite"></div>
     <form class="chatform" id="chatform">
       <div class="quick">
-        <button class="btn" type="button" data-q="Объясни тему простыми словами и дай один пример: ">Объясни тему</button>
-        <button class="btn" type="button" data-q="Проверь моё решение на доске. Найди ошибки, но не решай за меня.">Проверь решение</button>
+        <button class="btn" type="button" data-q="Объясни тему на жизненном примере: ">Объясни тему</button>
+        <button class="btn" type="button" data-q="Проверь моё решение. Найди ошибки, но не решай за меня." data-photo="1">Проверь решение</button>
+        <button class="btn" type="button" data-draw="1">✏️ Нарисуй</button>
         <button class="btn" type="button" data-q="Дай мне одну задачу как в ОГЭ по этой теме и не говори ответ: ">Задача как в ОГЭ</button>
-        <button class="btn" type="button" data-q="Проверь мою домашку на фото. Найди ошибки, но не исправляй сам: задавай вопросы, чтобы я нашла их сама." data-photo="1">Проверь домашку по фото</button>
       </div>
-      <textarea id="chatin" placeholder="Спроси что угодно по учёбе… Enter — отправить, Shift+Enter — новая строка" aria-label="Вопрос"></textarea>
+      <textarea id="chatin" placeholder="Спроси что угодно по учёбе… Enter — отправить" aria-label="Вопрос"></textarea>
       <div class="chatrow">
-        <label for="chatsubj" class="sm">Предмет</label>
-        <select id="chatsubj">${SUBJ_ALL.map(([id,n])=>`<option value="${id}" ${id===subj?"selected":""}>${esc(n)}</option>`).join("")}</select>
-        <label class="ck"><input type="checkbox" id="chatboard" ${pendingBoard?"checked":""}> Приложить лист с доски</label>
-        <button class="btn" type="button" id="chatphoto">📷 Приложить фото</button><span id="chatphotoprev"></span>
+        <select id="chatsubj" aria-label="Предмет">${SUBJ_ALL.map(([id,n])=>`<option value="${id}" ${id===subj?"selected":""}>${esc(n)}</option>`).join("")}</select>
+        <button class="ibtn" type="button" id="chatphoto" title="Приложить фото" aria-label="Приложить фото">📷</button>
+        <label class="ibtn ck" title="Приложить лист с доски"><input type="checkbox" id="chatboard" ${pendingBoard?"checked":""}> 📋</label><span id="chatphotoprev"></span>
         <span style="flex:1"></span>
-        <button class="btn" type="button" id="chatnew">Новый разговор</button>
+        <button class="ibtn" type="button" id="chatnew" title="Новый разговор" aria-label="Новый разговор">↺</button>
         <button class="btn primary" type="submit" id="chatsend" ${ok?"":"disabled"}>Отправить</button>
       </div>
     </form></section>
@@ -429,6 +414,7 @@ function renderTutor(){
   const drawTP = () => { const el = $("chatphotoprev"); if(!el) return; el.innerHTML = tutorPhoto ? `<span class="photochip"><img src="${tutorPhoto.url}" alt="Приложенное фото"><button class="pg" type="button" id="chatphotorm" aria-label="Убрать фото">✕</button></span>` : ""; const rm = $("chatphotorm"); if(rm) rm.addEventListener("click", ()=>{ tutorPhoto = null; drawTP(); }); };
   const pickTP = async () => { const got = await Photo.pick(false); if(got[0]){ tutorPhoto = got[0]; drawTP(); } };
   $("chatphoto").addEventListener("click", pickTP); drawTP();
+  $("main").querySelector("[data-draw]").addEventListener("click",()=>{ const v = $("chatin").value.trim(); drawMode = true; $("chatin").value = v ? "Нарисуй: " + v : "Нарисуй это схематично, чтобы было понятнее."; if(!v && !chat.length){ $("chatin").value = "Нарисуй: "; $("chatin").focus(); drawMode = false; return; } $("chatform").requestSubmit(); });
   $("main").querySelectorAll("[data-q]").forEach(b=>b.addEventListener("click",()=>{ if(b.dataset.photo && !tutorPhoto) pickTP(); $("chatin").value = b.dataset.q; if(b.dataset.q.includes("доске")) $("chatboard").checked = true; $("chatin").focus(); }));
   $("chatsubj").addEventListener("change",e=>{ try{ localStorage.setItem("dasha:subj", e.target.value) }catch(_){} });
   $("chatnew").addEventListener("click",()=>{ chat = []; saveChat(); drawChat(); });
@@ -453,8 +439,8 @@ function renderTutor(){
     try{
       const msgs = chat.filter(m=>!m.pending && !m.err).slice(-16).map(m=>({role:m.role, content:m.content}));
       const subjName = (SUBJ_ALL.find(s=>s[0]===$("chatsubj").value)||[])[1] || "";
-      const r = await Store.ask({ mode: image ? "check" : "chat", subject: subjName, messages: msgs, image, imageType });
-      thinking.content = r.text || "Пустой ответ."; delete thinking.pending;
+      const r = await Store.ask({ mode: text.startsWith("Нарисуй") ? "draw" : image ? "check" : "chat", subject: subjName, messages: msgs, image, imageType });
+      thinking.content = Study.marks(r.text || "Пустой ответ.").text; delete thinking.pending;
     }catch(err){ thinking.content = "Не получилось получить ответ: " + err.message; thinking.err = true; delete thinking.pending; }
     if(tutorAv && tutorAv.el.isConnected){ tutorAv.setMood(thinking.err ? "squint" : "smile"); tutorAv.say(thinking.err ? "Ой, что-то пошло не так" : "Вот что я думаю!", 3000); setTimeout(()=>{ if(tutorAv){ tutorAv.setMood("idle"); tutorAv.start(); } }, 3000); }
     $("chatsend").disabled = false; saveChat(); drawChat();
@@ -541,8 +527,10 @@ async function route(){
   if(id !== "tutor") await flushBoard();
   if(id !== "oge" && window.Oge) Oge.leave();
   if(window.Topic) Topic.leave();
+  if(window.Study) Study.leaveCut();
   if(eNb){ eNb.destroy(); eNb = null; }
   if(id.startsWith("t/")){ renderShelf(id.split("/")[1]); return Topic.render(id.slice(2)); }
+  if(id.startsWith("cut/")){ renderShelf("account"); return Study.renderCut(id.slice(4)); }
   if(id.startsWith("q/")){ renderShelf(id.split("/")[1]); return Topic.renderQuiz(id.slice(2)); }
   if(window.Points) Points.renderBar();
   if(window.Journal) Journal.notify();
@@ -570,9 +558,9 @@ window.addEventListener("hashchange", route);
 /* старт: после загрузки всех скриптов (reader, avatar, points, oge) */
 const boot = async()=>{
   try{ await Store.init(); }catch(e){ console.error(e); }
-  Store.onAuth = async u => { if(u){ try{ await Store.loadAll() }catch(e){} } loadDone(); route(); };
+  Store.onAuth = async u => { if(u){ try{ await Store.loadAll() }catch(e){} } loadDone(); if(window.Study) Study.apply(); route(); };
   Store.onSaveError = () => { const n = $("savewarn"); if(n){ n.hidden = false; setTimeout(()=>n.hidden = true, 6000); } };
-  loadDone(); route();
+  loadDone(); if(window.Study) Study.apply(); route();
 };
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();

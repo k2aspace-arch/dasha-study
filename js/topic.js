@@ -4,7 +4,7 @@
 const { $, esc, S } = window.App;
 
 /* ---------- знания по темам ---------- */
-const KNOW = ["Не изучала","Плохо понимаю","Понимаю, но надо повторить","Знаю хорошо"];
+const KNOW = ["Не понимаю","Плохо понимаю","Надо повторить","Знаю хорошо"];
 const know = () => Object.assign({k:{}}, Store.get("know", {}));
 function setKnow(key, v){ const d = know(); d.k = Object.assign({}, d.k); if(v===""||v===null||v===undefined) delete d.k[key]; else d.k[key] = Number(v); Store.set("know", d, 300); }
 
@@ -60,7 +60,7 @@ function render(arg){
     <div class="topic-row">
       ${rg ? `<button class="btn primary" type="button" id="topen" ${file?"":"disabled"}>Открыть учебник на стр. ${rg[0]}</button>` : `<span class="chip warn">Страница темы не указана</span> <a href="#account">Указать в личном кабинете</a>`}
       <label class="ck"><input type="checkbox" id="tdone" ${App.done[t.key]?"checked":""}> Тема пройдена</label>
-      <label class="sm" for="tknow">Как знаю</label><select id="tknow"><option value="">—</option>${KNOW.map((n,v)=>`<option value="${v}" ${k===v?"selected":""}>${n}</option>`).join("")}</select>
+      <span class="knchip kn${k===undefined?"":k}" id="tknow" title="Заполняется по твоим ответам учителю, итоговым вопросам и срезу знаний">${k===undefined?"Знание: пока не проверено":"Знание: "+KNOW[k].toLowerCase()}</span>
     </div>
     <div class="topic-nav">${prev?`<a class="btn" href="${link(prev)}">← Предыдущая тема</a>`:""}<span style="flex:1"></span>${next?`<a class="btn" href="${link(next)}">Следующая тема →</a>`:""}</div>
   </section>
@@ -71,17 +71,22 @@ function render(arg){
     <div class="levels" id="tlevels" aria-live="polite"></div>
     <div class="chat" id="tlog" aria-live="polite"></div>
     <div class="quick">
-      <button class="btn" type="button" data-act="explain">Объясни тему с нуля</button>
-      <button class="btn" type="button" data-act="brief">Кратко повторить</button>
-      <button class="btn" type="button" data-act="selection" id="tselbtn">Спросить про выделенное</button>
-      <button class="btn" type="button" data-act="hint">Подсказка к задаче</button>
-      <button class="btn" type="button" data-act="check">Проверь моё решение</button>
+      <button class="btn" type="button" data-act="explain">Объясни тему</button>
       <button class="btn warnbtn" type="button" data-act="simpler">Непонятно</button>
       <button class="btn okbtn" type="button" data-act="got">Понятно!</button>
+      <button class="btn" type="button" data-act="draw">✏️ Нарисуй</button>
+      <details class="more"><summary class="btn">Ещё ▾</summary><div class="morebox">
+        <button class="btn" type="button" data-act="brief">Кратко повторить</button>
+        <button class="btn" type="button" data-act="selection" id="tselbtn">Спросить про выделенное</button>
+        <button class="btn" type="button" data-act="hint">Подсказка к задаче</button>
+        <button class="btn" type="button" data-act="check">Проверь моё решение</button>
+        <button class="btn" type="button" data-act="drill">Задачи на дорешивание</button>
+      </div></details>
     </div>
     <p class="hint" id="thint"></p>
     <form class="chatform" id="tform"><textarea id="tin" placeholder="Вопрос, ответ учителю или условие задачи… Enter — отправить, Shift+Enter — новая строка" aria-label="Сообщение учителю"></textarea>
-      <div class="chatrow"><button class="btn" type="button" id="tphoto">📷 Приложить фото</button><span id="tphotoprev"></span><span class="sm" id="tselinfo"></span><span style="flex:1"></span><button class="btn" type="button" id="tnew">Начать заново</button><button class="btn primary" type="submit" id="tsend">Отправить</button></div></form>
+      <div class="chatrow"><button class="ibtn" type="button" id="tphoto" title="Приложить фото" aria-label="Приложить фото">📷</button><span id="tphotoprev"></span><span class="sm" id="tselinfo"></span><span style="flex:1"></span><button class="ibtn" type="button" id="tnew" title="Начать заново" aria-label="Начать заново">↺</button><button class="btn primary" type="submit" id="tsend">Отправить</button></div></form>
+    ${Study.exercisesHtml(b, t.key)}
   </section>
   <section class="panel" id="tnb"></section>
   <section class="panel dadrow"><div><h3>Итоговые вопросы по главе</h3><p class="hint">Тест на понимание и пара заданий нарисовать по теме «${esc(t.c.t)}».</p></div><a class="btn" href="#q/${b.id}/${t.ckey}">Пройти</a></section>
@@ -94,11 +99,10 @@ function render(arg){
   if(rg && file && window.innerWidth >= 1000) Reader.open(b, rg[0], `${t.ci+1}.${t.pi+1}. ${t.title}`);
   $("topen") && $("topen").addEventListener("click", ()=>Reader.open(b, rg[0], `${t.ci+1}.${t.pi+1}. ${t.title}`));
   $("tdone").addEventListener("change", e=>{ App.setDone(t.key, e.target.checked); if(window.Points) Points.renderBar(); });
-  $("tknow").addEventListener("change", e=>setKnow(t.key, e.target.value));
   $("tphoto").addEventListener("click", async()=>{ const got = await Photo.pick(false); if(got[0]){ cur.photo = got[0]; drawPhoto(); say("Фото приложено. Нажми «Проверь моё решение», «Подсказка» или просто отправь вопрос."); } });
   $("tnew").addEventListener("click", ()=>{ cur.chat = []; cur.level = 0; persist(); draw(); });
   cur.onReader = () => selInfo(); window.addEventListener("reader:change", cur.onReader); selInfo();
-  $("main").querySelectorAll("[data-act]").forEach(btn=>btn.addEventListener("click", ()=>act(btn.dataset.act)));
+  $("main").querySelectorAll("[data-act]").forEach(btn=>btn.addEventListener("click", ()=>{ const d = btn.closest("details.more"); if(d) d.open = false; act(btn.dataset.act); }));
   $("tform").addEventListener("submit", e=>{ e.preventDefault(); const v = $("tin").value.trim(); if(!v) return; $("tin").value = ""; send(lastMode(), v); });
   $("tin").addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); $("tform").requestSubmit(); } });
   if(!ai) $("main").querySelectorAll("[data-act],#tsend").forEach(x=>{ if(x.dataset.act!=="got") x.disabled = true; });
@@ -115,15 +119,23 @@ function persist(){ lsSet("tchat:"+cur.t.key, { msgs: cur.chat.filter(m=>!m.pend
 function say(text){ const h = $("thint"); if(h){ h.textContent = text; } }
 function draw(){
   const log = $("tlog"); if(!log) return;
-  log.innerHTML = cur.chat.length ? cur.chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"} ${m.err?"err":""}">${m.tag?`<small class="tag">${esc(m.tag)}</small>`:""}${m.role==="user" ? esc(m.content) : Draw.html(m.content)}</div>`).join("")
-    : `<p class="emptychat">Нажми «Объясни тему с нуля», выдели непонятное место в учебнике или реши задачу в тетради и попроси проверить.</p>`;
+  log.innerHTML = cur.chat.length ? cur.chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"} ${m.err?"err":""}">${m.tag?`<small class="tag">${esc(m.tag)}</small>`:""}${m.role==="user" ? esc(m.content) : Draw.html(m.content)}${m.know?`<div><span class="knchip kn${m.know}">${KNOW[m.know]}</span></div>`:""}</div>`).join("")
+    : `<p class="emptychat">Нажми «Объясни тему», выдели непонятное место в учебнике или реши задачу в тетради и попроси проверить.</p>`;
   log.scrollTop = log.scrollHeight;
   $("tlevels").innerHTML = cur.level ? `<span class="sm">Ступень объяснения:</span> ${[1,2,3].map(l=>`<span class="chip ${l===cur.level?"":"dim"}">${l}. ${LEVELS[l]}</span>`).join(" ")}` : "";
 }
 async function act(a){
-  if(!cur || cur.busy) return;
+  if(!cur) return;
   const t = cur.t, text = $("tin").value.trim(); say("");
-  if(a==="got"){ cur.level = 0; setKnow(t.key, 3); $("tknow").value = "3"; cur.av.setMood("smile"); cur.av.say("Ура! Отметил, что тема понятна", 3000); persist(); draw(); return; }
+  if(a==="got"){
+    cur.level = 0;
+    if(cur.busy){ cur.gotLater = true; cur.av.say("Отлично! Договорю и задам вопрос для проверки", 3000); say("Учитель закончит ответ и задаст проверочный вопрос."); return; }
+    cur.av.setMood("smile"); cur.av.say("Ура! Сейчас проверим одним вопросом", 3000);
+    return send("chat", "Понятно! Задай мне один проверочный вопрос по этой теме, чтобы убедиться.", {tag:"Понятно!"});
+  }
+  if(cur.busy) return;
+  if(a==="draw"){ $("tin").value = ""; return send("draw", text ? `Нарисуй: ${text}` : "Нарисуй, пожалуйста, то, что сейчас объясняешь, схематично и просто.", {tag:"Нарисуй", image: !cur.photo && cur.nb.hasInk() ? cur.nb.image() : null, imageType:"jpeg"}); }
+  if(a==="drill"){ return send("chat", "Дай мне 3 упражнения из учебника по этой теме на дорешивание: те, что ещё не решали в классе и дома, от простого к сложному. Укажи номера и страницы.", {tag:"Дорешивание"}); }
   if(a==="explain"){ cur.level = 0; return send("explain", `Объясни мне тему «${t.title}» с нуля.`, {tag:"Объяснение с нуля"}); }
   if(a==="brief"){ cur.level = 0; return send("brief", `Давай кратко повторим тему «${t.title}».`, {tag:"Краткое повторение"}); }
   if(a==="simpler"){
@@ -162,12 +174,13 @@ async function send(mode, content, opt){
   try{
     const pages = me.rg && hasFile(t.b) ? await pagesFor(t.b, me.rg[0], me.rg[1]) : [];
     const msgs = me.chat.filter(m=>!m.pending && !m.err).slice(-20).map(m=>({ role:m.role, content:m.content }));
-    const r = await Store.ask({ mode, subject:t.b.subject, topic:{ book:t.b.title, chapter:`${t.c.n} ${t.c.t}`, title:t.title }, pages, messages:msgs, selection:opt.selection, image:opt.image||null, imageType:opt.imageType });
-    thinking.content = (r && r.text) || "Пустой ответ."; delete thinking.pending;
+    const r = await Store.ask({ mode, subject:t.b.subject, topic:{ book:t.b.title, chapter:`${t.c.n} ${t.c.t}`, title:t.title }, pages, context: Study.cardText(t.b, t.key), messages:msgs, selection:opt.selection, image:opt.image||null, imageType:opt.imageType });
+    const mk = Study.marks((r && r.text) || "Пустой ответ."); thinking.content = mk.text; delete thinking.pending;
+    if(mk.know){ setKnow(t.key, mk.know); thinking.know = mk.know; const el = $("tknow"); if(el && cur===me){ el.className = "knchip kn"+mk.know; el.textContent = "Знание: " + KNOW[mk.know].toLowerCase(); } }
     if(me.av.el.isConnected){ me.av.setMood("smile"); me.av.say(mode.startsWith("simpler") ? "Так понятнее?" : mode==="check" ? "Посмотрела? Ответь на мой вопрос" : "Вот!", 3500); }
   }catch(err){ thinking.content = "Не получилось получить ответ: " + err.message; thinking.err = true; delete thinking.pending; if(me.av.el.isConnected){ me.av.setMood("squint"); me.av.say("Ой, связь пропала", 3000); } }
   me.busy = false; setTimeout(()=>{ if(cur===me){ me.av.setMood("idle"); me.av.start(); } }, 3500);
-  if(cur===me){ persist(); draw(); } else { lsSet("tchat:"+t.key, { msgs: me.chat.slice(-40), level: me.level }); }
+  if(cur===me){ persist(); draw(); if(me.gotLater){ me.gotLater = false; act("got"); } } else { lsSet("tchat:"+t.key, { msgs: me.chat.slice(-40), level: me.level }); }
 }
 
 /* ---------- итоговые вопросы по главе ---------- */
@@ -220,7 +233,8 @@ function drawQuiz(me, qs){
     const ok = res.filter(r=>r.ok).length, pct = ok/qs.length;
     // слабые темы: понижаем «знаю хорошо» до «надо повторить»
     const weak = new Set(); qs.forEach((q,i)=>{ if(!res[i].ok && Number.isInteger(q.topic) && me.t.c.p[q.topic]!==undefined) weak.add(q.topic); });
-    const kd = know(); kd.k = Object.assign({}, kd.k); weak.forEach(pi=>{ const k = `${me.t.b.id}.${me.t.gi}.${me.t.ci}.${pi}`; if(kd.k[k]===undefined || kd.k[k] > 2) kd.k[k] = 2; }); Store.set("know", kd, 0);
+    const per = {}; qs.forEach((q,i)=>{ if(Number.isInteger(q.topic) && me.t.c.p[q.topic]!==undefined){ const p = per[q.topic] = per[q.topic] || [0,0]; p[1]++; if(res[i].ok) p[0]++; } });
+    const kd = know(); kd.k = Object.assign({}, kd.k); Object.entries(per).forEach(([pi,[ok,n]])=>{ const k = `${me.t.b.id}.${me.t.gi}.${me.t.ci}.${pi}`, r = ok/n; kd.k[k] = r===1 && n>=2 ? 3 : r>=.5 ? 2 : 1; }); Store.set("know", kd, 0);
     const qr = Object.assign({}, Store.get("quizRes", {})), key = `${me.t.b.id}.${me.t.ckey}`, prev = qr[key] ? qr[key][qr[key].length-1] : null;
     qr[key] = (qr[key]||[]).concat([pct]).slice(-10); Store.set("quizRes", qr, 0);
     const ql = Object.assign({list:[]}, Store.get("quizzes", {})); ql.list = ql.list.concat([{ ts:Date.now(), key, ok, n:qs.length }]); Store.set("quizzes", ql, 0);
@@ -236,5 +250,5 @@ function drawQuiz(me, qs){
   });
 }
 
-window.Topic = { render, renderQuiz, leave, find, pageOf, range, know, setKnow, KNOW, flat };
+window.Topic = { render, renderQuiz, leave, find, pageOf, range, know, setKnow, KNOW, flat, pagesFor };
 })();

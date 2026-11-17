@@ -1,25 +1,35 @@
 *{box-sizing:border-box} html{-webkit-text-size-adjust:100%} body{margin:0} img{max-width:100%} [hidden]{display:none!important}
 /* Раскладка: тетрадь в клетку. Слева полка предметов, справа открытый учебник с главами. */
 :root{
-  --paper:#f7f9fc; --grid:#dfe7f2; --card:#ffffff; --ink:#1b2333; --muted:#5d6a80;
-  --line:#d3dbe8; --accent:#2a4fd6; --accent-soft:#e6ecff; --done:#1f8a5a; --done-soft:#e1f4ea;
+  /* по умолчанию: девчачий розовый в клетку */
+  --paper:#fff6fa; --grid:#f6d7e6; --card:#ffffff; --ink:#2a1b24; --muted:#7a5d6c;
+  --line:#efd2e0; --accent:#d23f86; --accent-soft:#ffe3f0; --done:#1f8a5a; --done-soft:#e1f4ea;
   --warn:#a35a00; --warn-soft:#fff1dc; --margin:#e46a6a;
+  --acc-d:#ff8cc4; --accs-d:#3f2134;
   --f-display:"Unbounded","Golos Text",system-ui,sans-serif;
   --f-body:"Golos Text",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
 }
+:root[data-skin="lavender"]{--paper:#f9f6ff; --grid:#e4dbfb; --line:#ddd3f4; --accent:#7647d6; --accent-soft:#eee6ff; --ink:#221d33; --muted:#665e80; --acc-d:#b69bff; --accs-d:#2c2449}
+:root[data-skin="mint"]{--paper:#f3fbf7; --grid:#d3eee1; --line:#cde6da; --accent:#0f8566; --accent-soft:#d9f3e8; --ink:#17271f; --muted:#5a7266; --acc-d:#5fd6b0; --accs-d:#163a30}
+:root[data-skin="peach"]{--paper:#fff8f1; --grid:#f7e0cb; --line:#efdcca; --accent:#c9561a; --accent-soft:#ffe9d6; --ink:#2b1e15; --muted:#7a6352; --acc-d:#ffaa72; --accs-d:#422a1a}
+:root[data-skin="blue"]{--paper:#f7f9fc; --grid:#dfe7f2; --line:#d3dbe8; --accent:#2a4fd6; --accent-soft:#e6ecff; --ink:#1b2333; --muted:#5d6a80; --acc-d:#8aa5ff; --accs-d:#232e4d}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --paper:#121722; --grid:#1b2232; --card:#192030; --ink:#e7ecf5; --muted:#9aa7bd;
-  --line:#2a3447; --accent:#8aa5ff; --accent-soft:#232e4d; --done:#5fd29a; --done-soft:#173327;
+  --paper:#16121a; --grid:#221c27; --card:#1f1924; --ink:#efe8f0; --muted:#a99cad;
+  --line:#352c3b; --accent:var(--acc-d); --accent-soft:var(--accs-d); --done:#5fd29a; --done-soft:#173327;
   --warn:#ffbe6b; --warn-soft:#3a2a12; --margin:#b85959; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --paper:#121722; --grid:#1b2232; --card:#192030; --ink:#e7ecf5; --muted:#9aa7bd;
-  --line:#2a3447; --accent:#8aa5ff; --accent-soft:#232e4d; --done:#5fd29a; --done-soft:#173327;
+  --paper:#16121a; --grid:#221c27; --card:#1f1924; --ink:#efe8f0; --muted:#a99cad;
+  --line:#352c3b; --accent:var(--acc-d); --accent-soft:var(--accs-d); --done:#5fd29a; --done-soft:#173327;
   --warn:#ffbe6b; --warn-soft:#3a2a12; --margin:#b85959; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5;
   background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size:22px 22px;}
+:root[data-pattern="lines"] body{background-image:linear-gradient(var(--grid) 1px,transparent 1px);background-size:100% 28px}
+:root[data-pattern="dots"] body{background-image:radial-gradient(var(--grid) 1.6px,transparent 1.8px);background-size:20px 20px}
+:root[data-pattern="hearts"] body{background-image:radial-gradient(var(--grid) 1.4px,transparent 1.6px),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpath d='M32 40 C20 31 22 22 28 22 C30.5 22 32 24 32 25.5 C32 24 33.5 22 36 22 C42 22 44 31 32 40Z' fill='%23e58bb4' fill-opacity='.22'/%3E%3C/svg%3E");background-size:16px 16px,64px 64px}
+:root[data-pattern="plain"] body{background-image:none}
 .wrap{max-width:1180px;margin:0 auto;padding-block:28px 60px;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;margin-bottom:24px}
@@ -514,9 +524,11 @@ details.plain>summary{display:block;padding:6px 0;list-style:none}
 .tdraw .lbl{font:600 14px "Golos Text",system-ui,sans-serif;fill:#1b2333}
 .tdraw .lbl.sm{font-size:11px;fill:#5d6a80}
 .tdraw .pt{animation:tpop .3s ease-out both;animation-delay:1s}
+.tdraw .cart{animation:tfade .45s ease-out both;animation-delay:calc(var(--i) * .18s)}
+@keyframes tfade{from{opacity:0}to{opacity:1}}
 @keyframes tdraw{to{stroke-dashoffset:0}}
 @keyframes tpop{from{opacity:0;transform:scale(.2)}to{opacity:1}}
-@media (prefers-reduced-motion: reduce){ .tdraw .d{animation:none;stroke-dashoffset:0} .tdraw .pt{animation:none} }
+@media (prefers-reduced-motion: reduce){ .tdraw .d{animation:none;stroke-dashoffset:0} .tdraw .pt,.tdraw .cart{animation:none} }
 
 /* ---------- новый квадратный учитель ---------- */
 .av-blob{fill:#d97757;stroke:#3b1d12;stroke-width:5;stroke-linejoin:round}
@@ -546,3 +558,65 @@ details.plain>summary{display:block;padding:6px 0;list-style:none}
 .av-svg[data-mood="squint"] .av-pupil,.av-svg[data-mood="squint"] .av-glint{display:none}
 .av-svg[data-mood="think"] .av-pupil{transform:translate(2px,-4px)}
 .av-svg[data-mood="write"] .av-pupil{transform:translate(3px,3px)}
+
+/* ---------- оформление, компактные кнопки и новые разделы ---------- */
+.ibtn{font:inherit;font-size:16px;line-height:1;min-width:36px;height:36px;padding:0 8px;border-radius:9px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;list-style:none}
+.ibtn::-webkit-details-marker{display:none}
+.ibtn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.ibtn:hover{border-color:var(--accent)} .ibtn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+label.ibtn input{margin:0}
+details.more{position:relative;display:inline-block}
+details.more>summary{list-style:none} details.more>summary::-webkit-details-marker{display:none}
+.morebox{position:absolute;z-index:20;top:calc(100% + 6px);left:0;min-width:220px;display:flex;flex-direction:column;gap:8px;padding:10px;background:var(--card);border:1.5px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.12)}
+.morebox .btn{text-align:left}
+.boardhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.boardhead select{max-width:220px}
+.boardtools{gap:6px}
+.knchip{display:inline-block;font-size:13px;font-weight:600;padding:3px 10px;border-radius:999px;border:1.5px solid var(--line);color:var(--muted);white-space:nowrap}
+.knchip.kn0,.knchip.kn1{border-color:var(--warn);color:var(--warn);background:var(--warn-soft)}
+.knchip.kn2{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.knchip.kn3{border-color:var(--done);color:var(--done);background:var(--done-soft)}
+.themerow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+.themerow>.sm{min-width:48px}
+.skinbtn{font:inherit;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.skinbtn i{width:16px;height:16px;border-radius:50%;background:var(--sw)}
+.skinbtn[aria-pressed="true"],.themerow .vbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.tch-top{display:flex;gap:12px;align-items:center}
+.tch-top .tutorstage{flex:none;width:110px;height:120px;min-height:0}
+.tbar{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 6px}
+.exlist{margin-top:12px}
+.exgrid{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.exi{display:flex;flex-direction:column;padding:4px 9px;border-radius:9px;border:1.5px solid var(--line);font-size:13px;line-height:1.25}
+.exi small{color:var(--muted);font-size:11px}
+.exi.ex-cls{border-color:var(--done);background:var(--done-soft)} .exi.ex-home{border-color:var(--accent);background:var(--accent-soft)}
+.bonusgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:10px}
+.bonus{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:14px;border:2px solid var(--accent);background:var(--accent-soft);min-height:110px}
+.bonus.used{border-style:dashed;border-color:var(--line);background:var(--card);opacity:.75}
+.bonusform{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.bonusform input{font:inherit;padding:6px 8px;border-radius:8px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);width:100%}
+.knowrows{display:grid;gap:12px;margin-top:10px}
+.knowrow{border-left:5px solid var(--c);padding:8px 0 8px 12px;display:grid;gap:6px}
+.knowrow .kh{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline}
+.knowrow select{max-width:100%;margin-left:6px}
+.tocprev{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px 20px;max-height:340px;overflow:auto;font-size:14px}
+.tocprev ol{margin:4px 0 8px;padding-left:20px}
+.ogebooks{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
+.ogebook{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card)}
+.ogecnt{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:6px 0}
+.ogecnt>b{min-width:90px}
+.ogec{display:inline-flex;flex-direction:column;align-items:center;min-width:34px;padding:2px 4px;border-radius:7px;border:1px solid var(--line);font-size:12px}
+.ogec i{font-style:normal;color:var(--muted);font-size:10px}
+.ogec.ok{border-color:var(--done);background:var(--done-soft)}
+.okc{color:var(--done);font-weight:700}
+details.crit{margin:6px 0 10px;padding:6px 10px;border:1.5px dashed var(--line);border-radius:10px}
+details.crit[open]{background:var(--card)}
+.cut .bar{margin:8px 0}
+.cut-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cutopts{display:flex;flex-direction:column;gap:8px;max-width:560px}
+.cutopts .btn{text-align:left;font-weight:500}
+.btn.ghost{border-style:dashed;color:var(--muted)}
+@media (max-width:600px){ .tch-top .tutorstage{width:80px;height:90px} .morebox{min-width:200px} }
+.knowrow{min-width:0} .knowrow>*{min-width:0}
+.knowrow label,.cut label{display:block}
+.knowrow select,#cutfrom{display:block;width:100%;max-width:100%;margin:4px 0 0}
+.knowrow .chatrow{flex-wrap:wrap}

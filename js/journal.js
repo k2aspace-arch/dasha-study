@@ -24,7 +24,7 @@ const Photo = {
 window.Photo = Photo;
 
 /* ---------- данные ---------- */
-const journal = () => { const j = Object.assign({grades:[], abs:[], hw:[], imports:[]}, Store.get("journal", {})); ["grades","abs","hw","imports"].forEach(k=>j[k] = (j[k]||[]).slice()); return j; };
+const journal = () => { const j = Object.assign({grades:[], abs:[], hw:[], cls:[], imports:[]}, Store.get("journal", {})); ["grades","abs","hw","cls","imports"].forEach(k=>j[k] = (j[k]||[]).slice()); return j; };
 const events = () => { const e = Object.assign({list:[]}, Store.get("events", {})); e.list = e.list.slice(); return e; };
 const SUBJ = GRADE_SUBJECTS.map(([id,n])=>[id,n]).concat([["oge-math","ОГЭ: математика"],["oge-rus","ОГЭ: русский язык"]]);
 const subjName = id => (SUBJ.find(x=>x[0]===id)||[,id||"—"])[1];
@@ -47,7 +47,7 @@ function renderFill(){
   const ai = Store.aiAvailable(), last = lastImport();
   $("main").innerHTML = `<div class="stack">
   <section class="panel"><h2>Заполнялка</h2>
-    <p class="hint" style="margin:6px 0 12px">Пришли скриншоты из электронного дневника или вставь текст: оценки, Н, расписание контрольных, домашку. ИИ сам разберёт и разнесёт всё по местам: оценки и пропуски в журнал, контрольные и экзамены в расписание, итоговые оценки в таблицу на главной.</p>
+    <p class="hint" style="margin:6px 0 12px">Пришли скриншоты из электронного дневника или вставь текст: оценки, Н, расписание контрольных, домашку, фото классной тетради. ИИ сам разберёт и разнесёт всё по местам: оценки и пропуски в журнал, контрольные и экзамены в расписание, итоговые оценки в таблицу на главной.</p>
     <p class="note ${importDue()?"warn":""}">${last ? `Последний раз присылали ${DM.format(new Date(last))}.` : "Ещё ничего не присылали."} Раз в неделю присылай скрин оценок за прошлую неделю: за это +10 очков, а все оценки и Н превращаются в очки автоматически.</p>
     ${ai ? "" : `<p class="note"><b>Заполнялке нужен ИИ.</b> Она заработает, когда будет задеплоена новая версия функции.</p>`}
     <div class="fillimgs" id="fimgs"></div>
@@ -83,7 +83,8 @@ function drawResult(){
   const A = (r.absences||[]).filter(a=>validDate(a.date)).map(a=>({ ...a, reason: ["absent","sick","excused"].includes(a.reason) ? a.reason : "absent", dup: j.abs.some(x=>x.date===a.date && (x.subj||"")===(a.subject||"")) }));
   const E = (r.events||[]).filter(e=>validDate(e.date) && validSubj(e.subject)).map(e=>({ ...e, type: TYPES[e.type] ? e.type : "other", dup: ev.list.some(x=>x.date===e.date && x.subj===e.subject && x.type===(TYPES[e.type]?e.type:"other")) }));
   const H = (r.homework||[]).filter(h=>validDate(h.date) && validSubj(h.subject) && (h.text||h.page||h.paragraph||h.exercise)).map(h=>({ ...h, text:h.text||"", dup: j.hw.some(x=>x.date===h.date && x.subj===h.subject && hwLabel(x)===hwLabel({page:h.page, par:h.paragraph, ex:h.exercise, text:h.text||""})) }));
-  fill.parsed = { G, A, E, H };
+  const C = (r.classwork||[]).filter(c=>validDate(c.date) && validSubj(c.subject) && (c.paragraph||c.page||c.exercise||c.text)).map(c=>({ ...c, dup: j.cls.some(x=>x.date===c.date && x.subj===c.subject && (x.ex||"")===String(c.exercise||"")) }));
+  fill.parsed = { G, A, E, H, C };
   const row = (sec, i, it, html) => `<label class="frow ${it.dup?"dup":""}"><input type="checkbox" data-pick="${sec}:${i}" ${it.dup?"":"checked"}> ${html}${it.dup?` <span class="chip">уже есть</span>`:""}</label>`;
   const R = { absent:"Н, без причины", sick:"болела", excused:"по уважительной" };
   $("fres").hidden = false;
@@ -92,7 +93,8 @@ function drawResult(){
     ${A.length?`<h4>Пропуски · ${A.length}</h4>${A.map((a,i)=>row("A",i,a,`<span>${DMW.format(day(a.date))}</span><span>${esc(a.subject?subjName(a.subject):"весь день")}</span><span class="sm">${R[a.reason]}</span>`)).join("")}`:""}
     ${E.length?`<h4>В расписание · ${E.length}</h4>${E.map((e,i)=>row("E",i,e,`<span>${DMW.format(day(e.date))}${e.time?` ${esc(e.time)}`:""}</span><span>${esc(subjName(e.subject))}</span><b>${TYPES[e.type]}</b><span class="sm">${esc(e.note||"")}</span>`)).join("")}`:""}
     ${H.length?`<h4>Домашка · ${H.length}</h4>${H.map((h,i)=>row("H",i,h,`<span>${DMW.format(day(h.date))}</span><span>${esc(subjName(h.subject))}</span><span class="sm">${esc(hwLabel({page:h.page, par:h.paragraph, ex:h.exercise, text:h.text}))}</span>`)).join("")}`:""}
-    ${!G.length&&!A.length&&!E.length&&!H.length ? `<p>Ничего не нашёл. Попробуй скриншот почётче или вставь текст.</p>` : ""}
+    ${C.length?`<h4>Классная работа · ${C.length}</h4>${C.map((c,i)=>row("C",i,c,`<span>${DMW.format(day(c.date))}</span><span>${esc(subjName(c.subject))}</span><span class="sm">${esc(hwLabel({page:c.page, par:c.paragraph, ex:c.exercise, text:c.text}))}</span>`)).join("")}`:""}
+    ${!G.length&&!A.length&&!E.length&&!H.length&&!C.length ? `<p>Ничего не нашёл. Попробуй скриншот почётче или вставь текст.</p>` : ""}
     ${r.unclear ? `<p class="note">Не разобрал: ${esc(r.unclear)}</p>` : ""}
     <div class="btnrow"><button class="btn primary" type="button" id="fapply">Разнести отмеченное</button><button class="btn" type="button" id="fdrop">Отменить</button></div>`;
   $("fdrop").addEventListener("click", ()=>{ fill.result = null; $("fres").hidden = true; });
@@ -101,7 +103,8 @@ function drawResult(){
 function applyFill(){
   const P = fill.parsed, picked = sec => P[sec].filter((_,i)=>{ const c = $("fres").querySelector(`[data-pick="${sec}:${i}"]`); return c && c.checked; });
   const j = journal(), ev = events(), now = Date.now(), gg = S.grades();
-  const G = picked("G"), A = picked("A"), E = picked("E"), H = picked("H");
+  const G = picked("G"), A = picked("A"), E = picked("E"), H = picked("H"), C = picked("C");
+  C.forEach(c=>j.cls.push({ id:"c"+now+Math.random().toString(36).slice(2,6), date:c.date, subj:c.subject, par:String(c.paragraph||""), page:String(c.page||""), ex:String(c.exercise||""), text:c.text||"", src:"fill", ts:now }));
   let finals = 0;
   G.forEach(g=>{ j.grades.push({ id:"g"+now+Math.random().toString(36).slice(2,6), date:g.date, subj:g.subject, mark:g.mark, kind:g.kind, note:g.note||"", ts:now });
     if(["t1","t2","t3","year"].includes(g.kind) && GRADE_SUBJECTS.some(x=>x[0]===g.subject)){ const t = g.kind==="year" ? "y" : g.kind; gg.g[g.subject] = Object.assign({}, gg.g[g.subject], {[t]: g.mark}); finals++; } });
@@ -112,7 +115,7 @@ function applyFill(){
   Store.set("journal", j, 0); Store.set("events", ev, 0); if(finals) Store.set("grades", gg, 0);
   fill = { imgs:[], text:"", result:null };
   if(window.Points) Points.renderBar();
-  $("main").querySelector("#fres").innerHTML = `<h3>Готово</h3><p>Разнесено: ${pl(G.length,"оценка","оценки","оценок")}, ${pl(A.length,"пропуск","пропуска","пропусков")}, ${pl(E.length,"событие","события","событий")} в расписание, ${pl(H.length,"домашка","домашки","домашек")}${finals?`, итоговых оценок в таблицу: ${finals}`:""}.</p><div class="btnrow"><a class="btn" href="#diary">Открыть дневник</a><a class="btn" href="#schedule">Расписание</a></div>`;
+  $("main").querySelector("#fres").innerHTML = `<h3>Готово</h3><p>Разнесено: ${pl(G.length,"оценка","оценки","оценок")}, ${pl(A.length,"пропуск","пропуска","пропусков")}, ${pl(E.length,"событие","события","событий")} в расписание, ${pl(H.length,"домашка","домашки","домашек")}${C.length?`, классных работ: ${C.length}`:""}${finals?`, итоговых оценок в таблицу: ${finals}`:""}.</p><div class="btnrow"><a class="btn" href="#diary">Открыть дневник</a><a class="btn" href="#schedule">Расписание</a></div>`;
   $("ftext").value = ""; drawImgs();
 }
 
@@ -157,6 +160,30 @@ function renderHw(host){
   host.querySelectorAll("[data-hwpage]").forEach(b=>b.addEventListener("click",()=>{ const h = journal().hw.find(x=>x.id===b.dataset.hwpage); const bk = h && bookOf(h.subj); if(bk) Reader.open(bk, Number(h.page), `Домашка: ${hwLabel(h)}`); }));
 }
 
+/* ---------- классная работа: что делали на уроке ---------- */
+function renderCls(host){
+  const j = journal(), list = j.cls.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0, 12);
+  const row = c => `<div class="hwi"><div class="hwmain"><div><b>${esc(subjName(c.subj))}</b> <span class="sm">${DMW.format(day(c.date))}</span></div><div>${esc(hwLabel(c))||"—"}</div></div><div class="evb"><button class="pg" type="button" data-clsdel="${c.id}" aria-label="Удалить запись">✕</button></div></div>`;
+  host.innerHTML = `<h3>Что делали на уроке</h3>
+    <p class="hint">Параграф, страницы, номера, которые решали в классе, или что обсуждали. По этим записям учитель знает, что уже разобрано в классе, а что можно дать на дорешивание. Можно прислать фото классной тетради в <a href="#fill">заполнялку</a>.</p>
+    ${list.length ? list.map(row).join("") : ""}
+    <details class="hwadd" ${list.length?"":"open"}><summary class="btn">+ Записать урок</summary>
+    <form id="clsform" class="evform">
+      <label>Предмет<select id="clssubj">${GRADE_SUBJECTS.map(([id,n])=>`<option value="${id}">${esc(n)}</option>`).join("")}</select></label>
+      <label>Дата<input type="date" id="clsdate" value="${today()}"></label>
+      <label>Параграф<input type="text" id="clspar" placeholder="например 5"></label>
+      <label>Страницы<input type="text" id="clspage" placeholder="например 34–35"></label>
+      <label>Решали номера<input type="text" id="clsex" placeholder="например 112, 114, 117"></label>
+      <label class="wide">Что ещё было<input type="text" id="clstext" placeholder="например: обсуждали Онегина; самостоятельная; новое правило"></label>
+      <button class="btn primary" type="submit">Записать</button>
+    </form></details>`;
+  $("clsform").addEventListener("submit", e=>{ e.preventDefault();
+    const c = { id:"c"+Date.now(), subj:$("clssubj").value, date:$("clsdate").value||today(), par:$("clspar").value.trim(), page:$("clspage").value.trim(), ex:$("clsex").value.trim(), text:$("clstext").value.trim(), src:"manual", ts:Date.now() };
+    if(!hwLabel(c)){ $("clstext").focus(); return; }
+    const jj = journal(); jj.cls.push(c); Store.set("journal", jj, 0); renderCls(host); });
+  host.querySelectorAll("[data-clsdel]").forEach(b=>b.addEventListener("click",()=>{ const jj = journal(); jj.cls = jj.cls.filter(x=>x.id!==b.dataset.clsdel); Store.set("journal", jj, 0); renderCls(host); }));
+}
+
 /* ---------- дневник (только чтение) ---------- */
 function renderDiary(){
   const j = journal(), up = upcoming(14);
@@ -170,11 +197,12 @@ function renderDiary(){
   </section>
   ${up.length ? `<section class="panel"><h3>Скоро</h3>${up.map(evRow).join("")}</section>` : ""}
   <section class="panel" id="hwbox"></section>
+  <section class="panel" id="clsbox"></section>
   <section class="panel"><h3>Оценки и пропуски</h3>${dates.length ? dates.map(d=>`<div class="jday"><div class="jdate">${DMW.format(day(d))}</div><div class="jitems">${
       j.grades.filter(g=>g.date===d).map(g=>`<span class="jg" title="${esc(KIND[g.kind]||"")}${g.note?": "+esc(g.note):""}"><span>${esc(subjName(g.subj))}</span><b class="mk m${g.mark}">${g.mark}</b>${g.kind!=="current"?`<small>${esc(KIND[g.kind])}</small>`:""}</span>`).join("") +
       j.abs.filter(a=>a.date===d).map(a=>`<span class="jg ja"><span>${esc(a.subj?subjName(a.subj):"весь день")}</span><b>${R[a.reason]||"Н"}</b></span>`).join("")}</div></div>`).join("")
     : `<p class="hint">Пока пусто. Пришли скрин оценок из электронного дневника в заполнялку.</p>`}</section></div>`;
-  renderHw($("hwbox"));
+  renderHw($("hwbox")); renderCls($("clsbox"));
   bindEv($("main"));
 }
 

@@ -104,8 +104,10 @@ function grade({ mark, verdict, detail }){
     document.body.appendChild(ov);
     const a = create(ov.querySelector(".av-host"), {compact:false});
     a.setMood("idle");
-    const done = () => { a.destroy(); ov.remove(); resolve(); };
+    let closed = false;
+    const done = () => { if(closed) return; closed = true; window.removeEventListener("hashchange", done); a.destroy(); ov.remove(); resolve(); };
     ov.querySelector(".av-ok").addEventListener("click", done);
+    window.addEventListener("hashchange", done);
     ov.addEventListener("keydown", e=>{ if(e.key==="Escape") done(); });
     (async()=>{
       await new Promise(r=>setTimeout(r, 50));

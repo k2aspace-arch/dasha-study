@@ -226,24 +226,48 @@ const R8 = [
 const used = {};
 const fromBank = (key, bank) => { const u = used[key] = used[key] || []; if(u.length >= bank.length) u.length = 0; let i; do i = R(0, bank.length-1); while(u.includes(i)); u.push(i); return bank[i]; };
 const RUS = {
-3: { t:"Пунктуационный анализ", part:1, gen(){ const [s,a] = fromBank("r3", R3); return { q:`${COMMA_Q}<blockquote>${s}</blockquote>`, a, kind:"digits", note:"Запиши цифры без пробелов и запятых." }; }},
-4: { t:"Словосочетания", part:1, gen(){ const [w, from, to, acc] = fromBank("r4", R4);
-  return { q:`Замените словосочетание «${w}», построенное на основе ${from==="согласование"?"согласования":from==="управление"?"управления":"примыкания"}, синонимичным словосочетанием со связью ${to}. Напишите получившееся словосочетание.`, a:acc[0], acc, kind:"text" }; }},
-5: { t:"Орфографический анализ", part:1, gen(){ let s; do s = shuffle(R5).slice(0,5); while(!s.some(x=>x[1]) || new Set(s.map(x=>x[0].split(" ")[0])).size < 5);
+5: { t:"Пунктуация: где нужны запятые", part:1, gen(){ const [s,a] = fromBank("r3", R3); return { q:`${COMMA_Q}<blockquote>${s}</blockquote>`, a, kind:"digits", note:"Запиши цифры без пробелов и запятых." }; }},
+6: { t:"Орфографический анализ", part:1, gen(){ let s; do s = shuffle(R5).slice(0,5); while(!s.some(x=>x[1]) || new Set(s.map(x=>x[0].split(" ")[0])).size < 5);
   return { q:"Укажите варианты ответов, в которых дано верное объяснение написания выделенного слова.", opts:s.map(x=>x[0]), a:s.map((x,i)=>x[1]?i+1:"").join(""), kind:"digits", note:"Запиши номера верных вариантов без пробелов и запятых." }; }},
-7: { t:"Средства выразительности", part:1, gen(){ const kinds = Object.keys(R7), want = pick(kinds), others = shuffle(kinds.filter(k=>k!==want)).slice(0,3);
+11: { t:"Средства выразительности", part:1, gen(){ const kinds = Object.keys(R7), want = pick(kinds), others = shuffle(kinds.filter(k=>k!==want)).slice(0,3);
   const right = pick(R7[want]), opts = shuffle([right].concat(others.map(k=>pick(R7[k]))));
   return { q:`В каком варианте ответа средством выразительности речи является <b>${want}</b>?`, opts, a:String(opts.indexOf(right)+1), kind:"digits", note:"Запиши номер ответа." }; }},
-8: { t:"Лексический анализ", part:1, gen(){ const [s, w, acc] = fromBank("r8", R8);
+12: { t:"Лексический анализ", part:1, gen(){ const [s, w, acc] = fromBank("r8", R8);
   return { q:`Замените разговорное слово «${w}» в предложении стилистически нейтральным синонимом. Напишите этот синоним.<blockquote>${s}</blockquote>`, a:acc[0], acc, kind:"text" }; }}
 };
 const EXAMS = {
-  math: { name:"Математика", tasks:MATH, test:{ min:80, title:"Пробный вариант: по одному заданию каждого типа" },
-    missing:"Задания 1–5 (практические задачи с планом участка, шинами, тарифами), 7 (числовая прямая), 11 (графики) и 22–25 (график функции и геометрия с доказательством) пока не добавлены: их удобнее решать по сборнику ФИПИ и проверять у ИИ-учителя с доски." },
-  rus:  { name:"Русский язык", tasks:RUS, test:{ min:25, title:"Пробный вариант тестовой части: по два задания каждого типа" },
-    missing:"Изложение (задание 1), задания по тексту (2 и 6) и сочинение (9) пишутся развёрнуто: их можно написать на доске и отправить ИИ-учителю на проверку." }
+  math: { name:"Математика", tasks:MATH, test:{ min:80, title:"Пробный вариант: по одному заданию каждого типа" } },
+  rus:  { name:"Русский язык", tasks:RUS, test:{ min:25, title:"Пробный вариант заданий с кратким ответом" } }
 };
-const partOf = (exam, num) => exam==="rus" ? "rus" : (MATH[num].part===2 ? "math2" : "math1");
+/* Полный список заданий ОГЭ с максимальным баллом (по демоверсиям ФИПИ 2026–2027).
+   auto — задание генерируется и проверяется на сайте; остальные разбираются с учителем. */
+const SHORT_MATH = "1 балл за верный ответ. Ответ — число (целое или десятичная дробь), записывается без единиц измерения. Если ответов несколько, обычно просят записать один из них по условию.";
+const PART2 = "2 балла: ход решения верный, все шаги обоснованы, получен верный ответ. 1 балл: ход решения верный, но допущена одна вычислительная ошибка или описка, с её учётом решение доведено до конца. 0 баллов: другие случаи. Решение пишется на бланке полностью: каждый шаг, обоснование, ответ.";
+const SHORT_RUS = "1 балл за верный ответ. Цифры пишутся без пробелов и запятых; слова — без пробелов и знаков препинания, как требует задание.";
+const CAT = {
+  math: {
+    1:["Практическая задача (блок 1–5), вопрос 1",1], 2:["Практическая задача, вопрос 2",1], 3:["Практическая задача, вопрос 3",1], 4:["Практическая задача, вопрос 4",1], 5:["Практическая задача, вопрос 5",1],
+    6:["Вычисления",1], 7:["Числа на координатной прямой",1], 8:["Степени и корни",1], 9:["Уравнения",1], 10:["Вероятность",1],
+    11:["Графики функций",1], 12:["Расчёты по формулам",1], 13:["Неравенства",1], 14:["Прогрессии и задачи на закономерности",1],
+    15:["Треугольники",1], 16:["Окружность",1], 17:["Четырёхугольники",1], 18:["Фигуры на клетчатой бумаге",1], 19:["Верные утверждения по геометрии",1],
+    20:["Уравнения, неравенства, системы",2], 21:["Текстовая задача",2], 22:["Функция и её график",2], 23:["Геометрия: вычисление",2], 24:["Геометрия: доказательство",2], 25:["Геометрия повышенной сложности",2]
+  },
+  rus: {
+    1:["Сжатое изложение (по аудиозаписи)",6], 2:["Синтаксический анализ: грамматическая основа",1], 3:["Синтаксический анализ: верные утверждения",1],
+    4:["Пунктуация: правило и пример",1], 5:["Пунктуация: где нужны запятые",1], 6:["Орфографический анализ",1], 7:["Орфография: пропущенные буквы",1],
+    8:["Грамматические нормы: форма слова",1], 9:["Языковые нормы (со словарём)",1], 10:["Анализ содержания текста",1],
+    11:["Средства выразительности",1], 12:["Лексический анализ",1], 13:["Сочинение-рассуждение (13.1, 13.2 или 13.3)",8]
+  }
+};
+const CRIT = {
+  math: n => n >= 20 ? PART2 + (n===22 ? " В 22 оценивается и верно построенный график, и верно найденные значения параметра." : n===24 ? " В 24 нужно доказательство: каждое утверждение со ссылкой на признак, свойство или теорему." : "") : SHORT_MATH,
+  rus: n => n===1 ? `Изложение, 6 баллов: ИК1 — передано основное содержание всех микротем; ИК2 — применены приёмы сжатия (исключение, обобщение, упрощение) по всем микротемам; ИК3 — смысловая цельность, связность и последовательность. Объём не меньше 70 слов. Плюс общая грамотность (ГК1 орфография, ГК2 пунктуация, ГК3 грамматика, ГК4 речь, ФК1 фактическая точность) — оценивается по изложению и сочинению вместе.`
+    : n===13 ? `Сочинение, 8 баллов: СК1 — ответ на вопрос (тезис); СК2 — два примера из текста, и каждый пояснён; СК3 — логичность, нет нарушений; СК4 — композиционная стройность (вступление, примеры, вывод). Не меньше 70 слов, иначе 0 баллов по содержанию. Плюс общая грамотность ГК1–ГК4 и ФК1 вместе с изложением.`
+    : SHORT_RUS + (n===4 ? " Важен порядок цифр." : "")
+};
+const maxOf = (exam, n) => (CAT[exam][n]||[])[1] || 1;
+const critHtml = (exam, n) => `<details class="crit plain"><summary class="sm">Критерии оценивания · максимум ${pl(maxOf(exam,n),"балл","балла","баллов")}</summary><p class="hint">${esc(CRIT[exam](Number(n)))}</p><p class="hint">По демоверсиям ФИПИ 2026–2027. Перед экзаменом сверь с актуальной демоверсией на fipi.ru.</p></details>`;
+const partOf = (exam, num) => exam==="rus" ? "rus" : (Number(num) >= 20 ? "math2" : "math1");
 
 /* ---------- проверка ответа ---------- */
 const norm = s => String(s).toLowerCase().replace(/ё/g,"е").replace(/[«»"'.!?]/g,"").replace(/\s+/g," ").trim();
@@ -275,26 +299,34 @@ function stats(){
   return by;
 }
 function renderMenu(){
-  clearInterval(timer); session = null;
-  const by = stats(), parts = { math1:0, math2:0, rus:0 };
-  Points.ogeLog().a.forEach(([, exam, num, ok])=>{ if(ok && (exam==="rus" || MATH[num])) parts[partOf(exam, num)]++; });
-  const block = (id) => { const E = EXAMS[id];
-    return `<section class="panel oge-ex"><h3>${E.name}</h3>
+  clearInterval(timer); session = null; dropTeacher();
+  const by = stats(), oc = Points.ogeCounts(), goal = 30;
+  const block = (id) => { const E = EXAMS[id], C = CAT[id], total = Object.values(C).reduce((a,x)=>a+x[1],0);
+    return `<section class="panel oge-ex"><h3>${E.name} <span class="sm">· ${Object.keys(C).length} заданий, максимум ${total} баллов${id==="rus"?" + грамотность за изложение и сочинение":""}</span></h3>
       <button class="btn primary" type="button" data-test="${id}">${E.test.title}, ${E.test.min} минут</button>
-      <div class="oge-types">${Object.entries(E.tasks).map(([n,t])=>{ const s = by[id+n] || {n:0,ok:0};
-        return `<div class="ogetype"><span class="num">${n}</span><span class="nm">${esc(t.t)}${t.part===2?` <span class="chip">часть 2</span>`:""}</span><span class="sm">${s.ok} верно из ${s.n}</span><button class="btn" type="button" data-train="${id}:${n}">Тренировать</button></div>`; }).join("")}</div>
-      <p class="hint">${E.missing}</p></section>`; };
+      <div class="oge-types">${Object.entries(C).map(([n,[t,max]])=>{ const s = by[id+n] || {n:0,ok:0}, auto = !!E.tasks[n], c = (oc[id]||{})[n] || 0;
+        return `<div class="ogetype"><span class="num">${n}</span><span class="nm">${esc(t)} <span class="chip ${max>1?"warn":""}">${pl(max,"балл","балла","баллов")}</span>${auto?"":` <span class="chip">с учителем</span>`}</span><span class="sm ${c>goal?"okc":""}" title="Цель на ноутбук: больше ${goal} верных">${c}/${goal+1}</span><button class="btn" type="button" data-train="${id}:${n}">${auto?"Тренировать":"Решать"}</button></div>`; }).join("")}</div>
+      </section>`; };
   $("main").innerHTML = `<div class="stack">
-    <section class="panel"><h2>ОГЭ</h2><p class="hint" style="margin:6px 0 12px">Пробный вариант идёт на время, ответы проверяются в конце. Тренировка даёт 10 заданий одного типа подряд и сразу показывает правильный ответ.</p>
-      <div class="subjrows">
-        ${[["Математика, часть 1","math1"],["Математика, часть 2","math2"],["Русский, тестовая часть","rus"]].map(([l,k])=>`<div class="subjrow" style="--c:var(--accent)"><span>${l}</span><div class="bar"><i style="width:${Math.min(100,Math.round(100*parts[k]/30))}%"></i></div><span>${parts[k]}/30</span></div>`).join("")}
-      </div>
-      <p class="hint">Цель на ноутбук: больше 30 верно решённых заданий в каждой части.</p>
-      <p class="hint">Задания по математике составляются заново каждый раз по образцу заданий ОГЭ-2025, поэтому не повторяются. Задания по русскому собраны вручную в формате тестовой части ОГЭ-2025. Это не официальный банк ФИПИ: его не получилось загрузить, а ответы ФИПИ не публикует.</p>
+    <section class="panel"><h2>ОГЭ</h2><p class="hint" style="margin:6px 0 12px">Все задания экзамена по порядку, у каждого его вес в баллах. Задания с пометкой «с учителем» (развёрнутые, изложение, сочинение и те, что пока не генерируются) решаются с ИИ-учителем: он даёт условие или берёт его из сборника, а потом проверяет по критериям ФИПИ. Критерии спрятаны в шапке каждого задания.</p>
+      <p class="hint">Цель на ноутбук: больше ${goal} верных решений каждого задания. Счётчик справа: сколько уже.</p>
+      ${Study.ogeBooksHtml()}
     </section>
     ${block("math")}${block("rus")}</div>`;
-  $("main").querySelectorAll("[data-train]").forEach(b=>b.addEventListener("click",()=>{ const [e,n] = b.dataset.train.split(":"); startTrain(e, Number(n)); }));
+  Study.bindOgeBooks($("main"));
+  $("main").querySelectorAll("[data-train]").forEach(b=>b.addEventListener("click",()=>{ const [e,n] = b.dataset.train.split(":"); EXAMS[e].tasks[n] ? startTrain(e, Number(n)) : startPractice(e, Number(n)); }));
   $("main").querySelectorAll("[data-test]").forEach(b=>b.addEventListener("click",()=>startTest(b.dataset.test)));
+}
+/* учитель под заданием: тетрадь, фото, чат */
+let teach = null;
+function dropTeacher(){ if(teach){ teach.destroy(); teach = null; } }
+const plain = h => { const d = document.createElement("div"); d.innerHTML = String(h).replace(/<span class="fr"><i>(.*?)<\/i><i>(.*?)<\/i><\/span>/g,"($1)/($2)").replace(/<sup>(.*?)<\/sup>/g,"^$1").replace(/<svg[\s\S]*?<\/svg>/g," [рисунок на клетчатой бумаге] "); return d.textContent.replace(/\s+/g," ").trim(); };
+function mountTeacher(exam, num, ctx){
+  dropTeacher();
+  const host = $("ogeteach"); if(!host) return;
+  teach = Study.Teacher.mount(host, { subject: exam==="math" ? "Математика, ОГЭ" : "Русский язык, ОГЭ", mode:"oge", ruled: exam==="rus", nbBook:"oge-"+exam, nbKey:"t"+num,
+    title:`Тетрадь · задание ${num}`, context: () => `Задание ${num} ОГЭ (${exam==="math"?"математика":"русский язык"}), «${CAT[exam][num][0]}», максимум ${maxOf(exam,num)} б.\nКритерии: ${CRIT[exam](num)}\n${ctx()}`,
+    onScore: (n, m) => { const ok = n >= Math.ceil(m*0.75); Points.logOge(exam, num, ok); } });
 }
 function taskHtml(t, i, val){
   return `<div class="ogeq"><div class="oge-num">Задание ${t.num}${i!==undefined?` · №${i+1}`:""}</div><div class="oge-text">${t.q}</div>
@@ -305,11 +337,14 @@ function taskHtml(t, i, val){
 function startTrain(exam, num){
   clearInterval(timer);
   session = { mode:"train", exam, num, n:0, ok:0, total:10, task: make(exam, num), answered:false };
+  $("main").innerHTML = `<div class="stack"><div id="ogetrain"></div><section class="panel" id="ogeteach"></section></div>`;
   drawTrain();
+  mountTeacher(exam, num, () => { const t = session && session.task; return t ? `Условие: ${plain(t.q)}${t.opts?" Варианты: "+t.opts.map((o,i)=>`${i+1}) ${plain(o)}`).join(" "):""}\nВерный ответ (не называй его сразу, веди наводящими вопросами): ${shown(t)}` : ""; });
 }
 function drawTrain(){
   const s = session, t = s.task, T = EXAMS[s.exam].tasks[s.num];
-  $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><a href="#oge" class="btn" id="ogeback">← Все задания</a><b>${EXAMS[s.exam].name}: ${esc(T.t)}</b><span class="sm">Задание ${s.n+1} из ${s.total} · верно ${s.ok}</span></div>
+  $("ogetrain").innerHTML = `<section class="panel oge-run"><div class="oge-top"><a href="#oge" class="btn" id="ogeback">← Все задания</a><b>${EXAMS[s.exam].name}, задание ${s.num}: ${esc(T.t)}</b><span class="sm">${s.n+1} из ${s.total} · верно ${s.ok}</span></div>
+    ${critHtml(s.exam, s.num)}
     <form id="ogeform">${taskHtml(t)}<div id="ogefb" aria-live="polite"></div>
     <div class="btnrow"><button class="btn primary" type="submit" id="ogego">Проверить</button><button class="btn" type="button" id="ogeend">Закончить серию</button></div></form></section>`;
   const inp = $("main").querySelector("[data-ans]"); inp.focus();
@@ -317,15 +352,15 @@ function drawTrain(){
   $("ogeform").addEventListener("submit", e=>{ e.preventDefault();
     if(!s.answered){ if(!inp.value.trim()){ inp.focus(); return; }
       const ok = check(t, inp.value); s.answered = true; s.n++; if(ok) s.ok++; Points.logOge(s.exam, s.num, ok);
-      $("ogefb").innerHTML = (ok ? `<p class="fb ok">Верно!</p>` : `<p class="fb bad">Неверно. Правильный ответ: <b>${esc(shown(t))}</b></p>`) + `<button class="btn" type="button" id="ogeteach">Разобрать с учителем</button>`;
-      $("ogeteach").addEventListener("click", ()=>askTeacher(t, inp.value, ok));
+      $("ogefb").innerHTML = (ok ? `<p class="fb ok">Верно!</p>` : `<p class="fb bad">Неверно. Правильный ответ: <b>${esc(shown(t))}</b></p>`) + `<button class="btn" type="button" id="ogeteachbtn">Разобрать с учителем ↓</button>`;
+      $("ogeteachbtn").addEventListener("click", ()=>{ if(teach) teach.ask(`Мой ответ: ${inp.value}. ${ok?"Он верный, но объясни, как решать такие задания быстрее.":"Он неверный. Помоги понять, где ошибка, начни с наводящего вопроса."}`); });
       inp.readOnly = true; $("ogego").textContent = s.n >= s.total ? "Получить оценку" : "Следующее задание"; $("ogego").focus();
     } else if(s.n >= s.total) endTrain();
     else { s.task = make(s.exam, s.num); s.answered = false; drawTrain(); }
   });
 }
 async function endTrain(){
-  const s = session; if(!s || !s.n){ renderMenu(); return; }
+  const s = session; dropTeacher(); if(!s || !s.n){ renderMenu(); return; }
   session = null;
   await finish(`train:${s.exam}:${s.num}`, s.ok, s.n, `Тренировка, задание ${s.num}`);
   renderMenu();
@@ -371,11 +406,39 @@ async function submitTest(timeout){
   await finish(`test:${s.exam}`, ok, res.length, `Пробный вариант, ${EXAMS[s.exam].name.toLowerCase()}`);
 }
 
+/* развёрнутые и не генерируемые задания: условие от учителя, из сборника или своё; проверка по критериям */
+function startPractice(exam, num){
+  clearInterval(timer); session = { mode:"practice", exam, num, task:"" };
+  const [t, max] = CAT[exam][num], long = exam==="rus" && (num===1 || num===13);
+  const book = Study.ogeBook(exam);
+  $("main").innerHTML = `<div class="stack"><section class="panel oge-run"><div class="oge-top"><a href="#oge" class="btn">← Все задания</a><b>${EXAMS[exam].name}, задание ${num}: ${esc(t)}</b><span class="chip ${max>1?"warn":""}">максимум ${pl(max,"балл","балла","баллов")}</span></div>
+    ${critHtml(exam, num)}
+    <div class="btnrow">${Store.aiAvailable()?`<button class="btn primary" type="button" id="pgen">Дай задание</button>`:""}${book?`<button class="btn" type="button" id="pbook">Открыть сборник</button>`:""}</div>
+    <div id="ptask" class="oge-text"></div>
+    <label class="oge-ans" style="display:block"><span class="sm">${long ? (num===1 ? "Текст для изложения (если взят из сборника) и твоё изложение" : "Условие и твоё сочинение") : "Условие (вставь или опиши) и твой ответ"}</span>
+      <textarea id="pans" class="filltext" placeholder="${num===1 ? "Изложение пишется по аудио. Можно вставить текст из сборника, прочитать его вслух дважды (или попросить кого-то), а потом написать изложение в тетради ниже или здесь." : "Можно писать здесь, а решение — в тетради ниже или на фото."}"></textarea></label>
+    <div class="btnrow"><button class="btn primary" type="button" id="pcheck" ${Store.aiAvailable()?"":"disabled"}>Сдать учителю на проверку</button><span class="sm" id="pstat" aria-live="polite"></span></div>
+    </section><section class="panel" id="ogeteach"></section></div>`;
+  mountTeacher(exam, num, () => `Условие: ${session && session.task ? session.task : "(ученица взяла задание из сборника, условие в её сообщении или на фото)"}`);
+  if($("pbook")) $("pbook").addEventListener("click", ()=>Reader.open(book, 0, `Сборник: ${EXAMS[exam].name}`));
+  if($("pgen")) $("pgen").addEventListener("click", async()=>{
+    $("pgen").disabled = true; $("pstat").textContent = "Учитель составляет задание…";
+    try{ const r = await Store.ask({ mode:"ogegen", text:`Экзамен: ОГЭ, ${EXAMS[exam].name.toLowerCase()}. Задание №${num}: ${t}.` });
+      const j = JSON.parse(r.text.slice(r.text.indexOf("{"), r.text.lastIndexOf("}")+1));
+      session.task = String(j.text||""); session.answer = j.answer || ""; session.taskCrit = j.criteria || "";
+      $("ptask").innerHTML = Draw.html(session.task).replace(/\n/g,"<br>"); $("pstat").textContent = "";
+    }catch(e){ $("pstat").textContent = "Не получилось: " + e.message; }
+    $("pgen").disabled = false; $("pgen").textContent = "Другое задание";
+  });
+  $("pcheck").addEventListener("click", ()=>{ const v = $("pans").value.trim();
+    if(teach) teach.check(`Проверь по критериям ФИПИ моё задание ${num}.${session.answer?` (Эталон для тебя: ${session.answer})`:""}${v?`\nМой текст или ответ:\n${v}`:" Решение в тетради или на фото."}`); });
+}
+
 function askTeacher(t, given, ok){
   const plain = h => { const d = document.createElement("div"); d.innerHTML = h.replace(/<span class="fr"><i>(.*?)<\/i><i>(.*?)<\/i><\/span>/g,"($1)/($2)").replace(/<sup>(.*?)<\/sup>/g,"^$1").replace(/<svg[\s\S]*?<\/svg>/g," [рисунок на клетчатой бумаге] "); return d.textContent.replace(/\s+/g," ").trim(); };
   const txt = `Задание ${t.num} ОГЭ (${t.exam==="math"?"математика":"русский язык"}): ${plain(t.q)}${t.opts?" Варианты: "+t.opts.map((o,i)=>`${i+1}) ${plain(o)}`).join(" "):""}\nМой ответ: ${given||"—"}. ${ok?"Ответ верный, но я хочу понять, как решать такие задания.":"Ответ неверный. Помоги понять, где ошибка, но не решай за меня: сначала задай наводящий вопрос."}`;
   try{ sessionStorage.setItem("dasha:tutorq", txt); sessionStorage.setItem("dasha:tutorsubj", t.exam==="math" ? "algebra" : "rus"); }catch(e){}
   location.hash = "#tutor";
 }
-window.Oge = { render: renderMenu, make, check, EXAMS, leave(){ clearInterval(timer); session = null; } };
+window.Oge = { render: renderMenu, make, check, EXAMS, CAT, leave(){ clearInterval(timer); session = null; dropTeacher(); } };
 })();

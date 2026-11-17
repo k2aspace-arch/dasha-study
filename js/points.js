@@ -21,14 +21,14 @@ const RULES = {
   year:  {"5":120, "4":40, "3":-40, "2":-80},            // годовая
   streakMax: 10,                // бонус за серию: +1 за каждый день серии, не больше 10 в день
   idlePenalty: -10,             // со 2-го дня простоя подряд
-  goals: { twoWeeks:180, month:400, quarter:1100, final:2500, program:0.9, ogePart:30 }
+  goals: { twoWeeks:180, month:400, quarter:1100, final:2500, program:0.9, ogePart:30, ogeTask:30 }
 };
 const REWARDS = {
   twoWeeks: { title:"Вкусняшка с доставкой", hint:"Каждые 2 недели", choices:["Пицца","Суши или роллы","Торт или пирожные","Бабл-ти и десерт","Бургер","Своё"] },
   month:    { title:"Выход на выбор", hint:"Каждый месяц", choices:["Мастер-класс","Верховая езда","Урок вождения","Ресторан на выбор","Каток или скалодром","Своё"] },
   quarter:  { title:"Абонемент", hint:"Каждые 3 месяца", choices:["Танцы","Верховая езда","Бассейн","Йога или фитнес","Своё"] },
   dress:    { title:"Платье на выпускной", hint:"Средний балл аттестата выше 4,9" },
-  laptop:   { title:"Ноутбук", hint:"Аттестат с отличием, 2500 очков, 90% программы и по 30 заданий ОГЭ в каждой части" }
+  laptop:   { title:"Ноутбук", hint:"Аттестат с отличием, 2500 очков, 90% программы и больше 30 верных решений каждого задания ОГЭ" }
 };
 const HW_SUBJECTS = GRADE_SUBJECTS.filter(([id])=>!["pe","trud","nat"].includes(id));
 
@@ -104,6 +104,18 @@ function ogeParts(){
   O.forEach(([, exam, num, ok])=>{ if(!ok) return; if(exam==="math") cnt[num>=20?"math2":"math1"]++; else cnt.rus++; });
   return cnt;
 }
+// сколько раз верно решено каждое задание ОГЭ: { math:{1:n,…,25:n}, rus:{1:n,…,9:n} }
+const OGE_N = { math:25, rus:13 };
+function ogeCounts(){
+  const out = { math:{}, rus:{} }; Object.entries(OGE_N).forEach(([e,n])=>{ for(let i=1;i<=n;i++) out[e][i] = 0; });
+  ogeLog().a.forEach(([, exam, num, ok])=>{ if(ok && out[exam] && out[exam][num]!==undefined) out[exam][num]++; });
+  return out;
+}
+// заработанные бонусы: каждый выполненный период превращается в квадратик в кабинете
+function bonuses(){
+  const c = compute(), used = Object.assign({u:{}}, Store.get("bonuses", {})).u;
+  return periods(c).filter(p=>p.pts >= p.goal).map(p=>({ id:p.id, kind:p.kind, title:REWARDS[p.kind].title, choices:REWARDS[p.kind].choices||[], label:p.label, used: used[p.id] || null }));
+}
 function programShare(){ const all = BOOKS.flatMap(keysOf); return all.length ? all.filter(k=>App.done[k]).length / all.length : 0; }
 function yearAvg(){ const g = S.grades().g; const v = GRADE_SUBJECTS.map(([id])=>Number((g[id]||{}).y)).filter(x=>x>=2); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; }
 
@@ -127,13 +139,14 @@ function renderBar(){
 const dayLine = rec => `За этот день: <b>${rec?rec.pts:0}</b> очков${rec&&rec.active?" · день засчитан в серию":" · чтобы день засчитался в серию, сделай домашку, параграф, итоговые вопросы, позанимайся с учителем или реши 3 задания ОГЭ"}.`;
 /* ---------- награды ---------- */
 function renderRewards(){
-  const c = compute(), ps = periods(c), cl = claims().c, parts = ogeParts(), prog = programShare(), avg = yearAvg();
-  const card = p => { const ok = p.pts >= p.goal, r = REWARDS[p.kind], got = cl[p.id];
+  const c = compute(), ps = periods(c), parts = ogeParts(), prog = programShare(), avg = yearAvg();
+  const used = Object.assign({u:{}}, Store.get("bonuses", {})).u, oc = ogeCounts(), allTasks = [...Object.entries(oc.math), ...Object.entries(oc.rus)], doneTasks = allTasks.filter(([,n])=>n > RULES.goals.ogeTask).length;
+  const card = p => { const ok = p.pts >= p.goal, r = REWARDS[p.kind];
     return `<div class="rw ${ok?"ok":""} ${p.over&&!ok?"miss":""}">
       <div class="rw-top"><b>${esc(r.title)}</b><span class="sm">${esc(p.label)}</span></div>
       <div class="bar"><i style="width:${Math.min(100,Math.round(100*p.pts/p.goal))}%"></i></div>
       <span class="sm">${p.pts} из ${p.goal} очков${ok?" · получено!":p.over?" · период закончился":""}</span>
-      ${ok ? (got ? `<span class="chip ok">Выбрано: ${esc(got)}</span>` : `<div class="chatrow"><select data-choice="${p.id}" aria-label="Что выбрать">${r.choices.map(x=>`<option>${esc(x)}</option>`).join("")}</select><button class="btn primary" type="button" data-claim="${p.id}">Выбрать награду</button></div>`) : ""}
+      ${ok ? (used[p.id] ? `<span class="chip">Использован ${esc(used[p.id].date ? DM.format(day(used[p.id].date)) : "")}</span>` : `<a class="chip ok" href="#account">Бонус в личном кабинете</a>`) : ""}
     </div>`; };
   const goalRow = (label, cur, goal, fmt) => `<div class="subjrow" style="--c:var(--accent)"><span>${label}</span><div class="bar"><i style="width:${Math.min(100,Math.round(100*cur/goal))}%"></i></div><span>${fmt||cur+"/"+goal}</span></div>`;
   const by = k => ps.filter(p=>p.kind===k).reverse();
@@ -147,12 +160,13 @@ function renderRewards(){
     <div class="subjrows">
       ${goalRow("Очки", c.total, RULES.goals.final)}
       ${goalRow("Пройдено программы", Math.round(prog*100), 90, Math.round(prog*100)+"%")}
-      ${goalRow("ОГЭ математика, часть 1", parts.math1, RULES.goals.ogePart)}
-      ${goalRow("ОГЭ математика, часть 2", parts.math2, RULES.goals.ogePart)}
-      ${goalRow("ОГЭ русский, тестовая часть", parts.rus, RULES.goals.ogePart)}
+      ${goalRow("Задания ОГЭ, где больше 30 верных", doneTasks, allTasks.length)}
       ${goalRow("Годовые оценки", avg ? Math.round(avg*100) : 0, 500, avg ? avg.toFixed(2).replace(".",",") : "—")}
     </div>
-    <p class="hint">Ноутбук: аттестат с отличием (все пятёрки), ${RULES.goals.final} очков, 90% программы и по ${RULES.goals.ogePart} верных заданий ОГЭ в каждой части.</p>
+    <details class="plain"><summary class="sm">Сколько раз верно решено каждое задание ОГЭ</summary>
+      ${[["math","Математика"],["rus","Русский"]].map(([e,n])=>`<div class="ogecnt"><b class="sm">${n}</b>${Object.entries(oc[e]).map(([k,v])=>`<span class="ogec ${v>RULES.goals.ogeTask?"ok":""}" title="Задание ${k}: верно ${v}"><i>${k}</i>${v}</span>`).join("")}</div>`).join("")}
+    </details>
+    <p class="hint">Ноутбук: аттестат с отличием (все пятёрки), ${RULES.goals.final} очков, 90% программы и больше ${RULES.goals.ogeTask} верных решений КАЖДОГО задания ОГЭ (все номера математики и русского).</p>
   </section>
   <section class="panel"><h3>Цель: платье на выпускной</h3>
     <div class="subjrows">${goalRow("Средний балл аттестата", avg ? Math.round(avg*100) : 0, 491, avg ? avg.toFixed(2).replace(".",",") + (avg>4.9?" · есть!":" из 4,91+") : "—")}</div>
@@ -162,14 +176,13 @@ function renderRewards(){
   <section class="panel"><h3>Каждый месяц: выход на выбор</h3><div class="rwgrid">${by("month").length ? by("month").map(card).join("") : `<p class="hint">Первый месяц начнётся 1 декабря.</p>`}</div></section>
   <section class="panel"><h3>Каждые 3 месяца: абонемент</h3><div class="rwgrid">${by("quarter").length ? by("quarter").map(card).join("") : `<p class="hint">Первый период: декабрь – февраль.</p>`}</div></section>
   <section class="panel"><h3>Как начисляются очки</h3><div class="rules">
+    <p>Очки только копятся и никогда не тратятся. Когда за период набрано нужное число очков, в личном кабинете появляется бонус-квадратик. Бонусы тоже копятся: используй, когда захочешь, и запиши, когда и как.</p>
     <p>Оценки и пропуски приходят только из электронного дневника через заполнялку. Текущая оценка: 5 → +5, 4 → +2, 3 → −3, 2 → −8. День с Н без причины: ${RULES.absent}. Болезнь (Б) и уважительная причина не снимают очки и не ломают серию. Скрин оценок за неделю: +${RULES.weekly}.</p>
     <p>Домашка: +${RULES.hw} за задание из учебника, +${RULES.hwOther} за своё (доклад, проект, задача). Пройденный параграф: +${RULES.paragraph}. Верное задание ОГЭ: +${RULES.ogeOk}. Пробный вариант ОГЭ: +${RULES.ogeTest}. Итоговые вопросы по главе: +${RULES.quiz}, без ошибок ещё +5.</p>
     <p>Контрольная: 5 → +20, 4 → +10, 3 → 0, 2 → −15. Итоговая за триместр: 5 → +80, 4 → +30, 3 → −30. Годовая: 5 → +120, 4 → +40, 3 → −40.</p>
     <p>Серия: день засчитывается, если сделана домашка, параграф, итоговые вопросы по главе или 3 задания ОГЭ. Каждый день серии даёт бонус +1, +2 … до +${RULES.streakMax}. Выходные и каникулы серию не ломают.</p>
     <p>Если в учебный день не было занятий, серия <b>остывает</b>. На второй день простоя она <b>гаснет</b>, и начиная с этого дня за каждый пустой учебный день снимается ${-RULES.idlePenalty} очков.</p>
   </div></section></div>`;
-  $("main").querySelectorAll("[data-claim]").forEach(b=>b.addEventListener("click",()=>{ const id = b.dataset.claim, v = $("main").querySelector(`[data-choice="${id}"]`).value;
-    const r = claims(); r.c = Object.assign({}, r.c, {[id]: v}); Store.set("rewards", r, 0); renderRewards(); }));
 }
 
 /* ---------- отчёт папе ---------- */
@@ -181,48 +194,51 @@ function reportData(){
   const books = BOOKS.map(b=>{ const k = keysOf(b); return [b.subject, Math.round(100*k.filter(x=>App.done[x]).length/k.length)]; });
   return { c, g, parts, prog, last, T, week, books };
 }
+function trials(){ return (Object.assign({list:[]}, Store.get("ogeTests", {})).list||[]).slice(-6).map(t=>({ exam: t.exam==="rus" ? "русский" : "математика", ok:t.ok, n:t.n, pct: t.n ? Math.round(100*t.ok/t.n) : 0, date: iso(new Date(t.ts)) })); }
 function localReport(){
   const { c, parts, prog, last, T, week, books } = reportData();
   const t1 = last("t1"), t2 = last("t2"), cur = t2.length ? t2 : t1;
-  const fives = cur.filter(x=>x[1]==="5").map(x=>x[0]), fours = cur.filter(x=>x[1]==="4").map(x=>x[0]), low = cur.filter(x=>x[1]==="3"||x[1]==="2").map(x=>x[0]);
+  const fives = cur.filter(x=>x[1]==="5").map(x=>x[0]), fours = cur.filter(x=>x[1]==="4").map(x=>x[0]);
   const lines = [];
-  lines.push("Здравствуйте! Это учитель Клод с коротким отчётом о Дашиных успехах.");
-  if(fives.length) lines.push(`Отличные результаты по предметам: ${fives.join(", ")}. Это настоящая заслуга, Даша молодец.`);
-  if(fours.length) lines.push(`Уверенные четвёрки: ${fours.join(", ")}. До пятёрки здесь совсем немного.`);
+  lines.push("Здравствуйте! Это учитель Клод, коротко о том, как дела у Даши. 🙂");
+  if(fives.length) lines.push(`Пятёрки: ${fives.join(", ")}. Это настоящий результат её работы.`);
+  if(fours.length) lines.push(`Уверенные четвёрки: ${fours.join(", ")}.`);
   const tGood = T.filter(t=>t.mark==="5");
-  if(tGood.length) lines.push(`Недавние пятёрки за контрольные: ${tGood.map(t=>t.subjName).join(", ")}.`);
-  lines.push(`За последнюю неделю набрано ${week} очков, всего ${c.total}. ${c.streak>1?`Сейчас идёт серия ${pl(c.streak,"день","дня","дней")} подряд без пропусков.`:""}`);
+  if(tGood.length) lines.push(`Недавние пятёрки за контрольные: ${[...new Set(tGood.map(t=>t.subjName))].join(", ")}.`);
+  lines.push(`Даша занимается регулярно: за неделю ${week} очков, всего ${c.total}${c.streak>1?`, сейчас серия ${pl(c.streak,"день","дня","дней")} подряд`:""}.`);
   const goodBooks = books.filter(b=>b[1]>0).sort((a,b)=>b[1]-a[1]);
-  if(goodBooks.length) lines.push(`По учебникам: ${goodBooks.map(b=>`${b[0]} ${b[1]}%`).join(", ")}.`);
-  if(parts.math1+parts.math2+parts.rus) lines.push(`Подготовка к ОГЭ: решено верно ${parts.math1+parts.math2} заданий по математике и ${parts.rus} по русскому.`);
-  if(low.length) lines.push(`Где можно бережно помочь: ${low.join(", ")}. Здесь хорошо бы чуть больше практики и, может быть, спокойно разобрать вместе одну-две темы. Ругать точно не нужно: Даша старается, и поддержка сейчас сработает лучше всего.`);
-  else if(fours.length) lines.push(`Чтобы выйти на аттестат с отличием, стоит чуть подтянуть: ${fours.join(", ")}. Хватит регулярных коротких занятий.`);
-  if(c.state==="cool"||c.state==="out") lines.push("В последние дни занятий было меньше, чем обычно. Мягкое напоминание и интерес к её делам помогут вернуться в ритм.");
-  lines.push(`Пройдено ${Math.round(prog*100)}% программы. Спасибо, что поддерживаете Дашу!`);
+  if(goodBooks.length) lines.push(`По учебникам уже пройдено: ${goodBooks.map(b=>`${b[0]} ${b[1]}%`).join(", ")}.`);
+  const tr = trials();
+  if(tr.length){ const by = ex => tr.filter(t=>t.exam===ex).pop(); const m = by("математика"), r = by("русский");
+    lines.push(`Пробные варианты ОГЭ: ${[m && `математика ${m.ok} из ${m.n} (${m.pct}%)`, r && `русский ${r.ok} из ${r.n} (${r.pct}%)`].filter(Boolean).join(", ")}.`); }
+  else if(parts.math1+parts.math2+parts.rus) lines.push(`К ОГЭ готовится понемногу каждый день: верно решено ${parts.math1+parts.math2} заданий по математике и ${parts.rus} по русскому.`);
+  if(fours.length) lines.push(`Что можно ещё улучшить: ${fours.slice(0,2).join(" и ")} до пятёрки, и над этим уже идёт работа.`);
+  lines.push(`Если всё пойдёт так же, Даша спокойно выходит на ${fours.length<=1 ? "аттестат с отличием" : "сильный аттестат"} и хороший результат на ОГЭ в июне. Пройдено ${Math.round(prog*100)}% программы, и темп хороший.`);
+  lines.push("Всё хорошо, Даша молодец!");
   return lines.join("\n\n");
 }
 function openReport(){
   const ov = document.createElement("div"); ov.className = "av-overlay";
-  ov.innerHTML = `<div class="av-sheet report"><div class="av-sheet-lines"></div><h2 style="position:relative;margin:0">Отчёт для папы</h2><textarea id="reptext" class="reptext" aria-label="Текст отчёта">Пишу отчёт…</textarea>
-    <div class="chatrow" style="position:relative"><button class="btn primary" type="button" id="repcopy">Скопировать</button><a class="btn" id="reptg" target="_blank" rel="noopener">Отправить в Telegram</a><a class="btn" id="repwa" target="_blank" rel="noopener">WhatsApp</a><button class="btn" type="button" id="repclose">Закрыть</button></div>
+  ov.innerHTML = `<div class="av-sheet report"><div class="av-sheet-lines"></div><h2 style="position:relative;margin:0">Для папы</h2><textarea id="reptext" class="reptext" aria-label="Текст отчёта"></textarea>
+    <div class="chatrow" style="position:relative">${navigator.share?`<button class="btn primary" type="button" id="repshare">Отправить…</button>`:""}<a class="btn ${navigator.share?"":"primary"}" id="reptg" target="_blank" rel="noopener">Telegram</a><a class="btn" id="repwa" target="_blank" rel="noopener">WhatsApp</a><button class="btn" type="button" id="repcopy">Скопировать</button><button class="btn" type="button" id="repclose">Закрыть</button></div>
     <p class="hint" id="repnote" style="position:relative"></p></div><div class="av-host"></div>`;
   document.body.appendChild(ov);
   const a = Avatar.create(ov.querySelector(".av-host")); a.setMood("think"); a.say("Сейчас всё расскажу…");
-  const set = txt => { $("reptext").value = txt; const u = encodeURIComponent(txt); $("reptg").href = `https://t.me/share/url?url=%20&text=${u}`; $("repwa").href = `https://wa.me/?text=${u}`; };
+  const set = txt => { $("reptext").value = txt; const u = encodeURIComponent(txt); $("reptg").href = `https://t.me/share/url?url=${u}`; $("repwa").href = `https://api.whatsapp.com/send?text=${u}`; };
   const close = () => { a.destroy(); ov.remove(); };
   $("repclose").addEventListener("click", close);
-  $("repcopy").addEventListener("click", async()=>{ try{ await navigator.clipboard.writeText($("reptext").value); $("repnote").textContent = "Скопировано."; }catch(e){ $("reptext").select(); $("repnote").textContent = "Выдели текст и скопируй вручную."; } });
+  $("repcopy").addEventListener("click", async()=>{ try{ await navigator.clipboard.writeText($("reptext").value); $("repnote").textContent = "Скопировано, можно вставить в любой мессенджер."; }catch(e){ $("reptext").select(); $("repnote").textContent = "Выдели текст и скопируй вручную."; } });
+  if($("repshare")) $("repshare").addEventListener("click", async()=>{ try{ await navigator.share({ text: $("reptext").value }); }catch(e){} });
   $("reptext").addEventListener("input", ()=>set($("reptext").value));
-  (async()=>{
-    let txt = localReport();
-    if(Store.aiAvailable()){
-      try{ const { c, parts, prog, T, week, books } = reportData();
-        const r = await Store.ask({ mode:"report", subject:"", messages:[{role:"user", content: JSON.stringify({ grades: S.grades().g, tests: T, points: c.total, week, streak: c.streak, streakState: c.state, books, oge: parts, program: Math.round(prog*100) })}] });
-        if(r && r.text) txt = r.text; }catch(e){ $("repnote").textContent = "ИИ-учитель сейчас недоступен, поэтому отчёт составлен автоматически."; }
-    }
-    set(txt); a.setMood("smile"); a.say("Готово! Можно отправлять", 4000);
-  })();
+  set(localReport());   // кнопки работают сразу, ИИ потом заменит текст на свой
+  if(Store.aiAvailable()) (async()=>{
+    $("repnote").textContent = "Учитель дописывает отчёт…";
+    try{ const { c, parts, prog, T, week, books } = reportData();
+      const r = await Store.ask({ mode:"report", subject:"", messages:[{role:"user", content: JSON.stringify({ grades: S.grades().g, tests: T, points: c.total, week, streak: c.streak, books, oge: parts, trials: trials(), program: Math.round(prog*100) })}] });
+      if(r && r.text && ov.isConnected){ set(r.text); $("repnote").textContent = ""; } }catch(e){ if(ov.isConnected) $("repnote").textContent = ""; }
+    if(ov.isConnected){ a.setMood("smile"); a.say("Готово! Можно отправлять", 4000); }
+  })(); else { a.setMood("smile"); a.say("Готово! Можно отправлять", 4000); }
 }
 
-window.Points = { compute, renderBar, renderRewards, logAct(){ const a = Object.assign({d:{}}, Store.get("act", {})); a.d = Object.assign({}, a.d); const t = todayIso(); a.d[t] = (a.d[t]||0)+1; Store.set("act", a, 2000); }, openReport, ogeLog, logOge(exam, num, ok){ const o = ogeLog(); o.a = o.a.concat([[Date.now(), exam, num, ok ? 1 : 0]]); Store.set("oge", o, 1500); renderBar(); } };
+window.Points = { compute, bonuses, ogeCounts, REWARDS, renderBar, renderRewards, logAct(){ const a = Object.assign({d:{}}, Store.get("act", {})); a.d = Object.assign({}, a.d); const t = todayIso(); a.d[t] = (a.d[t]||0)+1; Store.set("act", a, 2000); }, openReport, ogeLog, logOge(exam, num, ok){ const o = ogeLog(); o.a = o.a.concat([[Date.now(), exam, num, ok ? 1 : 0]]); Store.set("oge", o, 1500); renderBar(); } };
 })();

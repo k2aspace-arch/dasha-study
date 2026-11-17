@@ -40,6 +40,24 @@ function compile(src){
   const f = expr(); if(pos !== t2.length) throw new Error("bad"); return f;
 }
 
+/* мультяшные значки в стиле квадратных человечков: точка привязки по центру, размер около 60 */
+const OL = 'stroke="#2b1a12" stroke-width="3" stroke-linejoin="round"';
+const CARTOON = {
+  guy: it => { const f = { orange:"#d97757", blue:"#6b8fe8", green:"#5fb37e", purple:"#a07be0", pink:"#f08bb4", gray:"#9aa3b2" }[it.color] || "#d97757";
+    const m = it.mood==="sad" ? '<path d="M-7 10 Q0 4 7 10" fill="none" stroke="#2b1a12" stroke-width="2.5" stroke-linecap="round"/>' : it.mood==="wow" ? '<rect x="-3" y="5" width="6" height="7" rx="2" fill="#2b1a12"/>' : '<path d="M-7 6 Q0 13 7 6" fill="none" stroke="#2b1a12" stroke-width="2.5" stroke-linecap="round"/>';
+    return `<rect x="-14" y="18" width="9" height="14" rx="2" fill="${f}" ${OL}/><rect x="5" y="18" width="9" height="14" rx="2" fill="${f}" ${OL}/>
+      <rect x="-30" y="-6" width="10" height="10" rx="2" fill="${f}" ${OL}/><rect x="20" y="-6" width="10" height="10" rx="2" fill="${f}" ${OL}/>
+      <rect x="-22" y="-24" width="44" height="44" rx="5" fill="${f}" ${OL}/>
+      <rect x="-11" y="-11" width="5" height="9" rx="1" fill="#2b1a12"/><rect x="6" y="-11" width="5" height="9" rx="1" fill="#2b1a12"/>${m}`; },
+  apple: () => `<path d="M0 -14 C-22 -24 -30 2 -18 18 C-10 28 -4 24 0 22 C4 24 10 28 18 18 C30 2 22 -24 0 -14Z" fill="#e8584f" ${OL}/><path d="M0 -14 Q2 -24 6 -28" fill="none" stroke="#2b1a12" stroke-width="3" stroke-linecap="round"/><path d="M4 -22 Q14 -30 20 -22 Q12 -16 4 -22Z" fill="#5fb37e" ${OL}/><path d="M-14 -6 Q-16 2 -12 8" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".7"/>`,
+  orange: () => `<circle r="22" fill="#f5a524" ${OL}/><circle cx="-6" cy="-4" r="1.6" fill="#c9780c"/><circle cx="7" cy="5" r="1.6" fill="#c9780c"/><circle cx="-2" cy="10" r="1.6" fill="#c9780c"/><path d="M0 -22 Q6 -30 14 -26 Q8 -20 0 -22Z" fill="#5fb37e" ${OL}/>`,
+  pear: () => `<path d="M0 -24 C-10 -24 -8 -8 -16 4 C-24 18 -12 28 0 28 C12 28 24 18 16 4 C8 -8 10 -24 0 -24Z" fill="#b9d65a" ${OL}/><path d="M0 -24 Q1 -30 4 -33" fill="none" stroke="#2b1a12" stroke-width="3" stroke-linecap="round"/>`,
+  banana: () => `<path d="M-26 -10 Q-24 22 6 22 Q24 20 30 6 Q14 14 0 10 Q-16 4 -18 -14Z" fill="#f7d34a" ${OL}/><rect x="-22" y="-20" width="5" height="8" rx="1" fill="#6b4a2b" transform="rotate(-15 -19 -16)"/>`,
+  cherry: () => `<path d="M-8 6 Q-4 -18 8 -26 Q10 -10 10 8" fill="none" stroke="#5a8a3a" stroke-width="3"/><circle cx="-9" cy="14" r="11" fill="#d23c3c" ${OL}/><circle cx="11" cy="16" r="11" fill="#d23c3c" ${OL}/>`,
+  box: it => `<rect x="-22" y="-18" width="44" height="36" rx="3" fill="#e9c89a" ${OL}/><path d="M-22 -8 H22" stroke="#2b1a12" stroke-width="2"/>${it.text?`<text y="10" text-anchor="middle" class="lbl">${esc(String(it.text).slice(0,6))}</text>`:""}`,
+  coin: () => `<circle r="16" fill="#f5c542" ${OL}/><text y="6" text-anchor="middle" class="lbl" fill="#7a5a00">₽</text>`
+};
+
 function svg(spec){
   const items = Array.isArray(spec.items) ? spec.items.slice(0, 60) : [];
   let out = "", len = 0;
@@ -75,6 +93,9 @@ function svg(spec){
       if(it.t==="arc"){ const [cx,cy] = (it.c||[]).map(num), r = num(it.r), a0 = num(it.a0)*Math.PI/180, a1 = num(it.a1)*Math.PI/180; len++;
         out += `<path class="d" d="M${cx+r*Math.cos(a0)} ${cy-r*Math.sin(a0)} A${r} ${r} 0 ${Math.abs(a1-a0)>Math.PI?1:0} 0 ${cx+r*Math.cos(a1)} ${cy-r*Math.sin(a1)}" stroke="${c}" fill="none" style="--i:${len}"/>`; return; }
       if(it.t==="point"){ const [x,y] = (it.p||[]).map(num); out += `<circle class="pt" cx="${x}" cy="${y}" r="4" fill="${c}"/>` + (it.s ? `<text x="${x+6}" y="${y-6}" class="lbl">${esc(it.s)}</text>` : ""); return; }
+      if(it.t==="rect"){ const [x,y,w,h] = (it.p||[]).map(num); len++; out += `<rect class="d" x="${x}" y="${y}" width="${w}" height="${h}" rx="${num(it.r)}" stroke="${c}" fill="${it.fill?c:"none"}" ${it.fill?'fill-opacity=".15"':""} ${dash?'stroke-dasharray="6 5"':""} style="--i:${len}"/>`; return; }
+      if(CARTOON[it.t]){ const [x,y] = (it.p||[]).map(num), k = Math.max(0.3, Math.min(3, num(it.s)||1)); len++;
+        out += `<g class="cart" transform="translate(${x} ${y}) scale(${k})" style="--i:${len}">${CARTOON[it.t](it)}</g>` + (it.label ? `<text x="${x}" y="${y + 42*k}" class="lbl" text-anchor="middle">${esc(String(it.label).slice(0,30))}</text>` : ""); return; }
       if(it.t==="text"){ const [x,y] = (it.p||[]).map(num); out += `<text x="${x}" y="${y}" class="lbl" fill="${c}">${esc(String(it.s||"").slice(0,60))}</text>`; return; }
     }catch(e){}
   });

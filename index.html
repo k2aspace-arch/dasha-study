@@ -6,6 +6,7 @@
 <title>Дашины учебники</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@500;700&family=JetBrains+Mono:wght@400;600&family=Caveat:wght@700&display=swap">
+<script>try{var p=JSON.parse(localStorage.getItem("dasha:prefs")||"null")||{},r=document.documentElement;r.dataset.skin=p.skin||"pink";r.dataset.pattern=p.pattern||"grid";if(p.mode&&p.mode!=="auto")r.dataset.theme=p.mode;}catch(e){document.documentElement.dataset.skin="pink";}</script>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -15,7 +16,6 @@
       <h1>Дашины учебники</h1>
       <p class="sub" id="authbar" hidden><span id="whoami"></span> <button class="btn" id="logout" type="button" hidden style="margin-left:8px;padding:4px 10px">Выйти</button></p>
     </div>
-    <a class="planlink" href="https://claude.ai/artifact/HtGGDqkk4oDT2oA8HZoZvt" target="_blank" rel="noopener">План подготовки ↗</a>
   </header>
   <div id="streakbar" class="streakbar" hidden></div>
   <p class="note" id="savewarn" hidden><b>Не сохранилось.</b> Проверь интернет: изменения пока есть только на этом устройстве.</p>
@@ -79,5 +79,6 @@
 <script src="js/notebook.js"></script>
 <script src="js/topic.js"></script>
 <script src="js/journal.js"></script>
+<script src="js/study.js"></script>
 </body>
 </html>
