@@ -229,38 +229,64 @@ function localReport(){
   lines.push("Всё хорошо, Даша молодец!");
   return lines.join("\n\n");
 }
+// картинка отчёта: текст нельзя поменять перед отправкой
+function reportCanvas(text){
+  const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue(n).trim();
+  const acc = v("--accent") || "#d23f86", soft = v("--accent-soft") || "#ffe3f0", ink = "#2a1f2a", muted = "#7a6574";
+  const fBody = (getComputedStyle(document.body).fontFamily || "sans-serif"), fHead = v("--f-display") || fBody;
+  const W = 1080, P = 72, c = document.createElement("canvas"), x = c.getContext("2d");
+  const clean = String(text||"").replace(/\*\*|__|==|!!|`/g,"").replace(/^#+\s*/gm,"").replace(/^\s*[-*]\s+/gm,"• ").replace(/\[\[[^\]]*\]\]/g,"").trim();
+  const wrap = (t, font, maxW) => { x.font = font; const out = []; t.split("\n").forEach(par=>{ if(!par.trim()){ out.push(""); return; } let line = ""; par.split(/\s+/).forEach(w=>{ const tryL = line ? line+" "+w : w; if(x.measureText(tryL).width > maxW && line){ out.push(line); line = w; } else line = tryL; }); out.push(line); }); return out; };
+  const bodyFont = `400 34px ${fBody}`, lines = wrap(clean, bodyFont, W - 2*P - 40), LH = 50;
+  const H = 300 + lines.length*LH + 150; c.width = W; c.height = H;
+  x.fillStyle = "#fffafd"; x.fillRect(0,0,W,H);
+  x.strokeStyle = soft; x.lineWidth = 2; for(let gx=0; gx<W; gx+=36){ x.beginPath(); x.moveTo(gx,0); x.lineTo(gx,H); x.stroke(); } for(let gy=0; gy<H; gy+=36){ x.beginPath(); x.moveTo(0,gy); x.lineTo(W,gy); x.stroke(); }
+  x.fillStyle = acc; x.fillRect(0,0,W,16);
+  x.fillStyle = ink; x.font = `700 64px ${fHead}`; x.fillText("Dasha’s study", P, 120);
+  x.fillStyle = muted; x.font = `500 32px ${fBody}`; x.fillText("Отчёт для папы · " + new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric"}).format(new Date()), P, 172);
+  const top = 220, bh = lines.length*LH + 60;
+  x.fillStyle = "#ffffff"; x.strokeStyle = acc; x.lineWidth = 4; x.beginPath(); x.roundRect ? x.roundRect(P-8, top, W-2*P+16, bh, 28) : x.rect(P-8, top, W-2*P+16, bh); x.fill(); x.stroke();
+  x.fillStyle = ink; x.font = bodyFont; lines.forEach((l,k)=>x.fillText(l, P+20, top + 54 + k*LH));
+  x.fillStyle = acc; x.font = `600 28px ${fBody}`; x.fillText("Составлено автоматически по данным сайта", P, H - 60);
+  return c;
+}
 function openReport(){
   const ov = document.createElement("div"); ov.className = "av-overlay";
-  ov.innerHTML = `<div class="av-sheet report"><div class="av-sheet-lines"></div><h2 style="position:relative;margin:0">Для папы</h2><textarea id="reptext" class="reptext" aria-label="Текст отчёта"></textarea>
-    <div class="chatrow" style="position:relative">${navigator.share?`<button class="btn primary" type="button" id="repshare">Отправить…</button>`:""}<button class="btn ${navigator.share?"":"primary"}" type="button" id="reptg">Telegram</button><button class="btn" type="button" id="repwa">WhatsApp</button><button class="btn" type="button" id="repcopy">Скопировать</button><button class="btn" type="button" id="repclose">Закрыть</button></div>
-    <p class="hint" id="repnote" style="position:relative"></p></div><div class="av-host"></div>`;
+  ov.innerHTML = `<div class="av-sheet report"><div class="av-sheet-lines"></div><h2 style="position:relative;margin:0">Для папы</h2>
+    <div class="repimg" id="repimgbox"><p class="sm">Готовлю картинку…</p></div>
+    <div class="chatrow" style="position:relative;flex-wrap:wrap"><button class="btn primary" type="button" id="repshare">Отправить картинку</button><button class="btn" type="button" id="reptg">Telegram</button><button class="btn" type="button" id="repwa">WhatsApp</button><button class="btn" type="button" id="repdl">Скачать</button><button class="btn" type="button" id="repclose">Закрыть</button></div>
+    <p class="hint" id="repnote" style="position:relative">Отчёт отправляется картинкой, текст в нём поменять нельзя.</p></div><div class="av-host"></div>`;
   document.body.appendChild(ov);
   const a = Avatar.create(ov.querySelector(".av-host")); a.setMood("think"); a.say("Сейчас всё расскажу…");
-  const set = txt => { $("reptext").value = txt; };
   const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
-  const copy = async () => { const t = $("reptext").value; try{ await navigator.clipboard.writeText(t); return true; }catch(e){ $("reptext").select(); try{ return document.execCommand("copy"); }catch(_){ return false; } } };
-  // открыть мессенджер: на телефоне сначала приложение, если не открылось — веб-версия
-  const go = async (app, web) => {
-    const copied = await copy();
-    $("repnote").textContent = copied ? "Текст скопирован. Если в мессенджере он не появился сам, просто вставь его в чат с папой." : "Если текст не появился сам, выдели его здесь и скопируй.";
-    if(mobile){ let left = false; const onHide = () => { left = true; }; document.addEventListener("visibilitychange", onHide, {once:true});
-      location.href = app; setTimeout(()=>{ document.removeEventListener("visibilitychange", onHide); if(!left && !document.hidden) location.href = web; }, 1200); }
-    else { const w = window.open(web, "_blank", "noopener"); if(!w) location.href = web; }
-  };
-  $("reptg").addEventListener("click", ()=>{ const u = encodeURIComponent($("reptext").value); go(`tg://msg?text=${u}`, `https://t.me/share/url?url=${u}`); });
-  $("repwa").addEventListener("click", ()=>{ const u = encodeURIComponent($("reptext").value); go(`whatsapp://send?text=${u}`, mobile ? `https://api.whatsapp.com/send?text=${u}` : `https://web.whatsapp.com/send?text=${u}`); });
+  let blob = null, ready = false;
+  const note = t => { const n = $("repnote"); if(n) n.textContent = t; };
+  const draw = async txt => { const c = reportCanvas(txt); blob = await new Promise(r=>c.toBlob(r, "image/png")); const box = $("repimgbox"); if(box){ box.innerHTML = ""; const im = new Image(); im.alt = "Отчёт для папы"; im.src = URL.createObjectURL(blob); box.appendChild(im); } };
+  const file = () => new File([blob], "otchet-dlya-papy.png", { type:"image/png" });
+  const canShareFile = () => { try{ return !!(navigator.canShare && blob && navigator.canShare({ files:[file()] })); }catch(e){ return false; } };
+  const download = () => { const u = URL.createObjectURL(blob), l = document.createElement("a"); l.href = u; l.download = "otchet-dlya-papy.png"; document.body.appendChild(l); l.click(); l.remove(); setTimeout(()=>URL.revokeObjectURL(u), 5000); };
+  const copyImg = async () => { try{ await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]); return true; }catch(e){ return false; } };
+  const share = async () => { if(!blob) return; if(canShareFile()){ try{ await navigator.share({ files:[file()], title:"Отчёт для папы" }); note("Отправлено."); }catch(e){} return true; } return false; };
+  // мессенджер: на телефоне — через «Поделиться» (там выбрать Telegram или WhatsApp), на компьютере картинка копируется и открывается веб-версия, остаётся вставить (Ctrl+V)
+  const go = async web => { if(!blob) return; if(mobile && await share()) return;
+    const ok = await copyImg(); if(!ok) download();
+    note(ok ? "Картинка скопирована. В чате с папой нажми Ctrl+V (или «Вставить») и отправь." : "Картинка скачана. Прикрепи её в чате с папой.");
+    const w = window.open(web, "_blank", "noopener"); if(!w) location.href = web; };
+  $("repshare").addEventListener("click", async()=>{ if(!(await share())){ const ok = await copyImg(); if(!ok) download(); note(ok ? "Картинка скопирована, вставь её в любой мессенджер." : "Картинка скачана, прикрепи её в мессенджере."); } });
+  $("reptg").addEventListener("click", ()=>go("https://web.telegram.org/"));
+  $("repwa").addEventListener("click", ()=>go("https://web.whatsapp.com/"));
+  $("repdl").addEventListener("click", ()=>{ if(blob){ download(); note("Картинка скачана."); } });
   const close = () => { a.destroy(); ov.remove(); };
   $("repclose").addEventListener("click", close);
-  $("repcopy").addEventListener("click", async()=>{ try{ await navigator.clipboard.writeText($("reptext").value); $("repnote").textContent = "Скопировано, можно вставить в любой мессенджер."; }catch(e){ $("reptext").select(); $("repnote").textContent = "Выдели текст и скопируй вручную."; } });
-  if($("repshare")) $("repshare").addEventListener("click", async()=>{ try{ await navigator.share({ text: $("reptext").value }); }catch(e){} });
-  set(localReport());   // кнопки работают сразу, ИИ потом заменит текст на свой
+  const finish = () => { if(ov.isConnected){ a.setMood("smile"); a.say("Готово! Можно отправлять", 4000); } };
   if(Store.aiAvailable()) (async()=>{
-    $("repnote").textContent = "Учитель дописывает отчёт…";
+    note("Учитель пишет отчёт…");
+    let txt = localReport();
     try{ const { c, parts, prog, T, week, books } = reportData();
       const r = await Store.ask({ mode:"report", subject:"", messages:[{role:"user", content: JSON.stringify({ grades: S.grades().g, tests: T, points: c.total, week, streak: c.streak, books, oge: parts, trials: trials(), program: Math.round(prog*100) })}] });
-      if(r && r.text && ov.isConnected){ set(r.text); $("repnote").textContent = ""; } }catch(e){ if(ov.isConnected) $("repnote").textContent = ""; }
-    if(ov.isConnected){ a.setMood("smile"); a.say("Готово! Можно отправлять", 4000); }
-  })(); else { a.setMood("smile"); a.say("Готово! Можно отправлять", 4000); }
+      if(r && r.text) txt = r.text; }catch(e){}
+    if(ov.isConnected){ await draw(txt); note("Отчёт отправляется картинкой, текст в нём поменять нельзя."); finish(); }
+  })(); else { draw(localReport()).then(finish); }
 }
 
 window.Points = { compute, bonuses, squares, ogeCounts, ogeLast, REWARDS, renderBar, renderRewards, logAct(){ const a = Object.assign({d:{}}, Store.get("act", {})); a.d = Object.assign({}, a.d); const t = todayIso(); a.d[t] = (a.d[t]||0)+1; Store.set("act", a, 2000); }, openReport, ogeLog, logOge(exam, num, ok){ const o = ogeLog(); o.a = o.a.concat([[Date.now(), exam, num, ok ? 1 : 0]]); Store.set("oge", o, 1500); renderBar(); } };
