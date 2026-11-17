@@ -229,25 +229,39 @@ function localReport(){
   lines.push("Всё хорошо, Даша молодец!");
   return lines.join("\n\n");
 }
-// картинка отчёта: текст нельзя поменять перед отправкой
-function reportCanvas(text){
-  const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue(n).trim();
-  const acc = v("--accent") || "#d23f86", soft = v("--accent-soft") || "#ffe3f0", ink = "#2a1f2a", muted = "#7a6574";
-  const fBody = (getComputedStyle(document.body).fontFamily || "sans-serif"), fHead = v("--f-display") || fBody;
-  const W = 1080, P = 72, c = document.createElement("canvas"), x = c.getContext("2d");
-  const clean = String(text||"").replace(/\*\*|__|==|!!|`/g,"").replace(/^#+\s*/gm,"").replace(/^\s*[-*]\s+/gm,"• ").replace(/\[\[[^\]]*\]\]/g,"").trim();
-  const wrap = (t, font, maxW) => { x.font = font; const out = []; t.split("\n").forEach(par=>{ if(!par.trim()){ out.push(""); return; } let line = ""; par.split(/\s+/).forEach(w=>{ const tryL = line ? line+" "+w : w; if(x.measureText(tryL).width > maxW && line){ out.push(line); line = w; } else line = tryL; }); out.push(line); }); return out; };
-  const bodyFont = `400 34px ${fBody}`, lines = wrap(clean, bodyFont, W - 2*P - 40), LH = 50;
-  const H = 300 + lines.length*LH + 150; c.width = W; c.height = H;
-  x.fillStyle = "#fffafd"; x.fillRect(0,0,W,H);
-  x.strokeStyle = soft; x.lineWidth = 2; for(let gx=0; gx<W; gx+=36){ x.beginPath(); x.moveTo(gx,0); x.lineTo(gx,H); x.stroke(); } for(let gy=0; gy<H; gy+=36){ x.beginPath(); x.moveTo(0,gy); x.lineTo(W,gy); x.stroke(); }
-  x.fillStyle = acc; x.fillRect(0,0,W,16);
-  x.fillStyle = ink; x.font = `700 64px ${fHead}`; x.fillText("Dasha’s study", P, 120);
-  x.fillStyle = muted; x.font = `500 32px ${fBody}`; x.fillText("Отчёт для папы · " + new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric"}).format(new Date()), P, 172);
-  const top = 220, bh = lines.length*LH + 60;
-  x.fillStyle = "#ffffff"; x.strokeStyle = acc; x.lineWidth = 4; x.beginPath(); x.roundRect ? x.roundRect(P-8, top, W-2*P+16, bh, 28) : x.rect(P-8, top, W-2*P+16, bh); x.fill(); x.stroke();
-  x.fillStyle = ink; x.font = bodyFont; lines.forEach((l,k)=>x.fillText(l, P+20, top + 54 + k*LH));
-  x.fillStyle = acc; x.font = `600 28px ${fBody}`; x.fillText("Составлено автоматически по данным сайта", P, H - 60);
+// картинка отчёта как страница дневника, написанная от руки: текст нельзя поменять перед отправкой
+async function reportCanvas(text){
+  const HAND = `"Caveat", "Segoe Print", "Comic Sans MS", cursive`;
+  try{ await Promise.all([document.fonts.load(`700 46px "Caveat"`, "Дашаабв"), document.fonts.load(`700 46px "Caveat"`, "Abc 0123456789 !?.,:—"), document.fonts.ready]); }catch(e){}
+  const W = 1080, LH = 58, ML = 130, PR = 70, c = document.createElement("canvas"), x = c.getContext("2d");
+  const ink = "#1d3fbf", red = "#d0021b";
+  const clean = String(text||"").replace(/\*\*|__|==|!!|`/g,"").replace(/^#+\s*/gm,"").replace(/^\s*[-*•]\s+/gm,"— ").replace(/\[\[[^\]]*\]\]/g,"").replace(/\n{3,}/g,"\n\n").trim();
+  const font = `700 44px ${HAND}`;
+  const wrap = t => { x.font = font; const out = []; t.split("\n").forEach(par=>{ if(!par.trim()){ out.push(""); return; } let line = ""; par.split(/\s+/).forEach(w=>{ const t2 = line ? line+" "+w : w; if(x.measureText(t2).width > W - ML - PR && line){ out.push(line); line = w; } else line = t2; }); out.push(line); }); return out; };
+  const lines = wrap(clean), top = 250, H = top + (lines.length + 4) * LH + 40;
+  c.width = W; c.height = H;
+  // бумага дневника
+  x.fillStyle = "#fdfbf3"; x.fillRect(0,0,W,H);
+  x.strokeStyle = "#b9cbe6"; x.lineWidth = 2;
+  for(let y = top - LH + 14; y < H - 20; y += LH){ x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke(); }
+  x.strokeStyle = "#e7a3a3"; x.lineWidth = 3; x.beginPath(); x.moveTo(ML - 24, 0); x.lineTo(ML - 24, H); x.stroke();
+  // шапка, как в дневнике
+  x.fillStyle = "#6a6a7a"; x.font = `600 26px "Golos Text", sans-serif`; x.fillText("ДНЕВНИК  ·  Dasha’s study", ML, 60);
+  x.fillStyle = ink; x.font = `700 40px ${HAND}`;
+  const date = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long"}).format(new Date());
+  x.textAlign = "right"; x.fillText(date, W - PR, 120); x.textAlign = "left";
+  x.font = `700 58px ${HAND}`; x.fillText("Для папы", ML, 150);
+  x.strokeStyle = ink; x.lineWidth = 3; x.beginPath(); x.moveTo(ML, 164); x.quadraticCurveTo(ML + 120, 172, ML + 230, 160); x.stroke();
+  // текст «ручкой», с лёгким дрожанием
+  x.fillStyle = ink; x.font = font;
+  let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  lines.forEach((l, k) => { const y = top + k * LH; x.save(); x.translate(ML + (rnd()-.5)*3, y + (rnd()-.5)*3); x.rotate((rnd()-.5)*0.006); x.fillText(l, 0, 0); x.restore(); });
+  // пометка учителя красной ручкой
+  const yb = top + (lines.length + 1.6) * LH;
+  x.fillStyle = red; x.strokeStyle = red; x.font = `700 46px ${HAND}`; x.fillText("Молодец!", W - PR - 330, yb);
+  x.lineWidth = 4; x.beginPath(); x.ellipse(W - PR - 60, yb - 22, 52, 46, -0.15, 0, Math.PI*2); x.stroke();
+  x.font = `700 72px ${HAND}`; x.textAlign = "center"; x.fillText("5", W - PR - 60, yb + 2); x.textAlign = "left";
+  x.font = `700 34px ${HAND}`; x.fillText("учитель Клод", W - PR - 330, yb + 44);
   return c;
 }
 function openReport(){
@@ -261,7 +275,7 @@ function openReport(){
   const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
   let blob = null, ready = false;
   const note = t => { const n = $("repnote"); if(n) n.textContent = t; };
-  const draw = async txt => { const c = reportCanvas(txt); blob = await new Promise(r=>c.toBlob(r, "image/png")); const box = $("repimgbox"); if(box){ box.innerHTML = ""; const im = new Image(); im.alt = "Отчёт для папы"; im.src = URL.createObjectURL(blob); box.appendChild(im); } };
+  const draw = async txt => { const c = await reportCanvas(txt); blob = await new Promise(r=>c.toBlob(r, "image/png")); const box = $("repimgbox"); if(box){ box.innerHTML = ""; const im = new Image(); im.alt = "Отчёт для папы"; im.src = URL.createObjectURL(blob); box.appendChild(im); } };
   const file = () => new File([blob], "otchet-dlya-papy.png", { type:"image/png" });
   const canShareFile = () => { try{ return !!(navigator.canShare && blob && navigator.canShare({ files:[file()] })); }catch(e){ return false; } };
   const download = () => { const u = URL.createObjectURL(blob), l = document.createElement("a"); l.href = u; l.download = "otchet-dlya-papy.png"; document.body.appendChild(l); l.click(); l.remove(); setTimeout(()=>URL.revokeObjectURL(u), 5000); };
