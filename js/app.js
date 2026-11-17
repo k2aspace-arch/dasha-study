@@ -6,7 +6,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",
 const pl = (n,a,b,c) => { const m=Math.abs(n)%100, d=m%10; return `${n} ${m>10&&m<20?c:d===1?a:d>=2&&d<=4?b:c}` };
 const keysOf = b => b.groups.flatMap((g,gi)=>g.chapters.flatMap((c,ci)=>c.p.map((_,pi)=>`${b.id}.${gi}.${ci}.${pi}`)));
 const PDFLIB_URL = "js/vendor/pdf-lib.min.js";
-const NAV = [["home","Главная","⌂"],["diary","Дневник","✓"],["calendar","Календарь","▦"],["memos","Памятки","⭐"],["oge","ОГЭ","★"],["rewards","Награды","♛"],["tutor","ИИ-учитель","?"],["stats","Статистика","▤"]];
+const NAV = [["home","Главная","⌂"],["diary","Дневник","✓"],["calendar","Календарь","▦"],["memos","Памятки","⭐"],["rewards","Награды","♛"],["tutor","ИИ-учитель","?"],["stats","Статистика","▤"]];
 const LONG_DATE = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long"});
 
 /* ---------- данные ---------- */
@@ -52,6 +52,9 @@ function nowLine(){
 function renderShelf(cur){
   $("shelf").innerHTML =
     NAV.map(([id,t,ic])=>`<a class="navitem" href="#${id}" ${cur===id?'aria-current="page"':''}><span class="ic" aria-hidden="true">${ic}</span><span class="nm">${t}</span></a>`).join("") +
+    `<div class="shelf-label">ОГЭ</div>` +
+    [["math","ОГЭ: математика","#2a4fd6"],["rus","ОГЭ: русский язык","#c2410c"]].map(([e,n,col])=>{ let p = 0; try{ const oc = Points.ogeCounts()[e]||{}, k = Object.keys(oc); p = k.length ? Math.round(100*k.reduce((a,x)=>a+Math.min(oc[x],30),0)/(30*k.length)) : 0; }catch(_){}
+      return `<a href="#oge/${e}" style="--c:${col}" ${cur==="oge-"+e?'aria-current="page"':''} title="Прогресс к цели 30 верных из 33 по каждому заданию"><span class="spine"></span><span class="nm">${n}</span><span class="pc">${p}%</span></a>`; }).join("") +
     `<div class="shelf-label">Учебники</div>` +
     BOOKS.map(b=>`<a href="#${b.id}" style="--c:${b.color}" ${cur===b.id?'aria-current="page"':''}><span class="spine"></span><span class="nm">${esc(b.subject)}</span><span class="pc" data-pc="${b.id}">${pct(b)}%</span></a>`).join("") +
     `<div class="shelf-label">Ждут фото учебника</div>` +
@@ -70,20 +73,21 @@ const rnd = x => x===null ? null : Math.floor(x + 0.5 + 1e-9);
 const numAvg = a => { const n = a.map(Number).filter(x=>x>=2); return n.length ? n.reduce((x,y)=>x+y,0)/n.length : null; };
 function gradeModel(g){
   const f = g.f || {}, out = {};
-  const pick = (id, t, def) => { const r = (g.g[id]||{})[t]; if(r) return { v:r, real:true };
-    const o = (f[id]||{})[t]; if(o) return { v:o, set:true }; return { v: def===null||def===undefined ? "" : String(def), auto:true }; };
+  // edit=false: оценка только вычисляется (годовая, математика, аттестат), выбрать невозможную цифру нельзя
+  const pick = (id, t, def, edit=true) => { const r = (g.g[id]||{})[t]; if(r) return { v:r, real:true };
+    const o = edit ? (f[id]||{})[t] : null; if(o) return { v:o, set:true }; return { v: def===null||def===undefined ? "" : String(def), auto:true, calc:!edit }; };
   GRADE_SUBJECTS.forEach(([id])=>{ const o = out[id] = {};
     ["t1","t2","t3"].forEach(t=>o[t] = pick(id, t, (g.g[id]||{}).t1==="зач" ? "зач" : 5));
     const ys = ["t1","t2","t3"].map(t=>o[t].v);
-    o.y = pick(id, "y", ys.includes("зач") && !numAvg(ys) ? "зач" : rnd(numAvg(ys)));
+    o.y = pick(id, "y", ys.includes("зач") && !numAvg(ys) ? "зач" : rnd(numAvg(ys)), false);
     if(!MATH.includes(id)){ o.oge = pick(id, "oge", id==="rus" ? 5 : "");
       const y = Number(o.y.v), e = Number(o.oge.v);
-      o.att = pick(id, "att", id==="nat" ? "" : o.y.v==="зач" ? "зач" : e>=2 && y>=2 ? rnd((y+e)/2) : o.y.v); }
+      o.att = pick(id, "att", id==="nat" ? "" : o.y.v==="зач" ? "зач" : e>=2 && y>=2 ? rnd((y+e)/2) : o.y.v, false); }
   });
   const m = out.math = {};
-  m.y = pick("math", "y", rnd(numAvg(MATH.map(id=>out[id].y.v))));
+  m.y = pick("math", "y", rnd(numAvg(MATH.map(id=>out[id].y.v))), false);
   m.oge = pick("math", "oge", 5);
-  m.att = pick("math", "att", rnd(numAvg([m.y.v, m.oge.v])));
+  m.att = pick("math", "att", rnd(numAvg([m.y.v, m.oge.v])), false);
   return out;
 }
 function attAvg(M){ return numAvg(GRADE_SUBJECTS.filter(([id])=>!MATH.includes(id)).map(([id])=>M[id].att.v).concat([M.math.att.v])); }
@@ -96,11 +100,12 @@ function renderHome(){
   const M = gradeModel(g);
   const cell = (id, t, c, span) => { const sp = span ? ` rowspan="${span}" class="mathcell"` : "";
     if(c.real) return `<td${sp}><span class="gcell g${esc(c.v)}">${esc(c.v)}</span></td>`;
+    if(c.calc) return `<td${sp}><span class="gcell gfc gcalc" title="Считается сама из других оценок">${esc(c.v||"—")}</span></td>`;
     const def = c.auto ? c.v : "";
     return `<td${sp}><select class="gcell gfc${c.set?" gset":""}" data-fc="${id}" data-t="${t}" title="Прогноз. Поменяй, и всё пересчитается" aria-label="Прогноз">
       <option value="">${esc(c.auto ? (c.v||"—") : "авто")}</option>${["5","4","3","2"].map(o=>`<option ${c.set&&c.v===o?"selected":""}>${o}</option>`).join("")}</select></td>`; };
   const rows = GRADE_SUBJECTS.map(([id,name])=>{ const o = M[id];
-    const tail = MATH.includes(id) ? (id===MATH[0] ? cell("math","y",M.math.y,3) + cell("math","oge",M.math.oge,3) + cell("math","att",M.math.att,3) : "") : `<td class="sm muted">—</td>` + cell(id,"oge",o.oge) + cell(id,"att",o.att);
+    const tail = MATH.includes(id) ? (id===MATH[0] ? cell("math","oge",M.math.oge,3) + cell("math","att",M.math.att,3) : "") : cell(id,"oge",o.oge) + cell(id,"att",o.att);
     return `<tr><td>${esc(name)}</td>${["t1","t2","t3","y"].map(t=>cell(id,t,o[t])).join("")}${tail}</tr>`; }).join("");
   const f2 = a => a ? a.toFixed(2).replace(".",",") : "—";
   const colAvg = t => f2(numAvg(GRADE_SUBJECTS.map(([id])=>M[id][t].v)));
@@ -117,9 +122,9 @@ function renderHome(){
     <p class="hint">Каникулы и конец года взяты по обычному графику триместров, сверь их со школой. Даты ОГЭ взяты из проекта расписания на 2027 год и могут измениться.</p>
   </section>
   <section class="panel"><h3>Оценки</h3>
-    <div class="tablewrap"><table class="grades"><thead><tr><th>Предмет</th><th>1 трим.</th><th>2 трим.</th><th>3 трим.</th><th>Год</th><th title="Математика в аттестате одна: годовая по алгебре, геометрии и вероятности">Матем.</th><th>ОГЭ</th><th>Аттестат</th></tr></thead>
-    <tbody>${rows}</tbody><tfoot><tr><td>Средний балл</td><td>${colAvg("t1")}</td><td>${colAvg("t2")}</td><td>${colAvg("t3")}</td><td>${colAvg("y")}</td><td>${M.math.y.v||"—"}</td><td>${ogeAvg}</td><td><b>${f2(attAvg(M))}</b></td></tr></tfoot></table></div>
-    <p class="hint">Серые цифры — прогноз: пока везде 5. Поменяй любую, и годовая, математика, аттестат и средний балл пересчитаются. Годовая считается по триместрам, в аттестат по русскому и математике идёт среднее годовой и ОГЭ. Математика в аттестате одна: из алгебры, геометрии и вероятности.</p>
+    <div class="tablewrap"><table class="grades"><thead><tr><th>Предмет</th><th>1 трим.</th><th>2 трим.</th><th>3 трим.</th><th>Год</th><th>ОГЭ</th><th>Аттестат</th></tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr><td>Средний балл</td><td>${colAvg("t1")}</td><td>${colAvg("t2")}</td><td>${colAvg("t3")}</td><td>${colAvg("y")}</td><td>${ogeAvg}</td><td><b>${f2(attAvg(M))}</b></td></tr></tfoot></table></div>
+    <p class="hint">Серые цифры — прогноз: пока везде 5. Менять можно оценки за триместры и ОГЭ, а годовая, математика, аттестат и средний балл пересчитаются сами, поэтому невозможная цифра там не появится. Годовая считается по триместрам, в аттестат по русскому и математике идёт среднее годовой и ОГЭ. Математика в аттестате одна: годовая по алгебре, геометрии и вероятности вместе с ОГЭ.</p>
     <div class="legend">${notFive.length ? `<span class="chip warn">Не пятёрка сейчас: ${esc(notFive.map(x=>x[1]).join(", "))}</span>` : `<span class="chip ok">Все текущие оценки отличные</span>`}</div>
     <p class="hint">Итоговые оценки попадают сюда из электронного дневника через <a href="#diary">заполнялку</a>.</p>
   </section>
@@ -596,7 +601,7 @@ async function routeInner(){
   if(window.Study) Study.leaveCut();
   if(eNb){ eNb.destroy(); eNb = null; }
   if(id.startsWith("t/")){ renderShelf(id.split("/")[1]); return Topic.render(id.slice(2)); }
-  if(id.startsWith("oge/")){ const [, e, n] = id.split("/"); renderShelf("oge"); return Oge.openTask(e, Number(n)); }
+  if(id.startsWith("oge/")){ const [, e, n] = id.split("/"); renderShelf("oge-"+e); return n ? Oge.openTask(e, Number(n)) : Oge.render(e); }
   if(id.startsWith("cut/")){ renderShelf("account"); return Study.renderCut(id.slice(4)); }
   if(id.startsWith("q/")){ renderShelf(id.split("/")[1]); return Topic.renderQuiz(id.slice(2)); }
   if(window.Points) Points.renderBar();

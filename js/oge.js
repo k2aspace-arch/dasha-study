@@ -298,7 +298,8 @@ function stats(){
   O.forEach(([, exam, num, ok])=>{ const k = exam+num; by[k] = by[k] || {n:0, ok:0}; by[k].n++; if(ok) by[k].ok++; });
   return by;
 }
-function renderMenu(){
+function renderMenu(only){
+  if(typeof only !== "string" || !EXAMS[only]) only = null;
   clearInterval(timer); session = null; dropTeacher();
   const oc = Points.ogeCounts(), last = Points.ogeLast(), goal = 30;
   const bar = (id, n) => { const a = (last[id]||{})[n] || []; return `<span class="ogebar" title="Последние ${a.length} из 33: верно ${a.reduce((x,y)=>x+y,0)}">${Array.from({length:33},(_,i)=>`<i class="${i<a.length?(a[i]?"g":"r"):""}"></i>`).join("")}</span>`; };
@@ -309,16 +310,16 @@ function renderMenu(){
         return `<div class="ogetype"><span class="num">${n}</span><span class="nm">${esc(t)} <span class="chip ${max>1?"warn":""}">${pl(max,"балл","балла","баллов")}</span>${auto?"":` <span class="chip">с учителем</span>`}</span>${bar(id,n)}<span class="sm ${c>=goal?"okc":""}" title="Цель: 30 верных из 33 последних">${c}/30</span><button class="btn" type="button" data-train="${id}:${n}">${auto?"Тренировать":"Решать"}</button></div>`; }).join("")}</div>
       </section>`; };
   $("main").innerHTML = `<div class="stack">
-    <section class="panel"><h2>ОГЭ</h2><p class="hint" style="margin:6px 0 12px">Все задания экзамена по порядку, у каждого его вес в баллах. Задания с пометкой «с учителем» (развёрнутые, изложение, сочинение и те, что пока не генерируются) решаются с ИИ-учителем: он даёт условие или берёт его из сборника, а потом проверяет по критериям ФИПИ. Критерии спрятаны в шапке каждого задания.</p>
+    <section class="panel"><h2>${only ? "ОГЭ: " + EXAMS[only].name.toLowerCase() : "ОГЭ"}</h2><p class="hint" style="margin:6px 0 12px">Все задания экзамена по порядку, у каждого его вес в баллах. Задания с пометкой «с учителем» (развёрнутые, изложение, сочинение и те, что пока не генерируются) решаются с ИИ-учителем: он даёт условие или берёт его из сборника, а потом проверяет по критериям ФИПИ. Критерии спрятаны в шапке каждого задания.</p>
       <p class="hint">У каждого задания полоска из 33 последних решений: зелёные — верно, красные — ошибки (тренировки, задания с учителем и пробные вместе). Цель на ноутбук: у каждого задания 30 верных из 33 последних. Чем больше красного, тем дольше стоит решать.</p>
     </section>
-    ${historyHtml()}
-    ${block("math")}${block("rus")}</div>`;
+    ${historyHtml(only)}
+    ${only ? block(only) : block("math")+block("rus")}</div>`;
   $("main").querySelectorAll("[data-train]").forEach(b=>b.addEventListener("click",()=>{ const [e,n] = b.dataset.train.split(":"); EXAMS[e].tasks[n] ? startTrain(e, Number(n)) : startPractice(e, Number(n)); }));
   $("main").querySelectorAll("[data-test]").forEach(b=>b.addEventListener("click",()=>startTest(b.dataset.test)));
 }
-function historyHtml(){
-  const L = (Object.assign({list:[]}, Store.get("ogeTests", {})).list||[]).slice().reverse();
+function historyHtml(only){
+  const L = (Object.assign({list:[]}, Store.get("ogeTests", {})).list||[]).filter(t=>!only || t.exam===only).slice().reverse();
   if(!L.length) return "";
   const D = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
   return `<section class="panel"><h3>Мои пробные</h3><div class="tablewrap"><table class="grades ogehist"><thead><tr><th>Когда</th><th>Экзамен</th><th>Баллы вовремя</th><th>Время</th><th>Сделано</th><th>Повторить</th></tr></thead><tbody>
@@ -352,7 +353,7 @@ function startTrain(exam, num){
 }
 function drawTrain(){
   const s = session, t = s.task, T = EXAMS[s.exam].tasks[s.num];
-  $("ogetrain").innerHTML = `<section class="panel oge-run"><div class="oge-top"><a href="#oge" class="btn" id="ogeback">← Все задания</a><b>${EXAMS[s.exam].name}, задание ${s.num}: ${esc(T.t)}</b><span class="sm">${s.n+1} из ${s.total} · верно ${s.ok}</span></div>
+  $("ogetrain").innerHTML = `<section class="panel oge-run"><div class="oge-top"><a href="#oge/${s.exam}" class="btn" id="ogeback">← Все задания</a><b>${EXAMS[s.exam].name}, задание ${s.num}: ${esc(T.t)}</b><span class="sm">${s.n+1} из ${s.total} · верно ${s.ok}</span></div>
     ${critHtml(s.exam, s.num)}
     <form id="ogeform">${taskHtml(t)}<div id="ogefb" aria-live="polite"></div>
     <div class="btnrow"><button class="btn primary" type="submit" id="ogego">Проверить</button><button class="btn" type="button" id="ogeend">Закончить серию</button></div></form></section>`;
@@ -370,10 +371,10 @@ function drawTrain(){
   });
 }
 async function endTrain(){
-  const s = session; dropTeacher(); if(!s || !s.n){ renderMenu(); return; }
+  const s = session; dropTeacher(); if(!s || !s.n){ renderMenu(s && s.exam); return; }
   session = null;
   await finish(`train:${s.exam}:${s.num}`, s.ok, s.n, `Тренировка, задание ${s.num}`);
-  renderMenu();
+  renderMenu(s.exam);
 }
 function startTest(exam){
   clearInterval(timer);
@@ -387,7 +388,7 @@ function startTest(exam){
     el.textContent = left > 0 ? `Осталось ${mmss(left)}` : `Время вышло · +${mmss(-left)} сверх`; el.classList.toggle("low", left < 5*60e3); el.classList.toggle("over", left <= 0); };
   tick(); timer = setInterval(tick, 1000);
   $("main").querySelectorAll("[data-ans]").forEach(inp=>inp.addEventListener("input",()=>{ const i = Number(inp.dataset.ans); session.ans[i] = inp.value; session.at[i] = Date.now(); }));
-  $("ogequit").addEventListener("click", ()=>{ clearInterval(timer); session = null; renderMenu(); });
+  $("ogequit").addEventListener("click", ()=>{ const e = session && session.exam; clearInterval(timer); session = null; renderMenu(e); });
   $("ogeform").addEventListener("submit", e=>{ e.preventDefault(); const empty = session.ans.filter(a=>!a.trim()).length;
     if(empty && !confirmInline(empty)) return; submitTest(); });
 }
@@ -408,7 +409,7 @@ async function submitTest(){
   const pts = okIn.reduce((a,r)=>a+maxOf(s.exam, r.t.num),0), ptsMax = res.reduce((a,r)=>a+maxOf(s.exam, r.t.num),0), spent = Math.round((now - s.start)/60e3), limit = EXAMS[s.exam].test.min;
   const wrong = [...new Set(res.filter(r=>!r.ok).map(r=>r.t.num))];
   const tl = Object.assign({list:[]}, Store.get("ogeTests", {})); tl.list = tl.list.concat([{ ts:now, exam:s.exam, ok:okIn.length, okAll, n:res.length, answered, late, pts, ptsMax, spent, limit, wrong }]); Store.set("ogeTests", tl, 0);
-  $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><a href="#oge" class="btn" id="ogeback">← К заданиям</a><b>${EXAMS[s.exam].name}: ${pts} из ${ptsMax} баллов за время</b></div>
+  $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><a href="#oge/${s.exam}" class="btn" id="ogeback">← К заданиям</a><b>${EXAMS[s.exam].name}: ${pts} из ${ptsMax} баллов за время</b></div>
     <p>Вовремя верно ${okIn.length} из ${res.length}. Время: ${spent} мин из ${limit}${spent>limit?` (сверх времени ${spent-limit} мин)`:""}. Всего сделано ${answered} из ${res.length}${late?`, после звонка ${late}`:""}, верно всего ${okAll}.</p>
     ${wrong.length?`<p class="hint">Повторить задания: ${wrong.map(n=>`<a href="#oge/${s.exam}/${n}">№${n} ${esc(CAT[s.exam][n][0])}</a>`).join(", ")}. Они появятся в рекомендациях на главной.</p>`:""}
     <div class="tablewrap"><table class="grades ogeres"><thead><tr><th>№</th><th>Задание</th><th>Твой ответ</th><th>Правильный</th><th></th></tr></thead><tbody>
@@ -424,7 +425,7 @@ function startPractice(exam, num){
   clearInterval(timer); session = { mode:"practice", exam, num, task:"" };
   const [t, max] = CAT[exam][num], long = exam==="rus" && (num===1 || num===13);
   const book = Study.ogeBook(exam);
-  $("main").innerHTML = `<div class="stack"><section class="panel oge-run"><div class="oge-top"><a href="#oge" class="btn">← Все задания</a><b>${EXAMS[exam].name}, задание ${num}: ${esc(t)}</b><span class="chip ${max>1?"warn":""}">максимум ${pl(max,"балл","балла","баллов")}</span></div>
+  $("main").innerHTML = `<div class="stack"><section class="panel oge-run"><div class="oge-top"><a href="#oge/${exam}" class="btn">← Все задания</a><b>${EXAMS[exam].name}, задание ${num}: ${esc(t)}</b><span class="chip ${max>1?"warn":""}">максимум ${pl(max,"балл","балла","баллов")}</span></div>
     ${critHtml(exam, num)}
     <div class="btnrow">${Store.aiAvailable()?`<button class="btn primary" type="button" id="pgen">Дай задание</button>`:""}${book?`<button class="btn" type="button" id="pbook">Открыть сборник</button>`:""}</div>
     <div id="ptask" class="oge-text"></div>
@@ -453,5 +454,7 @@ function askTeacher(t, given, ok){
   try{ sessionStorage.setItem("dasha:tutorq", txt); sessionStorage.setItem("dasha:tutorsubj", t.exam==="math" ? "algebra" : "rus"); }catch(e){}
   location.hash = "#tutor";
 }
-window.Oge = { render: renderMenu, openTask(e, n){ if(!CAT[e] || !CAT[e][n]) return renderMenu(); EXAMS[e].tasks[n] ? startTrain(e, n) : startPractice(e, n); }, make, check, EXAMS, CAT, leave(){ clearInterval(timer); session = null; dropTeacher(); } };
+// ссылка «← Все задания» ведёт на тот же адрес, что уже открыт: перерисовываем список сами
+document.addEventListener("click", e=>{ const a = e.target.closest('a[href^="#oge/"]'); if(a && a.getAttribute("href") === location.hash){ e.preventDefault(); window.dispatchEvent(new HashChangeEvent("hashchange")); } });
+window.Oge = { render: renderMenu, openTask(e, n){ if(!CAT[e] || !CAT[e][n]) return renderMenu(e); EXAMS[e].tasks[n] ? startTrain(e, n) : startPractice(e, n); }, make, check, EXAMS, CAT, leave(){ clearInterval(timer); session = null; dropTeacher(); } };
 })();

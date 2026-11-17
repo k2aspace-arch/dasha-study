@@ -790,3 +790,4 @@ table.grades th:nth-child(n+6){white-space:nowrap}
 .dock.inline .chat{max-height:55vh;overflow-y:auto}
 .dock.inline .tutorstage{height:140px}
 body.dock-inline .dockbtn{z-index:44}
+table.grades .gcell.gcalc{color:var(--muted);opacity:.75;border-style:dashed}

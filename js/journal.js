@@ -261,7 +261,7 @@ function prepHtml(e){
   const what = `${(TYPES[e.type]||"событие").toLowerCase()} по предмету «${subjName(e.subj)}»${e.note?` (${e.note})`:""}`;
   const ask = `Через ${pl(Math.max(n,0),"день","дня","дней")} у меня ${what}. Составь короткий план подготовки по дням и начни с первого шага.`;
   let html = `<p class="sm">До события ${n===0?"меньше дня":pl(n,"день","дня","дней")}. Вот что можно сделать:</p><div class="btnrow">`;
-  if(e.subj==="oge-math" || e.subj==="oge-rus") html += `<a class="btn" href="#oge">Пробный вариант ОГЭ на время</a>`;
+  if(e.subj==="oge-math" || e.subj==="oge-rus") html += `<a class="btn" href="#oge/${e.subj==="oge-math"?"math":"rus"}">Пробный вариант ОГЭ на время</a>`;
   if(b && e.ch){ const [gi,ci] = e.ch.split(".").map(Number), c = b.groups[gi].chapters[ci];
     html += `<a class="btn" href="#q/${b.id}/${e.ch}">Итоговые вопросы по главе</a></div><p class="sm" style="margin:8px 0 4px">Повторить темы главы (сначала слабые):</p><div class="prep-topics">` +
       c.p.map((p,pi)=>[p,pi,kd[`${b.id}.${gi}.${ci}.${pi}`]]).sort((x,y)=>(x[2]??1.5)-(y[2]??1.5)).map(([p,pi,v])=>`<a class="reco-i" href="#t/${b.id}/${gi}.${ci}.${pi}?${v===0||v===1?"scratch":"brief"}"><span class="dot" style="background:${b.color}"></span>${esc(p)}${v!==undefined&&window.Topic?` <span class="sm">· ${esc(Topic.KNOW[v])}</span>`:""}</a>`).join("") + `</div><div class="btnrow">`; }
