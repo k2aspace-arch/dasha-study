@@ -24,7 +24,7 @@ const RULES = {
   goals: { twoWeeks:180, month:400, quarter:1100, final:2500, program:0.9, ogePart:30, ogeTask:30, termAvg:4.9 }
 };
 const REWARDS = {
-  twoWeeks: { title:"Вкусняшка с доставкой", hint:"Каждые 2 недели", choices:["Пицца","Суши или роллы","Торт или пирожные","Бабл-ти и десерт","Бургер","Своё"] },
+  twoWeeks: { title:"Подписка на фильмы и сериалы", hint:"Каждые 2 недели", choices:["Кинопоиск","Okko","Иви","Wink","Start","Premier","Своё"] },
   month:    { title:"Выход на выбор", hint:"Каждый месяц", choices:["Мастер-класс","Верховая езда","Урок вождения","Ресторан на выбор","Каток или скалодром","Своё"] },
   quarter:  { title:"Абонемент", hint:"Каждый триместр, если средний балл выше 4,9", choices:["Танцы","Верховая езда","Бассейн","Йога или фитнес","Своё"] },
   dress:    { title:"Платье на выпускной", hint:"Средний балл аттестата выше 4,9" },
@@ -143,7 +143,7 @@ function renderBar(){
   el.className = "streakbar st-" + c.state;
   el.innerHTML = `<a href="#rewards" class="sb-fire" aria-label="${STATE_TXT[c.state]}"><span class="flame" aria-hidden="true"></span><b>${c.state==="out"?0:c.streak}</b><span class="sm">${c.state==="out"?"серия погасла":pl(c.streak,"день","дня","дней")+" подряд"}</span></a>
     <a href="#rewards" class="sb-pts"><b>${c.total}</b><span class="sm">очков</span></a>
-    ${cur2w?`<a href="#rewards" class="sb-next"><span class="sm">До вкусняшки: ${Math.max(0, cur2w.goal - cur2w.pts)} очков до ${DM.format(day(cur2w.b))}</span><span class="bar"><i style="width:${Math.min(100, Math.round(100*cur2w.pts/cur2w.goal))}%"></i></span></a>`:""}
+    ${cur2w?`<a href="#rewards" class="sb-next"><span class="sm">До подписки на кино: ${Math.max(0, cur2w.goal - cur2w.pts)} очков до ${DM.format(day(cur2w.b))}</span><span class="bar"><i style="width:${Math.min(100, Math.round(100*cur2w.pts/cur2w.goal))}%"></i></span></a>`:""}
     <span class="sb-state sm">${STATE_TXT[c.state]}</span>
     ${(()=>{ if(!window.Journal) return ""; const up = Journal.upcoming(3)[0]; return up ? `<a href="#diary" class="chip warn sb-soon">${Journal.TYPES[up.type]||"Событие"} ${Journal.when(up.date)}: ${esc(Journal.subjName(up.subj))}</a>` : Journal.importDue() ? `<a href="#diary" class="chip sb-soon">Пришли скрин оценок за неделю</a>` : ""; })()}
     <a href="#diary" class="btn sb-diary">Дневник</a>`;
@@ -183,7 +183,7 @@ function renderRewards(){
     <div class="subjrows">${goalRow("Средний балл аттестата", avg ? Math.round(avg*100) : 0, 491, avg ? avg.toFixed(2).replace(".",",") + (avg>4.9?" · есть!":" из 4,91+") : "—")}</div>
     <p class="hint">Платье на выпускной: средний балл аттестата выше 4,9. Считается по годовым оценкам из таблицы на главной.</p>
   </section>
-  <section class="panel"><h3>Каждые 2 недели: вкусняшка с доставкой</h3><div class="rwgrid">${by("twoWeeks").map(card).join("")}</div></section>
+  <section class="panel"><h3>Каждые 2 недели: подписка на фильмы и сериалы</h3><div class="rwgrid">${by("twoWeeks").map(card).join("")}</div></section>
   <section class="panel"><h3>Каждый месяц: выход на выбор</h3><div class="rwgrid">${by("month").map(card).join("")}</div></section>
   <section class="panel"><h3>Каждый триместр: абонемент</h3><p class="hint" style="margin-top:0">Если средний балл за триместр выше 4,9. Считается по итоговым оценкам за триместр из таблицы на главной.</p><div class="rwgrid">${by("quarter").map(card).join("")}</div></section>
   <p class="hint rsq-legend"><span class="rsq-dot rsq-avail"></span>доступен <span class="rsq-dot rsq-used"></span>использован <span class="rsq-dot rsq-now"></span>идёт сейчас <span class="rsq-dot rsq-fut"></span>впереди</p>

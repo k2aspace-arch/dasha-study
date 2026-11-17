@@ -296,7 +296,7 @@ function bonusPanel(){
           <button class="btn primary" type="submit">Закрыть бонус</button></form></details>` : ""}</div>`; }).join("")}</div>`;
   return `<section class="panel" id="bonusp"><h3>Мои бонусы ${free.length?`<span class="chip ok">${free.length} можно использовать</span>`:""}</h3>
     <p class="hint">Яркие — заработаны и ждут, зелёные — использованы, бледные — впереди. Очки не тратятся никогда, бонусы копятся.</p>
-    ${group("twoWeeks","Каждые 2 недели: вкусняшка")}${group("month","Каждый месяц: выход на выбор")}${group("quarter","Каждый триместр: абонемент (средний балл выше 4,9)")}</section>`;
+    ${group("twoWeeks","Каждые 2 недели: подписка на фильмы и сериалы")}${group("month","Каждый месяц: выход на выбор")}${group("quarter","Каждый триместр: абонемент (средний балл выше 4,9)")}</section>`;
 }
 function bindBonus(root){
   root.querySelectorAll("[data-bonus]").forEach(f=>f.addEventListener("submit", e=>{ e.preventDefault();
