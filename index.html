@@ -24,23 +24,42 @@
   </div>
 </div>
 
-<div id="viewer" hidden role="dialog" aria-modal="true" aria-labelledby="vtitle">
-  <div class="vbar">
-    <div class="vt"><span id="vtitle"></span><small id="vsub"></small></div>
-    <div class="vnav">
-      <button class="vbtn" id="vprev" type="button" aria-label="Предыдущая страница">‹</button>
-      <label for="vpage" class="sm">стр.</label><input id="vpage" type="number">
-      <button class="vbtn" id="vnext" type="button" aria-label="Следующая страница">›</button>
-      <span id="vinfo"></span>
+<aside id="reader" hidden aria-label="Учебник">
+  <div id="rhandle" role="separator" aria-orientation="vertical" aria-label="Изменить ширину учебника" tabindex="0"></div>
+  <div class="rbar">
+    <div class="rtitle"><b id="rtitle"></b><small id="rsub"></small></div>
+    <div class="rgroup">
+      <button class="vbtn" id="rprev" type="button" aria-label="Предыдущая страница">‹</button>
+      <label for="rpagein" class="sm">стр.</label><input id="rpagein" type="number">
+      <button class="vbtn" id="rnext" type="button" aria-label="Следующая страница">›</button>
+      <span id="rinfo" class="sm"></span>
     </div>
-    <div class="vnav">
-      <button class="vbtn" id="vzout" type="button" aria-label="Уменьшить">−</button>
-      <button class="vbtn" id="vzin" type="button" aria-label="Увеличить">+</button>
-      <button class="vbtn" id="vclose" type="button" aria-label="Закрыть">✕</button>
+    <div class="rgroup">
+      <button class="vbtn" id="rzout" type="button" aria-label="Уменьшить">−</button>
+      <button class="vbtn" id="rzin" type="button" aria-label="Увеличить">+</button>
+      <button class="vbtn" id="rdock" type="button">⇤ Влево</button>
+      <button class="vbtn" id="rfull" type="button" aria-label="Во весь экран">⛶</button>
+      <button class="vbtn" id="rclose" type="button" aria-label="Закрыть учебник">✕</button>
+    </div>
+    <div class="rgroup" role="toolbar" aria-label="Пометки">
+      <button class="vbtn" data-rtool="view" type="button" aria-pressed="true">Листать</button>
+      <button class="vbtn" data-rtool="pen" type="button" aria-pressed="false">Карандаш</button>
+      <button class="vbtn" data-rtool="marker" type="button" aria-pressed="false">Маркер</button>
+      <button class="vbtn" data-rtool="eraser" type="button" aria-pressed="false">Ластик</button>
+      <button class="swatch sm-sw" data-rcolor="#d23c3c" style="background:#d23c3c" type="button" aria-label="Красный" aria-pressed="true"></button>
+      <button class="swatch sm-sw" data-rcolor="#2a4fd6" style="background:#2a4fd6" type="button" aria-label="Синий" aria-pressed="false"></button>
+      <button class="swatch sm-sw" data-rcolor="#1f8a5a" style="background:#1f8a5a" type="button" aria-label="Зелёный" aria-pressed="false"></button>
+      <button class="vbtn" id="rundo" type="button">Отменить</button>
+      <button class="vbtn" id="rnotebtn" type="button" aria-pressed="false">Заметки</button>
     </div>
   </div>
-  <div id="vscroll"><p id="vmsg"></p><canvas id="vcanvas" hidden></canvas></div>
-</div>
+  <div class="rnotes" id="rnotes" hidden>
+    <label for="rnote" id="rnotelabel" class="sm"></label>
+    <textarea id="rnote" placeholder="Что важно запомнить на этой странице…"></textarea>
+    <div id="rnotelist"></div>
+  </div>
+  <div id="rscroll"><p id="rmsg"></p><div id="rpage" hidden><canvas id="rcanvas"></canvas><canvas id="rink"></canvas></div></div>
+</aside>
 
 <script src="js/vendor/supabase.js"></script>
 <script src="js/vendor/pdf.min.js"></script>
@@ -49,5 +68,6 @@
 <script src="js/data.js"></script>
 <script src="js/store.js"></script>
 <script src="js/app.js"></script>
+<script src="js/reader.js"></script>
 </body>
 </html>

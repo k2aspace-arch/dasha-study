@@ -1,0 +1,168 @@
+// Учебник сбоку: PDF в панели слева или справа, размер меняется перетаскиванием,
+// пометки карандашом и маркером поверх страницы, текстовые заметки к страницам.
+(function(){
+const { $, esc, S } = window.App;
+const INK_W = 1400;
+const R = { book:null, n:1, zoom:1, token:0, label:"", tool:"view", color:"#d23c3c", undo:[], dirty:false, timer:null, inkH:1800, inkPage:null };
+const docCache = {};
+const lsGet = (k,d) => { try{ const v = localStorage.getItem("dasha:"+k); return v===null ? d : v }catch(e){ return d } };
+const lsSet = (k,v) => { try{ localStorage.setItem("dasha:"+k, v) }catch(e){} };
+
+const toFile = (b,p) => p + (Number(S.book(b.id).offset)||0);
+const toBook = (b,n) => n - (Number(S.book(b.id).offset)||0);
+const inkIndex = id => Object.assign({p:{}}, Store.get("ink-"+id, {}));
+const notesOf  = id => Object.assign({p:{}}, Store.get("notes-"+id, {}));
+
+async function pdfFor(path){
+  if(!docCache[path]) docCache[path] = (async()=>{ const blob = await Store.getFile(path); if(!blob) throw new Error("no file"); return pdfjsLib.getDocument({data: new Uint8Array(await blob.arrayBuffer())}).promise; })();
+  try{ return await docCache[path] }catch(e){ delete docCache[path]; throw e }
+}
+
+/* ---------- панель ---------- */
+function applyDock(){
+  const side = lsGet("rside","right"), w = Number(lsGet("rwidth", 0)) || Math.min(Math.round(window.innerWidth*0.48), 820);
+  const el = $("reader");
+  el.classList.toggle("left", side==="left"); el.classList.toggle("right", side!=="left");
+  document.documentElement.style.setProperty("--rw", w+"px");
+  document.body.classList.toggle("reading-left", !el.hidden && side==="left");
+  document.body.classList.toggle("reading-right", !el.hidden && side!=="left");
+  $("rdock").textContent = side==="left" ? "Вправо ⇥" : "⇤ Влево";
+}
+function open(b, bookPage, label){
+  if(R.dirty) saveInk();
+  R.book = b; R.label = label || ""; R.zoom = 1;
+  $("reader").hidden = false; applyDock();
+  $("rtitle").textContent = b.title;
+  const last = Number(lsGet("last-"+b.id, 1)) || 1;
+  show(bookPage ? toFile(b, bookPage) : last);
+  renderNoteList();
+}
+function close(){ if(R.dirty) saveInk(); $("reader").hidden = true; $("reader").classList.remove("full"); applyDock(); }
+
+async function show(n){
+  if(R.dirty) await saveInk();
+  const b = R.book, m = S.book(b.id), tok = ++R.token, total = m.totalPages || 1;
+  n = Math.max(1, Math.min(n, total)); R.n = n; R.undo = [];
+  lsSet("last-"+b.id, n);
+  $("rpagein").value = toBook(b, n); $("rinfo").textContent = `файл ${n}/${total}`; $("rsub").textContent = R.label;
+  $("rnote").value = notesOf(b.id).p[n] || ""; $("rnotelabel").textContent = `Заметка к странице ${toBook(b,n)}`;
+  const cv = $("rcanvas"), ink = $("rink"), msg = $("rmsg");
+  if(!m.chunks || !m.chunks.length){ $("rpage").hidden = true; msg.hidden = false; msg.textContent = "Файл учебника ещё не загружен. Загрузить его можно в личном кабинете."; return; }
+  msg.hidden = false; msg.textContent = "Открываю страницу…";
+  try{
+    const ch = m.chunks.find(c=>n>=c.from && n<=c.to) || m.chunks[m.chunks.length-1];
+    const doc = await pdfFor(ch.path); if(tok !== R.token) return;
+    const page = await doc.getPage(Math.min(doc.numPages, n - ch.from + 1)); if(tok !== R.token) return;
+    const box = $("rscroll"), base = page.getViewport({scale:1}), dpr = window.devicePixelRatio || 1;
+    const scale = Math.max(0.3, Math.min((box.clientWidth - 24) / base.width, 3) * R.zoom);
+    const vp = page.getViewport({scale: scale * dpr});
+    cv.width = vp.width; cv.height = vp.height;
+    const cssW = vp.width/dpr, cssH = vp.height/dpr;
+    $("rpage").style.width = cssW+"px"; $("rpage").style.height = cssH+"px";
+    await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
+    if(tok !== R.token) return;
+    R.inkH = Math.round(INK_W * base.height / base.width);
+    ink.width = INK_W; ink.height = R.inkH; R.inkPage = n;
+    await loadInk(b.id, n); if(tok !== R.token) return;
+    msg.hidden = true; $("rpage").hidden = false;
+  }catch(e){
+    if(tok !== R.token) return; console.error(e);
+    $("rpage").hidden = true; msg.hidden = false; msg.textContent = "Не получилось открыть страницу. Проверь интернет или загрузи файл ещё раз.";
+  }
+}
+
+/* ---------- пометки ---------- */
+async function loadInk(id, n){
+  const ctx = $("rink").getContext("2d"); ctx.clearRect(0,0,INK_W,R.inkH);
+  const path = inkIndex(id).p[n]; if(!path) return;
+  try{ const blob = await Store.getFile(path); if(blob && R.inkPage===n){ const img = await createImageBitmap(blob); ctx.drawImage(img,0,0,INK_W,R.inkH); } }catch(e){}
+}
+function inkChanged(){ R.dirty = true; clearTimeout(R.timer); R.timer = setTimeout(saveInk, 1500); }
+async function saveInk(){
+  clearTimeout(R.timer); if(!R.dirty || !R.book) return; R.dirty = false;
+  const id = R.book.id, n = R.inkPage, cv = $("rink");
+  const empty = !cv.getContext("2d").getImageData(0,0,INK_W,R.inkH).data.some((v,i)=>i%4===3 && v);
+  const idx = inkIndex(id), old = idx.p[n];
+  try{
+    if(empty){ delete idx.p[n]; }
+    else { const blob = await new Promise(res=>cv.toBlob(res,"image/png")); const path = `notes/${id}/p${n}-${Date.now()}.png`; await Store.putFile(path, blob); idx.p[n] = path; }
+    await Store.set("ink-"+id, idx, 0);
+    if(old && old !== idx.p[n]) Store.removeFile(old).catch(()=>{});
+  }catch(e){ R.dirty = true; console.warn("ink save", e); }
+}
+function setTool(t){
+  R.tool = t;
+  document.querySelectorAll("#reader [data-rtool]").forEach(x=>x.setAttribute("aria-pressed", x.dataset.rtool===t));
+  $("rink").classList.toggle("drawing", t!=="view");
+}
+function bindInk(){
+  const cv = $("rink"); let drawing = false, last = null;
+  const pos = ev => { const r = cv.getBoundingClientRect(); return { x:(ev.clientX-r.left)*INK_W/r.width, y:(ev.clientY-r.top)*R.inkH/r.height }; };
+  const seg = (a,b) => { const c = cv.getContext("2d"); c.save(); c.lineCap = c.lineJoin = "round";
+    if(R.tool==="eraser"){ c.globalCompositeOperation = "destination-out"; c.lineWidth = 28; c.strokeStyle = "#000"; }
+    else if(R.tool==="marker"){ c.globalCompositeOperation = "multiply"; c.globalAlpha = .35; c.lineWidth = 22; c.strokeStyle = R.color==="#d23c3c" ? "#ffd400" : R.color; }
+    else { c.lineWidth = 3.5; c.strokeStyle = R.color; }
+    c.beginPath(); c.moveTo(a.x,a.y); c.lineTo(b.x+0.01,b.y); c.stroke(); c.restore(); };
+  cv.addEventListener("pointerdown", ev=>{ if(R.tool==="view") return; ev.preventDefault(); drawing = true; last = pos(ev);
+    R.undo.push(cv.getContext("2d").getImageData(0,0,INK_W,R.inkH)); if(R.undo.length>20) R.undo.shift();
+    cv.setPointerCapture(ev.pointerId); pts = [last]; if(R.tool==="marker") markerRedraw(); else seg(last,last); });
+  let pts = [];
+  const markerRedraw = () => { const c = cv.getContext("2d"); c.putImageData(R.undo[R.undo.length-1],0,0); c.save();
+    c.globalCompositeOperation = "multiply"; c.globalAlpha = .35; c.lineWidth = 22; c.lineCap = c.lineJoin = "round"; c.strokeStyle = R.color==="#d23c3c" ? "#ffd400" : R.color;
+    c.beginPath(); c.moveTo(pts[0].x, pts[0].y); pts.forEach(p=>c.lineTo(p.x+0.01,p.y)); c.stroke(); c.restore(); };
+  cv.addEventListener("pointermove", ev=>{ if(!drawing) return; (ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev]).forEach(e=>{ const p = pos(e);
+    if(R.tool==="marker") pts.push(p); else seg(last,p); last = p; }); if(R.tool==="marker") markerRedraw(); });
+  const end = () => { if(drawing){ drawing = false; inkChanged(); } };
+  cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
+}
+
+/* ---------- заметки ---------- */
+function renderNoteList(){
+  const b = R.book; if(!b) return;
+  const p = notesOf(b.id).p, pages = Object.keys(p).filter(k=>p[k] && p[k].trim()).map(Number).sort((a,c)=>a-c);
+  $("rnotelist").innerHTML = pages.length ? `<span class="sm">Все заметки:</span> ` + pages.map(n=>`<button class="pg" type="button" data-rjump="${n}" title="${esc(p[n].slice(0,80))}">стр. ${toBook(b,n)}</button>`).join(" ") : `<span class="sm">Заметок в этом учебнике пока нет.</span>`;
+  $("rnotelist").querySelectorAll("[data-rjump]").forEach(x=>x.addEventListener("click",()=>show(Number(x.dataset.rjump))));
+  $("rnotebtn").textContent = pages.length ? `Заметки (${pages.length})` : "Заметки";
+}
+
+/* ---------- размер панели ---------- */
+function bindResize(){
+  const h = $("rhandle"); let drag = false;
+  const setW = w => { w = Math.max(320, Math.min(window.innerWidth - 300, Math.round(w))); lsSet("rwidth", w); document.documentElement.style.setProperty("--rw", w+"px"); };
+  h.addEventListener("pointerdown", e=>{ drag = true; h.setPointerCapture(e.pointerId); document.body.classList.add("resizing"); });
+  h.addEventListener("pointermove", e=>{ if(!drag) return; setW(lsGet("rside","right")==="left" ? e.clientX : window.innerWidth - e.clientX); });
+  const end = () => { if(drag){ drag = false; document.body.classList.remove("resizing"); show(R.n); } };
+  h.addEventListener("pointerup", end); h.addEventListener("pointercancel", end);
+  h.addEventListener("keydown", e=>{ const cur = Number(lsGet("rwidth",0)) || $("reader").offsetWidth; const left = lsGet("rside","right")==="left";
+    if(e.key==="ArrowLeft"){ setW(cur + (left?-40:40)); show(R.n); } else if(e.key==="ArrowRight"){ setW(cur + (left?40:-40)); show(R.n); } });
+}
+
+/* ---------- кнопки ---------- */
+function init(){
+  $("rclose").addEventListener("click", close);
+  $("rprev").addEventListener("click", ()=>show(R.n-1));
+  $("rnext").addEventListener("click", ()=>show(R.n+1));
+  $("rzin").addEventListener("click", ()=>{ R.zoom = Math.min(3, R.zoom*1.25); show(R.n); });
+  $("rzout").addEventListener("click", ()=>{ R.zoom = Math.max(0.4, R.zoom/1.25); show(R.n); });
+  $("rpagein").addEventListener("change", ()=>{ const p = parseInt($("rpagein").value,10); if(!isNaN(p)) show(toFile(R.book, p)); });
+  $("rdock").addEventListener("click", ()=>{ lsSet("rside", lsGet("rside","right")==="left" ? "right" : "left"); applyDock(); });
+  $("rfull").addEventListener("click", ()=>{ $("reader").classList.toggle("full"); show(R.n); });
+  $("rundo").addEventListener("click", ()=>{ const s = R.undo.pop(); if(s){ $("rink").getContext("2d").putImageData(s,0,0); inkChanged(); } });
+  document.querySelectorAll("#reader [data-rtool]").forEach(x=>x.addEventListener("click", ()=>setTool(x.dataset.rtool)));
+  document.querySelectorAll("#reader [data-rcolor]").forEach(x=>x.addEventListener("click", ()=>{ R.color = x.dataset.rcolor;
+    document.querySelectorAll("#reader [data-rcolor]").forEach(y=>y.setAttribute("aria-pressed", y===x)); if(R.tool==="view"||R.tool==="eraser") setTool("pen"); }));
+  $("rnotebtn").addEventListener("click", ()=>{ const n = $("rnotes"); n.hidden = !n.hidden; $("rnotebtn").setAttribute("aria-pressed", !n.hidden); if(!n.hidden) $("rnote").focus(); });
+  $("rnote").addEventListener("input", ()=>{ const id = R.book.id, all = notesOf(id); all.p = Object.assign({}, all.p);
+    if($("rnote").value.trim()) all.p[R.n] = $("rnote").value; else delete all.p[R.n];
+    Store.set("notes-"+id, all, 800); renderNoteList(); });
+  document.addEventListener("keydown", e=>{
+    if($("reader").hidden || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if(e.key==="ArrowRight") show(R.n+1); else if(e.key==="ArrowLeft") show(R.n-1); else if(e.key==="Escape") close();
+  });
+  window.addEventListener("beforeunload", ()=>{ if(R.dirty) saveInk(); });
+  let rt; window.addEventListener("resize", ()=>{ if($("reader").hidden) return; clearTimeout(rt); rt = setTimeout(()=>show(R.n), 250); });
+  bindInk(); bindResize(); setTool("view");
+}
+init();
+window.Reader = { open, close, clearCache(){ Object.keys(docCache).forEach(k=>delete docCache[k]); } };
+})();

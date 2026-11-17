@@ -21,6 +21,7 @@ const S = {
   }
 };
 let done = {};
+window.App = { $, esc, pl, S, keysOf, get done(){ return done } };
 function loadDone(){ done = Object.assign({}, S.progress().done || {}); }
 function saveDone(){ Store.set("progress", {done}); }
 const pct = b => { const k=keysOf(b); return k.length ? Math.round(100*k.filter(x=>done[x]).length/k.length) : 0 };
@@ -112,7 +113,8 @@ function renderBook(b){
     if(g.grade) html += `<div class="grade">${g.now?'<span class="tag">сейчас</span>':''}${esc(g.grade)}</div>`;
     g.chapters.forEach((c,ci)=>{
       const open = (gi===0 && ci===0) ? " open" : "";
-      html += `<details class="ch" data-ch="${gi}.${ci}"${open}><summary><span class="num">${esc(c.n)}</span><span class="ttl">${esc(c.t)}</span><span class="cnt" data-cnt="${gi}.${ci}"></span></summary><ol class="paras">` +
+      const cpg = (m.chapterPages||{})[`${gi}.${ci}`];
+      html += `<details class="ch" data-ch="${gi}.${ci}"${open}><summary><span class="num">${esc(c.n)}</span><span class="ttl">${esc(c.t)}</span><span class="cnt" data-cnt="${gi}.${ci}"></span>${cpg && file ? `<button class="pg chpg" type="button" data-chpage="${cpg}" data-chtitle="${esc(c.n+" "+c.t)}">стр. ${cpg}</button>` : ""}</summary><ol class="paras">` +
         c.p.map((p,pi)=>{
           const k=`${b.id}.${gi}.${ci}.${pi}`, id=k.replace(/\./g,'-'), pg = m.pages[k];
           const right = pg && file ? `<button class="pg" type="button" data-page="${pg}">стр. ${pg}</button>` : "";
@@ -141,8 +143,9 @@ function mountBook(b){
   main.querySelectorAll("input[data-k]").forEach(cb=>cb.addEventListener("change",()=>{
     if(cb.checked) done[cb.dataset.k] = Date.now(); else delete done[cb.dataset.k];
     saveDone(); updateCounts(b); }));
-  main.querySelectorAll("button[data-page]").forEach(btn=>btn.addEventListener("click",()=>openViewer(b, Number(btn.dataset.page), btn.closest("li").querySelector(".pt").textContent)));
-  const ob = $("openbook"); if(ob) ob.addEventListener("click",()=>openViewer(b, 0, ""));
+  main.querySelectorAll("button[data-page]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(b, Number(btn.dataset.page), btn.closest("li").querySelector(".pt").textContent)));
+  main.querySelectorAll("button[data-chpage]").forEach(btn=>btn.addEventListener("click",e=>{ e.preventDefault(); e.stopPropagation(); Reader.open(b, Number(btn.dataset.chpage), btn.dataset.chtitle); }));
+  const ob = $("openbook"); if(ob) ob.addEventListener("click",()=>Reader.open(b, 0, ""));
 }
 
 /* ================= ЛИЧНЫЙ КАБИНЕТ ================= */
@@ -155,7 +158,7 @@ function renderAccount(openId){
   ${BOOKS.map(b=>{ const m = S.book(b.id), file = hasFile(b), set = Object.keys(m.pages||{}).length, total = keysOf(b).length;
     return `<section class="panel acc-book" style="border-left:5px solid ${b.color}" data-book="${b.id}">
       <h2>${esc(b.subject)}</h2><p class="meta" style="margin:0">${esc(b.title)}</p>
-      <p class="fileline">${file?`Файл: <b>${esc(m.fileName||"учебник.pdf")}</b>, ${pl(m.totalPages||0,"страница","страницы","страниц")}. Страницы указаны у ${set} из ${total} параграфов.`:"PDF ещё не загружен."}</p>
+      <p class="fileline">${file?`Файл: <b>${esc(m.fileName||"учебник.pdf")}</b>, ${pl(m.totalPages||0,"страница","страницы","страниц")}. Страницы указаны у ${set} из ${total} параграфов и у ${Object.keys(m.chapterPages||{}).length} глав.`:"PDF ещё не загружен."}</p>
       <div class="btnrow">
         <button class="btn ${file?"":"primary"}" data-up="${b.id}" type="button">${file?"Заменить PDF":"Загрузить PDF"}</button>
         ${file?`<button class="btn" data-open="${b.id}" type="button">Открыть учебник</button>`:""}
@@ -164,7 +167,7 @@ function renderAccount(openId){
       <p class="status" id="status-${b.id}" aria-live="polite"></p>
       <details class="pages-ed" ${openId===b.id?"open":""}><summary class="btn" style="display:inline-block;margin-top:6px">Номера страниц параграфов</summary>
         <div class="editbar"><label for="offset-${b.id}">Страниц в файле до первой страницы учебника:</label><input type="number" id="offset-${b.id}" data-off="${b.id}" min="-50" max="300" value="${Number(m.offset)||0}"><span>Если в PDF есть обложка и титульные листы, впиши, сколько их. Тогда номера ниже совпадут с номерами в книге.</span></div>
-        ${b.groups.map((g,gi)=>g.chapters.map((c,ci)=>`<div class="grade" style="padding-left:0">${esc(c.n)} ${esc(c.t)}</div><ol class="paras" style="padding:0 0 6px">${
+        ${b.groups.map((g,gi)=>g.chapters.map((c,ci)=>`<div class="grade chrow" style="padding-left:0"><span style="flex:1;min-width:0">${esc(c.n)} ${esc(c.t)}</span><input class="pgin" type="number" min="1" max="999" data-cpk="${gi}.${ci}" value="${(m.chapterPages||{})[gi+"."+ci]||""}" placeholder="стр." aria-label="Страница главы: ${esc(c.t)}"></div><ol class="paras" style="padding:0 0 6px">${
           c.p.map((p,pi)=>{ const k=`${b.id}.${gi}.${ci}.${pi}`; return `<li><span class="pn">${ci+1}.${pi+1}</span><span class="pt" style="flex:1;min-width:0">${esc(p)}</span><input class="pgin" type="number" min="1" max="999" id="pg-${k.replace(/\./g,'-')}" data-pk="${k}" value="${m.pages[k]||""}" placeholder="стр." aria-label="Страница: ${esc(p)}"></li>`; }).join("")}</ol>`).join("")).join("")}
       </details></section>`; }).join("")}
   </div>`;
@@ -175,12 +178,13 @@ function renderAccount(openId){
     fi.addEventListener("change",()=>{ const f = fi.files && fi.files[0]; fi.value = ""; sayTarget = "status-"+id;
       handleFile(b, f).catch(e=>{ console.error(e); say("Не получилось загрузить файл. Проверь интернет и попробуй ещё раз.", true); }); });
   });
-  main.querySelectorAll("[data-open]").forEach(btn=>btn.addEventListener("click",()=>openViewer(BOOKS.find(x=>x.id===btn.dataset.open), 0, "")));
+  main.querySelectorAll("[data-open]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(BOOKS.find(x=>x.id===btn.dataset.open), 0, "")));
   main.querySelectorAll("section[data-book]").forEach(sec=>{ const id = sec.dataset.book;
     const save = () => { const m = S.book(id); m.pages = Object.assign({}, m.pages);
       sec.querySelectorAll("input[data-pk]").forEach(i=>{ const v = parseInt(i.value,10); if(v>0) m.pages[i.dataset.pk] = v; else delete m.pages[i.dataset.pk]; });
+      m.chapterPages = {}; sec.querySelectorAll("input[data-cpk]").forEach(i=>{ const v = parseInt(i.value,10); if(v>0) m.chapterPages[i.dataset.cpk] = v; });
       m.offset = parseInt(sec.querySelector("[data-off]").value,10)||0; S.setBook(id, m); };
-    sec.querySelectorAll("input[data-pk],[data-off]").forEach(i=>i.addEventListener("input", save));
+    sec.querySelectorAll("input[data-pk],input[data-cpk],[data-off]").forEach(i=>i.addEventListener("input", save));
   });
 }
 let sayTarget = "status";
@@ -227,52 +231,9 @@ async function handleFile(b, file){
   m.chunks = parts; m.totalPages = n; m.fileName = file.name;
   await S.setBook(b.id, m);
   for(const c of old){ try{ await Store.removeFile(c.path) }catch(e){} }
-  Object.keys(docCache).forEach(k=>delete docCache[k]);
+  if(window.Reader) Reader.clearCache();
   renderAccount();
   say(`Готово: ${pl(n,"страница","страницы","страниц")}. ${Store.mode==="cloud"?"Учебник откроется на любом устройстве после входа.":"Учебник сохранён в этом браузере."}`);
-}
-
-/* ---------- просмотр PDF ---------- */
-const V = { book:null, n:1, zoom:1, token:0, label:"" };
-const docCache = {};
-async function pdfFor(path){
-  if(!docCache[path]) docCache[path] = (async()=>{ const blob = await Store.getFile(path); if(!blob) throw new Error("no file"); return pdfjsLib.getDocument({data: new Uint8Array(await blob.arrayBuffer())}).promise; })();
-  try{ return await docCache[path] }catch(e){ delete docCache[path]; throw e }
-}
-const toFile = (b,p) => p + (Number(S.book(b.id).offset)||0);
-const toBook = (b,n) => n - (Number(S.book(b.id).offset)||0);
-function openViewer(b, bookPage, label){
-  V.book = b; V.label = label || "";
-  $("viewer").hidden = false; document.body.style.overflow = "hidden";
-  $("vtitle").textContent = b.title;
-  let last = 1; try{ last = Number(localStorage.getItem("dasha:last-"+b.id)) || 1 }catch(e){}
-  showPage(bookPage ? toFile(b, bookPage) : last);
-  $("vclose").focus();
-}
-function closeViewer(){ $("viewer").hidden = true; document.body.style.overflow = ""; }
-async function showPage(n){
-  const b = V.book, m = S.book(b.id), tok = ++V.token, total = m.totalPages || 1;
-  n = Math.max(1, Math.min(n, total)); V.n = n;
-  try{ localStorage.setItem("dasha:last-"+b.id, n) }catch(e){}
-  $("vpage").value = toBook(b, n); $("vinfo").textContent = `стр. файла ${n} из ${total}`; $("vsub").textContent = V.label;
-  const cv = $("vcanvas"), msg = $("vmsg");
-  if(!m.chunks || !m.chunks.length){ cv.hidden = true; msg.hidden = false; msg.textContent = "Файл учебника ещё не загружен."; return; }
-  msg.hidden = false; msg.textContent = "Открываю страницу…";
-  try{
-    const ch = m.chunks.find(c=>n>=c.from && n<=c.to) || m.chunks[m.chunks.length-1];
-    const doc = await pdfFor(ch.path); if(tok !== V.token) return;
-    const page = await doc.getPage(Math.min(doc.numPages, n - ch.from + 1)); if(tok !== V.token) return;
-    const box = $("vscroll"), base = page.getViewport({scale:1}), dpr = window.devicePixelRatio || 1;
-    const scale = Math.max(0.3, Math.min((box.clientWidth - 32) / base.width, 2.5) * V.zoom);
-    const vp = page.getViewport({scale: scale * dpr});
-    cv.width = vp.width; cv.height = vp.height; cv.style.width = (vp.width/dpr)+"px"; cv.style.height = (vp.height/dpr)+"px";
-    await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
-    if(tok !== V.token) return;
-    msg.hidden = true; cv.hidden = false; box.scrollTop = 0;
-  }catch(e){
-    if(tok !== V.token) return; console.error(e);
-    cv.hidden = true; msg.hidden = false; msg.textContent = "Не получилось открыть страницу. Проверь интернет или загрузи файл ещё раз.";
-  }
 }
 
 /* ================= ДОСКА ================= */
@@ -525,17 +486,6 @@ async function route(){
   return renderHome();
 }
 
-/* просмотрщик */
-$("vclose").addEventListener("click", closeViewer);
-$("vprev").addEventListener("click", ()=>showPage(V.n-1));
-$("vnext").addEventListener("click", ()=>showPage(V.n+1));
-$("vzin").addEventListener("click", ()=>{ V.zoom = Math.min(3, V.zoom*1.25); showPage(V.n); });
-$("vzout").addEventListener("click", ()=>{ V.zoom = Math.max(0.4, V.zoom/1.25); showPage(V.n); });
-$("vpage").addEventListener("change", ()=>{ const p = parseInt($("vpage").value,10); if(!isNaN(p)) showPage(toFile(V.book, p)); });
-document.addEventListener("keydown", e=>{
-  if($("viewer").hidden || e.target.tagName === "INPUT") return;
-  if(e.key === "ArrowRight") showPage(V.n+1); else if(e.key === "ArrowLeft") showPage(V.n-1); else if(e.key === "Escape") closeViewer();
-});
 $("logout").addEventListener("click", async()=>{ await flushBoard(); await Store.signOut(); route(); });
 window.addEventListener("hashchange", route);
 
