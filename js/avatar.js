@@ -17,13 +17,21 @@ const SVG = `
           <g class="av-eye av-eye-r"><ellipse class="av-white" cx="98" cy="78" rx="11" ry="13"/><circle class="av-pupil" cx="100" cy="80" r="5.5"/><circle class="av-glint" cx="102" cy="77" r="1.8"/></g>
           <path class="av-squint" d="M54 80q10-9 20 0M88 80q10-9 20 0"/>
         </g>
-        <path class="av-brows" d="M54 60q10-5 20 0M88 60q10-5 20 0"/>
+        <g class="av-glasses">
+          <path class="av-temple" d="M46 74L30 68M116 75L132 69"/>
+          <circle class="av-lens" cx="63" cy="79" r="17.5"/><circle class="av-lens" cx="100" cy="80" r="15.5"/>
+          <path class="av-bridge" d="M80.5 76q2-6 4.5-.5"/>
+          <rect class="av-tape" x="79" y="71" width="7" height="8" rx="1.5" transform="rotate(12 82.5 75)"/>
+          <path class="av-shine" d="M52 72q4-7 11-8M91 73q3-5 9-6"/>
+        </g>
+        <path class="av-brows" d="M50 54q12-6 24 1M88 56q10-5 21 0"/>
         <circle class="av-cheek" cx="52" cy="98" r="6"/><circle class="av-cheek" cx="110" cy="98" r="6"/>
         <path class="av-mouth" d="M70 102q11 10 22 0"/>
         <path class="av-mouth-big" d="M66 100q15 20 30 0z"/>
         <path class="av-mouth-o" d="M77 104a4 5 0 1 0 8 0a4 5 0 1 0-8 0"/>
       </g>
     </g>
+    <g class="av-tie"><path d="M80 128l-13-7v14z M80 128l13-7v14z"/><circle cx="80" cy="128" r="3.5"/></g>
     <g class="av-arm av-arm-r"><rect x="110" y="96" width="30" height="12" rx="6"/>
       <g class="av-pen"><rect x="134" y="70" width="5" height="34" rx="2" transform="rotate(20 136 87)"/><path d="M140 100l-3 9-2-9z" transform="rotate(20 136 87)"/></g>
     </g>

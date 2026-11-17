@@ -6,7 +6,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",
 const pl = (n,a,b,c) => { const m=Math.abs(n)%100, d=m%10; return `${n} ${m>10&&m<20?c:d===1?a:d>=2&&d<=4?b:c}` };
 const keysOf = b => b.groups.flatMap((g,gi)=>g.chapters.flatMap((c,ci)=>c.p.map((_,pi)=>`${b.id}.${gi}.${ci}.${pi}`)));
 const PDFLIB_URL = "js/vendor/pdf-lib.min.js";
-const NAV = [["home","Главная","⌂"],["diary","Дневник","✓"],["schedule","Расписание","◷"],["fill","Заполнялка","⇪"],["oge","ОГЭ","★"],["rewards","Награды","♛"],["board","Доска","✎"],["tutor","ИИ-учитель","?"],["stats","Статистика","▤"],["account","Личный кабинет","◉"]];
+const NAV = [["home","Главная","⌂"],["diary","Дневник","✓"],["schedule","Расписание","◷"],["fill","Заполнялка","⇪"],["oge","ОГЭ","★"],["rewards","Награды","♛"],["tutor","ИИ-учитель","?"],["stats","Статистика","▤"],["account","Личный кабинет","◉"]];
 const LONG_DATE = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long"});
 
 /* ---------- данные ---------- */
@@ -283,13 +283,14 @@ async function handleFile(b, file){
 const B = { W:1600, H:1000, tool:"pen", color:"#1b2333", size:4, undo:[], cur:null, list:[], dirty:false, timer:null, ctx:null };
 const COLORS = ["#1b2333","#2a4fd6","#d23c3c","#1f8a5a","#e08a00"];
 function boardsIndex(){ const v = Store.get("boards", null); return v && v.list ? v.list : []; }
-async function renderBoard(){
+async function renderBoard(host){
+  host = host || B.host; B.host = host;
   B.list = boardsIndex();
   if(!B.list.length){ B.list = [{id:"b"+Date.now(), title:"Лист 1", updated:Date.now()}]; Store.set("boards", {list:B.list}, 0); }
   let cur = null; try{ cur = localStorage.getItem("dasha:board") }catch(e){}
   if(!B.list.find(x=>x.id===cur)) cur = B.list[0].id;
   B.cur = cur;
-  $("main").innerHTML = `<section class="panel"><h2>Доска</h2><p class="hint" style="margin:0 0 14px">Рисуй решение пальцем, стилусом или мышью. Лист сохраняется сам. Готовое решение можно отправить ИИ-учителю на проверку.</p>
+  host.innerHTML = `<section class="panel"><h2>Доска</h2><p class="hint" style="margin:0 0 14px">Рисуй решение пальцем, стилусом или мышью. Лист сохраняется сам. Готовое решение можно отправить ИИ-учителю на проверку.</p>
     <div class="boardsel">
       <label for="bsel" class="sm">Лист</label><select id="bsel">${B.list.map(x=>`<option value="${x.id}" ${x.id===cur?"selected":""}>${esc(x.title)}</option>`).join("")}</select>
       <input id="btitle" value="${esc((B.list.find(x=>x.id===cur)||{}).title||"")}" aria-label="Название листа" maxlength="60">
@@ -308,7 +309,7 @@ async function renderBoard(){
       <span class="sep"></span>
       <button class="tool" id="bundo" type="button">Отменить</button>
       <button class="tool" id="bclear" type="button">Очистить</button>
-      <button class="btn primary" id="bask" type="button">Проверить у ИИ</button>
+      <button class="btn primary" id="bask" type="button">Отправить учителю</button>
     </div>
     <div class="boardbox" id="bbox"><canvas id="bcanvas" width="${B.W}" height="${B.H}"></canvas><input id="boardtext" hidden aria-label="Текст на доске"></div>
     <p class="status" id="bstatus" aria-live="polite"></p></section>`;
@@ -332,7 +333,7 @@ async function renderBoard(){
     try{ await Store.removeFile(`boards/${B.cur}.png`) }catch(_){}
     renderBoard();
   });
-  $("bask").addEventListener("click",async()=>{ await flushBoard(); pendingBoard = B.cur; location.hash = "tutor"; });
+  $("bask").addEventListener("click",async()=>{ await flushBoard(); pendingBoard = B.cur; const cb = $("chatboard"); if(cb){ cb.checked = true; const ci = $("chatin"); if(!ci.value.trim()) ci.value = "Проверь моё решение на доске. Найди ошибки, но не решай за меня."; ci.focus(); ci.scrollIntoView({block:"center", behavior:"smooth"}); } });
   // рисование
   let drawing = false, last = null;
   const pos = ev => { const r = cv.getBoundingClientRect(); return { x:(ev.clientX-r.left)*B.W/r.width, y:(ev.clientY-r.top)*B.H/r.height, cx: ev.clientX-r.left, cy: ev.clientY-r.top }; };
@@ -406,7 +407,7 @@ function renderTutor(){
         <button class="btn" type="button" data-q="Дай мне одну задачу как в ОГЭ по этой теме и не говори ответ: ">Задача как в ОГЭ</button>
         <button class="btn" type="button" data-q="Проверь мою домашку на фото. Найди ошибки, но не исправляй сам: задавай вопросы, чтобы я нашла их сама." data-photo="1">Проверь домашку по фото</button>
       </div>
-      <textarea id="chatin" placeholder="Спроси что угодно по учёбе…" aria-label="Вопрос"></textarea>
+      <textarea id="chatin" placeholder="Спроси что угодно по учёбе… Enter — отправить, Shift+Enter — новая строка" aria-label="Вопрос"></textarea>
       <div class="chatrow">
         <label for="chatsubj" class="sm">Предмет</label>
         <select id="chatsubj">${SUBJ_ALL.map(([id,n])=>`<option value="${id}" ${id===subj?"selected":""}>${esc(n)}</option>`).join("")}</select>
@@ -416,8 +417,10 @@ function renderTutor(){
         <button class="btn" type="button" id="chatnew">Новый разговор</button>
         <button class="btn primary" type="submit" id="chatsend" ${ok?"":"disabled"}>Отправить</button>
       </div>
-    </form></section>`;
+    </form></section>
+    <div id="tutorboard"></div>`;
   drawChat();
+  renderBoard($("tutorboard"));
   if(tutorAv) tutorAv.destroy();
   tutorAv = Avatar.create($("tutorstage"), {compact:true}); tutorAv.start();
   tutorAv.say(ok ? "Привет, Даша! Спрашивай, разберёмся вместе" : "Я пока не подключён, но скоро буду помогать", 5000);
@@ -429,7 +432,7 @@ function renderTutor(){
   $("main").querySelectorAll("[data-q]").forEach(b=>b.addEventListener("click",()=>{ if(b.dataset.photo && !tutorPhoto) pickTP(); $("chatin").value = b.dataset.q; if(b.dataset.q.includes("доске")) $("chatboard").checked = true; $("chatin").focus(); }));
   $("chatsubj").addEventListener("change",e=>{ try{ localStorage.setItem("dasha:subj", e.target.value) }catch(_){} });
   $("chatnew").addEventListener("click",()=>{ chat = []; saveChat(); drawChat(); });
-  $("chatin").addEventListener("keydown",e=>{ if(e.key==="Enter" && (e.ctrlKey||e.metaKey)) $("chatform").requestSubmit(); });
+  $("chatin").addEventListener("keydown",e=>{ if(e.key==="Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); $("chatform").requestSubmit(); } });
   $("chatform").addEventListener("submit", async e=>{
     e.preventDefault();
     const text = $("chatin").value.trim(); if(!text || !Store.aiAvailable()) return;
@@ -459,7 +462,7 @@ function renderTutor(){
 }
 function drawChat(){
   const log = $("chatlog"); if(!log) return;
-  log.innerHTML = chat.length ? chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"} ${m.err?"err":""}">${esc(m.content)}${m.img?`<img src="${m.img}" alt="Лист с доски">`:(m.board?`<br><small>📎 лист с доски</small>`:m.photo?`<br><small>📷 фото</small>`:"")}</div>`).join("")
+  log.innerHTML = chat.length ? chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"} ${m.err?"err":""}">${m.role==="user" ? esc(m.content) : Draw.html(m.content)}${m.img?`<img src="${m.img}" alt="Лист с доски">`:(m.board?`<br><small>📎 лист с доски</small>`:m.photo?`<br><small>📷 фото</small>`:"")}</div>`).join("")
     : `<p class="emptychat">Здесь появится разговор. Например: «Объясни, как решать квадратные неравенства методом интервалов».</p>`;
   log.scrollTop = log.scrollHeight;
 }
@@ -535,7 +538,7 @@ async function route(){
   $("whoami").textContent = Store.mode==="cloud" ? Store.user.email : "Данные хранятся только в этом браузере";
   $("logout").hidden = Store.mode!=="cloud";
   const id = (location.hash||"").slice(1) || "home";
-  if(id !== "board") await flushBoard();
+  if(id !== "tutor") await flushBoard();
   if(id !== "oge" && window.Oge) Oge.leave();
   if(window.Topic) Topic.leave();
   if(eNb){ eNb.destroy(); eNb = null; }
@@ -549,7 +552,7 @@ async function route(){
   if(b) return mountBook(b);
   curBook = null;
   if(e) return $("main").innerHTML = `<article class="book" style="--c:${e.color}"><div class="book-head"><div class="subject">${esc(e.subject)}</div><h2>${esc(e.subject)}. 9 класс</h2><p class="meta">Учебник ещё не добавлен</p></div><div class="placeholder"><p>Здесь появятся главы, как только будет фото обложки и оглавления.</p><ul><li>фото обложки (видны авторы)</li><li>фото страниц с оглавлением</li></ul></div></article><section class="panel" id="enb" style="margin-top:16px"></section>`, emptyNb(e);
-  if(id==="board") return renderBoard();
+  if(id==="board"){ location.replace("#tutor"); return; }
   if(id==="tutor") return renderTutor();
   if(id==="stats") return renderStats();
   if(id==="account") return renderAccount();

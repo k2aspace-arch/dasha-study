@@ -80,7 +80,7 @@ function render(arg){
       <button class="btn okbtn" type="button" data-act="got">Понятно!</button>
     </div>
     <p class="hint" id="thint"></p>
-    <form class="chatform" id="tform"><textarea id="tin" placeholder="Вопрос, ответ учителю или условие задачи…" aria-label="Сообщение учителю"></textarea>
+    <form class="chatform" id="tform"><textarea id="tin" placeholder="Вопрос, ответ учителю или условие задачи… Enter — отправить, Shift+Enter — новая строка" aria-label="Сообщение учителю"></textarea>
       <div class="chatrow"><button class="btn" type="button" id="tphoto">📷 Приложить фото</button><span id="tphotoprev"></span><span class="sm" id="tselinfo"></span><span style="flex:1"></span><button class="btn" type="button" id="tnew">Начать заново</button><button class="btn primary" type="submit" id="tsend">Отправить</button></div></form>
   </section>
   <section class="panel" id="tnb"></section>
@@ -100,7 +100,7 @@ function render(arg){
   cur.onReader = () => selInfo(); window.addEventListener("reader:change", cur.onReader); selInfo();
   $("main").querySelectorAll("[data-act]").forEach(btn=>btn.addEventListener("click", ()=>act(btn.dataset.act)));
   $("tform").addEventListener("submit", e=>{ e.preventDefault(); const v = $("tin").value.trim(); if(!v) return; $("tin").value = ""; send(lastMode(), v); });
-  $("tin").addEventListener("keydown", e=>{ if(e.key==="Enter" && (e.ctrlKey||e.metaKey)) $("tform").requestSubmit(); });
+  $("tin").addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); $("tform").requestSubmit(); } });
   if(!ai) $("main").querySelectorAll("[data-act],#tsend").forEach(x=>{ if(x.dataset.act!=="got") x.disabled = true; });
   if(ai && !cur.chat.length && q){ if(q.includes("scratch")) act("explain"); else if(q.includes("brief")) act("brief"); }
 }
@@ -115,7 +115,7 @@ function persist(){ lsSet("tchat:"+cur.t.key, { msgs: cur.chat.filter(m=>!m.pend
 function say(text){ const h = $("thint"); if(h){ h.textContent = text; } }
 function draw(){
   const log = $("tlog"); if(!log) return;
-  log.innerHTML = cur.chat.length ? cur.chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"} ${m.err?"err":""}">${m.tag?`<small class="tag">${esc(m.tag)}</small>`:""}${esc(m.content)}</div>`).join("")
+  log.innerHTML = cur.chat.length ? cur.chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"} ${m.err?"err":""}">${m.tag?`<small class="tag">${esc(m.tag)}</small>`:""}${m.role==="user" ? esc(m.content) : Draw.html(m.content)}</div>`).join("")
     : `<p class="emptychat">Нажми «Объясни тему с нуля», выдели непонятное место в учебнике или реши задачу в тетради и попроси проверить.</p>`;
   log.scrollTop = log.scrollHeight;
   $("tlevels").innerHTML = cur.level ? `<span class="sm">Ступень объяснения:</span> ${[1,2,3].map(l=>`<span class="chip ${l===cur.level?"":"dim"}">${l}. ${LEVELS[l]}</span>`).join(" ")}` : "";
