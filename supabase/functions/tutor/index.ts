@@ -1,5 +1,5 @@
 // ИИ-учитель через OpenRouter: принимает вопрос с сайта и спрашивает Claude.
-// Версия функции: openrouter-2 (если в ответе ошибки нет слова OpenRouter, значит задеплоен старый код).
+// Версия функции: openrouter-3 (если в ответе ошибки нет слова OpenRouter, значит задеплоен старый код).
 // Ключ OpenRouter хранится в секретах Supabase (например, OPENROUTER_API_KEY), в браузер он не попадает.
 // Supabase сам проверяет, что запрос пришёл от вошедшего пользователя (JWT).
 
@@ -79,6 +79,21 @@ const QUIZCHECK = `Ты учитель Клод. Проверь ответы у�
 Будь доброжелательной, но честной: засчитывай ответ, если суть верна, даже при неидеальной записи или кривом рисунке.
 Ответь ТОЛЬКО JSON без Markdown: {"results":[{"ok":true|false,"comment":"1–2 предложения: что верно и что поправить"}]} в том же порядке, что и вопросы.`;
 
+const FILL = `Ты помощник-заполнялка школьного дневника ученицы 9 класса. Тебе присылают скриншоты или текст из электронного дневника: оценки, пропуски (Н, Б, УП), расписание, контрольные, зачёты, экзамены, домашние задания.
+Извлеки всё и ответь ТОЛЬКО JSON без Markdown по схеме:
+{"grades":[{"date":"YYYY-MM-DD","subject":"<id предмета>","mark":"5|4|3|2","kind":"current|test|t1|t2|t3|year","note":"за что, если видно"}],
+ "absences":[{"date":"YYYY-MM-DD","subject":"<id или пусто>","reason":"absent|sick|excused"}],
+ "events":[{"date":"YYYY-MM-DD","time":"HH:MM или пусто","subject":"<id>","type":"test|credit|exam|independent|other","note":"тема или описание"}],
+ "homework":[{"date":"YYYY-MM-DD (на какой день задано)","subject":"<id>","kind":"book|other","paragraph":"номер параграфа или пусто","page":"страница или пусто","exercise":"номера упражнений или задач или пусто","text":"остальное описание: выучить правило, доклад, проект и т. п."}],
+ "unclear":"что не удалось разобрать, коротко, или пустая строка"}
+Правила:
+- subject: только id из списка предметов, который тебе дадут. Если предмет не подходит ни к одному, пропусти запись и упомяни в unclear.
+- kind: test — контрольная, проверочная, самостоятельная, диктант, тест (если в дневнике так помечено или стоит высокий вес); t1/t2/t3 — итог за триместр; year — годовая; иначе current.
+- Н — absent, Б — sick, УП/уважительная — excused.
+- Даты без года относи к текущему учебному году (сентябрь–декабрь 2026, январь–июнь 2027). Если дата неясна, бери ближайшую к сегодняшней из присланного контекста.
+- Домашка: kind=book, если это параграф, страница или упражнения из учебника; kind=other для доклада, проекта, сочинения, своей задачи.
+- Ничего не выдумывай: только то, что реально видно.`;
+
 type Part = { type: "text"; text: string; cache_control?: { type: "ephemeral" } } | { type: "image_url"; image_url: { url: string } };
 type Msg = { role: "system" | "user" | "assistant"; content: string | Part[] };
 type Page = { n: number; text?: string; image?: string };
@@ -130,6 +145,7 @@ Deno.serve(async (req) => {
     if (mode === "report") system = REPORT;
     else if (mode === "quiz") system = QUIZ;
     else if (mode === "quizcheck") system = QUIZCHECK;
+    else if (mode === "fill") system = FILL;
     else {
       if (Array.isArray(pages) && pages.length) system += BOOK_RULES;
       if (MODES[mode]) system += "\n" + MODES[mode];
@@ -139,6 +155,11 @@ Deno.serve(async (req) => {
     if (mode === "quiz") {
       history = [{ role: "user", content: [...bookParts(pages ?? [], topic), { type: "text", text: `Темы главы (номера с 0): ${JSON.stringify(topic?.topics ?? [])}. Составь вопросы.` }] }];
       maxTokens = 6000;
+    } else if (mode === "fill") {
+      const content: Part[] = [{ type: "text", text: `Сегодня: ${body.today ?? ""}. Предметы (id: название): ${JSON.stringify(body.subjects ?? [])}.\nТекст от пользователя:\n${String(body.text ?? "").slice(0, 20000)}` }];
+      for (const im of (Array.isArray(images) ? images : []).slice(0, 8)) content.push(img(String(im)));
+      history = [{ role: "user", content }];
+      maxTokens = 8000;
     } else if (mode === "quizcheck") {
       const content: Part[] = [{ type: "text", text: `Вопросы и ответы: ${JSON.stringify(items ?? []).slice(0, 20000)}` }];
       for (const im of (Array.isArray(images) ? images : []).slice(0, 4)) content.push(img(String(im)));

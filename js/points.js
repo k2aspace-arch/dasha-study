@@ -6,8 +6,12 @@ const CAL = window.CAL;
 /* ---------- правила ---------- */
 const RULES = {
   start: "2026-11-17",          // с этого дня считаются очки
-  school: 3, absent: -5,        // был в школе / прогул (болезнь = 0, не ломает серию)
-  hw: 2,                        // за каждый предмет с сделанной домашкой
+  journalStart: "2026-11-09",   // оценки и Н из заполнялки считаются с прошлой недели
+  absent: -5,                   // день с Н без причины (из заполнялки; Б и УП не снимают)
+  cur: {"5":5, "4":2, "3":-3, "2":-8},                   // текущие оценки из заполнялки
+  weekly: 10,                   // прислала скрин оценок за неделю
+  hw: 2,                        // сделанное задание из учебника
+  hwOther: 4,                   // своё задание: доклад, проект, задача
   paragraph: 4,                 // пройденный параграф
   ogeOk: 2,                     // верно решённое задание ОГЭ
   ogeTest: 10,                  // законченный пробный вариант
@@ -46,23 +50,23 @@ const claims = () => Object.assign({c:{}}, Store.get("rewards", {}));
 
 /* ---------- расчёт очков по дням ---------- */
 function compute(){
-  const D = diary().days, T = tests().list, O = ogeLog().a, done = App.done, g = S.grades().g;
+  const D = diary().days, O = ogeLog().a, done = App.done, g = S.grades().g;
+  const J = Object.assign({grades:[], abs:[], imports:[], hw:[]}, Store.get("journal", {})), A = Object.assign({d:{}}, Store.get("act", {})).d;
   const today = todayIso(), byDay = {};
-  const add = (d, pts, why) => { if(d < RULES.start) return; (byDay[d] = byDay[d] || {pts:0, items:[], active:false}).pts += pts; byDay[d].items.push([why, pts]); };
+  const add = (d, pts, why, early) => { if(d < (early ? RULES.journalStart : RULES.start)) return; (byDay[d] = byDay[d] || {pts:0, items:[], active:false}).pts += pts; byDay[d].items.push([why, pts]); };
   const act = d => { (byDay[d] = byDay[d] || {pts:0, items:[], active:false}).active = true; };
-  Object.entries(D).forEach(([d, r])=>{
-    if(r.school==="present") add(d, RULES.school, "Был(а) в школе");
-    if(r.school==="absent") add(d, RULES.absent, "Пропуск без причины");
-    const hw = Object.values(r.hw||{}).filter(Boolean).length;
-    if(hw){ add(d, hw*RULES.hw, `Домашка: ${pl(hw,"предмет","предмета","предметов")}`); act(d); }
-  });
+  (J.hw||[]).forEach(h=>{ if(!h.done) return; const d = iso(new Date(h.done)); add(d, h.kind==="other" ? RULES.hwOther : RULES.hw, `Домашка: ${(GRADE_SUBJECTS.find(x=>x[0]===h.subj)||[,h.subj])[1]}`); act(d); });
   Object.entries(done).forEach(([k,t])=>{ const ts = Number(t); if(ts > 1e12){ const d = iso(new Date(ts)); add(d, RULES.paragraph, "Параграф"); act(d); } });
   const ogeByDay = {};
   O.forEach(([ts,, , ok])=>{ const d = iso(new Date(ts)); if(ok){ ogeByDay[d] = (ogeByDay[d]||0)+1; } });
   Object.entries(ogeByDay).forEach(([d,n])=>{ add(d, n*RULES.ogeOk, `ОГЭ: ${pl(n,"задание","задания","заданий")}`); if(n>=3) act(d); });
   (Store.get("ogeTests",{list:[]}).list||[]).forEach(t=>{ add(iso(new Date(t.ts)), RULES.ogeTest, "Пробный вариант ОГЭ"); act(iso(new Date(t.ts))); });
   (Store.get("quizzes",{list:[]}).list||[]).forEach(q=>{ const d = iso(new Date(q.ts)); add(d, RULES.quiz + (q.ok===q.n ? 5 : 0), "Итоговые вопросы по главе"); act(d); });
-  T.forEach(t=>{ const p = RULES.test[t.mark]; if(p!==undefined) add(t.date, p, `Контрольная (${t.subjName}): ${t.mark}`); });
+  const sn = id => (GRADE_SUBJECTS.find(x=>x[0]===id)||[,id])[1];
+  (J.grades||[]).forEach(x=>{ const tbl = x.kind==="test" ? RULES.test : x.kind==="current" ? RULES.cur : null; if(!tbl) return; const p = tbl[x.mark]; if(p!==undefined) add(x.date, p, `${x.kind==="test"?"Контрольная":"Оценка"} (${sn(x.subj)}): ${x.mark}`, true); });
+  [...new Set((J.abs||[]).filter(a=>a.reason==="absent").map(a=>a.date))].forEach(d=>add(d, RULES.absent, "Пропуск без причины (Н)", true));
+  const weeks = new Set(); (J.imports||[]).forEach(im=>{ const d = new Date(im.ts), w = iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay()+6)%7))); if(!weeks.has(w)){ weeks.add(w); add(iso(d), RULES.weekly, "Прислала оценки за неделю"); } });
+  Object.entries(A).forEach(([d,n])=>{ if(n>=2) act(d); });
   const termEnd = { t2: CAL.terms[1][1], t3: CAL.terms[2][1], y: CAL.end };
   GRADE_SUBJECTS.forEach(([id,name])=>{ const r = g[id]||{};
     ["t2","t3"].forEach(t=>{ const p = RULES.term[r[t]]; if(p!==undefined) add(termEnd[t] <= today ? termEnd[t] : today, p, `Итоговая за ${t[1]}-й триместр, ${name}: ${r[t]}`); });
@@ -71,7 +75,7 @@ function compute(){
   // серия и простои: считаются только учебные дни; выходные, каникулы и болезнь не ломают серию
   let streak = 0, idle = 0, best = 0;
   for(let d = RULES.start; d <= today; d = addDays(d,1)){
-    const rec = byDay[d], sick = (D[d]||{}).school === "sick";
+    const rec = byDay[d], sick = (J.abs||[]).some(a=>a.date===d && a.reason!=="absent" && !a.subj);
     if(rec && rec.active){ streak++; idle = 0; best = Math.max(best, streak); const bonus = Math.min(streak, RULES.streakMax); add(d, bonus, `Серия: ${pl(streak,"день","дня","дней")} подряд`); continue; }
     if(d === today || !isSchoolDay(d) || sick) continue;
     idle++;
@@ -115,50 +119,12 @@ function renderBar(){
     <a href="#rewards" class="sb-pts"><b>${c.total}</b><span class="sm">очков</span></a>
     ${cur2w?`<a href="#rewards" class="sb-next"><span class="sm">До вкусняшки: ${Math.max(0, cur2w.goal - cur2w.pts)} очков до ${DM.format(day(cur2w.b))}</span><span class="bar"><i style="width:${Math.min(100, Math.round(100*cur2w.pts/cur2w.goal))}%"></i></span></a>`:""}
     <span class="sb-state sm">${STATE_TXT[c.state]}</span>
-    <a href="#diary" class="btn sb-diary">Дневник за сегодня</a>`;
+    ${(()=>{ if(!window.Journal) return ""; const up = Journal.upcoming(3)[0]; return up ? `<a href="#schedule" class="chip warn sb-soon">${Journal.TYPES[up.type]||"Событие"} ${Journal.when(up.date)}: ${esc(Journal.subjName(up.subj))}</a>` : Journal.importDue() ? `<a href="#fill" class="chip sb-soon">Пришли скрин оценок за неделю</a>` : ""; })()}
+    <a href="#diary" class="btn sb-diary">Дневник</a>`;
 }
 
 /* ---------- дневник ---------- */
-const dayLine = rec => `За этот день: <b>${rec?rec.pts:0}</b> очков${rec&&rec.active?" · день засчитан в серию":" · чтобы день засчитался в серию, сделай домашку, параграф или 3 задания ОГЭ"}.`;
-function renderDiary(){
-  const today = todayIso();
-  let sel = sessionStorage.getItem("dasha:diaryday") || today; if(sel > today) sel = today;
-  const D = diary(), r = D.days[sel] || {school:"", hw:{}};
-  const days7 = []; for(let i=6;i>=0;i--) days7.push(addDays(today,-i));
-  const T = tests().list.slice().sort((a,b)=>b.date.localeCompare(a.date));
-  const c = compute(), rec = c.byDay[sel];
-  $("main").innerHTML = `<div class="stack">
-  <section class="panel"><h2>Дневник</h2><p class="hint" style="margin:6px 0 12px">Отмечай каждый день: была ли в школе и какие домашки сделаны. Так копятся очки и не гаснет серия.</p>
-    <div class="daypick">${days7.map(d=>`<button type="button" class="vbtn ${d===sel?"on":""}" data-day="${d}" aria-pressed="${d===sel}">${d===today?"Сегодня":new Intl.DateTimeFormat("ru-RU",{weekday:"short",day:"numeric"}).format(day(d))}</button>`).join("")}</div>
-    <h3 style="margin-top:16px">${WD.format(day(sel))}, ${DM.format(day(sel))}${isSchoolDay(sel)?"":" · выходной или каникулы"}</h3>
-    <div class="seg" role="radiogroup" aria-label="Посещаемость">
-      ${[["present","Была в школе"],["sick","Болела / по уважительной"],["absent","Пропуск"],["","Не отмечено"]].map(([v,t])=>`<button type="button" role="radio" class="vbtn" data-school="${v}" aria-checked="${(r.school||"")===v}" aria-pressed="${(r.school||"")===v}">${t}</button>`).join("")}
-    </div>
-    <h3 style="margin-top:18px">Домашка сделана</h3>
-    <div class="hwgrid">${HW_SUBJECTS.map(([id,n])=>`<label class="hw"><input type="checkbox" data-hw="${id}" ${r.hw && r.hw[id]?"checked":""}> ${esc(n)}</label>`).join("")}</div>
-    <p class="hint" id="daypts">${dayLine(rec)}</p>
-  </section>
-  <section class="panel"><h3>Контрольные и самостоятельные</h3>
-    <form id="testform" class="chatrow">
-      <select id="tsubj" aria-label="Предмет">${GRADE_SUBJECTS.map(([id,n])=>`<option value="${id}">${esc(n)}</option>`).join("")}</select>
-      <select id="tmark" aria-label="Оценка"><option>5</option><option>4</option><option>3</option><option>2</option></select>
-      <input type="date" id="tdate" value="${today}" max="${today}" aria-label="Дата" class="pgin" style="width:auto">
-      <button class="btn primary" type="submit">Добавить оценку</button>
-    </form>
-    <p class="hint">Пятёрка за контрольную даёт +20 очков, четвёрка +10, тройка 0, двойка −15. Итоговые оценки за триместр весят больше всего: их можно поставить на главной.</p>
-    <div class="tlist">${T.length ? T.slice(0,30).map((t,i)=>`<div class="trow"><span>${DM.format(day(t.date))}</span><span>${esc(t.subjName)}</span><b class="mk m${t.mark}">${t.mark}</b><button class="pg" type="button" data-tdel="${t.id}" aria-label="Удалить">✕</button></div>`).join("") : `<p class="hint">Пока нет оценок за контрольные.</p>`}</div>
-  </section></div>`;
-  const main = $("main");
-  main.querySelectorAll("[data-day]").forEach(b=>b.addEventListener("click",()=>{ sessionStorage.setItem("dasha:diaryday", b.dataset.day); renderDiary(); }));
-  const upd = fn => { const d = diary(); d.days = Object.assign({}, d.days); const cur = Object.assign({school:"", hw:{}}, d.days[sel]); cur.hw = Object.assign({}, cur.hw); fn(cur); d.days[sel] = cur; Store.set("diary", d); renderBar(); };
-  main.querySelectorAll("[data-school]").forEach(b=>b.addEventListener("click",()=>{ upd(cur=>cur.school = b.dataset.school); renderDiary(); }));
-  main.querySelectorAll("[data-hw]").forEach(cb=>cb.addEventListener("change",()=>{ upd(cur=>{ if(cb.checked) cur.hw[cb.dataset.hw] = true; else delete cur.hw[cb.dataset.hw]; }); $("daypts").innerHTML = dayLine(compute().byDay[sel]); }));
-  $("testform").addEventListener("submit", e=>{ e.preventDefault(); const t = tests(); t.list = t.list.slice();
-    const id = $("tsubj").value; t.list.push({ id:"t"+Date.now(), subj:id, subjName:(GRADE_SUBJECTS.find(x=>x[0]===id)||[])[1], mark:$("tmark").value, date:$("tdate").value||today });
-    Store.set("tests", t, 0); renderBar(); renderDiary(); });
-  main.querySelectorAll("[data-tdel]").forEach(b=>b.addEventListener("click",()=>{ const t = tests(); t.list = t.list.filter(x=>x.id!==b.dataset.tdel); Store.set("tests", t, 0); renderBar(); renderDiary(); }));
-}
-
+const dayLine = rec => `За этот день: <b>${rec?rec.pts:0}</b> очков${rec&&rec.active?" · день засчитан в серию":" · чтобы день засчитался в серию, сделай домашку, параграф, итоговые вопросы, позанимайся с учителем или реши 3 задания ОГЭ"}.`;
 /* ---------- награды ---------- */
 function renderRewards(){
   const c = compute(), ps = periods(c), cl = claims().c, parts = ogeParts(), prog = programShare(), avg = yearAvg();
@@ -192,8 +158,8 @@ function renderRewards(){
   <section class="panel"><h3>Каждый месяц: выход на выбор</h3><div class="rwgrid">${by("month").length ? by("month").map(card).join("") : `<p class="hint">Первый месяц начнётся 1 декабря.</p>`}</div></section>
   <section class="panel"><h3>Каждые 3 месяца: абонемент</h3><div class="rwgrid">${by("quarter").length ? by("quarter").map(card).join("") : `<p class="hint">Первый период: декабрь – февраль.</p>`}</div></section>
   <section class="panel"><h3>Как начисляются очки</h3><div class="rules">
-    <p>Была в школе: +${RULES.school}. Пропуск без причины: ${RULES.absent}. Болезнь не снимает очки и не ломает серию.</p>
-    <p>Домашка: +${RULES.hw} за каждый предмет. Пройденный параграф: +${RULES.paragraph}. Верное задание ОГЭ: +${RULES.ogeOk}. Пробный вариант ОГЭ: +${RULES.ogeTest}. Итоговые вопросы по главе: +${RULES.quiz}, без ошибок ещё +5.</p>
+    <p>Оценки и пропуски приходят только из электронного дневника через заполнялку. Текущая оценка: 5 → +5, 4 → +2, 3 → −3, 2 → −8. День с Н без причины: ${RULES.absent}. Болезнь (Б) и уважительная причина не снимают очки и не ломают серию. Скрин оценок за неделю: +${RULES.weekly}.</p>
+    <p>Домашка: +${RULES.hw} за задание из учебника, +${RULES.hwOther} за своё (доклад, проект, задача). Пройденный параграф: +${RULES.paragraph}. Верное задание ОГЭ: +${RULES.ogeOk}. Пробный вариант ОГЭ: +${RULES.ogeTest}. Итоговые вопросы по главе: +${RULES.quiz}, без ошибок ещё +5.</p>
     <p>Контрольная: 5 → +20, 4 → +10, 3 → 0, 2 → −15. Итоговая за триместр: 5 → +80, 4 → +30, 3 → −30. Годовая: 5 → +120, 4 → +40, 3 → −40.</p>
     <p>Серия: день засчитывается, если сделана домашка, параграф, итоговые вопросы по главе или 3 задания ОГЭ. Каждый день серии даёт бонус +1, +2 … до +${RULES.streakMax}. Выходные и каникулы серию не ломают.</p>
     <p>Если в учебный день не было занятий, серия <b>остывает</b>. На второй день простоя она <b>гаснет</b>, и начиная с этого дня за каждый пустой учебный день снимается ${-RULES.idlePenalty} очков.</p>
@@ -206,7 +172,7 @@ function renderRewards(){
 function reportData(){
   const c = compute(), g = S.grades().g, parts = ogeParts(), prog = programShare();
   const last = t => GRADE_SUBJECTS.map(([id,n])=>[n, (g[id]||{})[t]]).filter(x=>x[1]);
-  const T = tests().list.slice(-10);
+  const T = (Object.assign({grades:[]}, Store.get("journal", {})).grades||[]).filter(x=>x.kind==="test").slice(-10).map(x=>({ subjName:(GRADE_SUBJECTS.find(g=>g[0]===x.subj)||[,x.subj])[1], mark:x.mark, date:x.date }));
   const week = Object.entries(c.byDay).filter(([d])=>d >= addDays(todayIso(),-6)).reduce((a,[,r])=>a+r.pts,0);
   const books = BOOKS.map(b=>{ const k = keysOf(b); return [b.subject, Math.round(100*k.filter(x=>App.done[x]).length/k.length)]; });
   return { c, g, parts, prog, last, T, week, books };
@@ -254,5 +220,5 @@ function openReport(){
   })();
 }
 
-window.Points = { compute, renderBar, renderDiary, renderRewards, openReport, ogeLog, logOge(exam, num, ok){ const o = ogeLog(); o.a = o.a.concat([[Date.now(), exam, num, ok ? 1 : 0]]); Store.set("oge", o, 1500); renderBar(); } };
+window.Points = { compute, renderBar, renderRewards, logAct(){ const a = Object.assign({d:{}}, Store.get("act", {})); a.d = Object.assign({}, a.d); const t = todayIso(); a.d[t] = (a.d[t]||0)+1; Store.set("act", a, 2000); }, openReport, ogeLog, logOge(exam, num, ok){ const o = ogeLog(); o.a = o.a.concat([[Date.now(), exam, num, ok ? 1 : 0]]); Store.set("oge", o, 1500); renderBar(); } };
 })();

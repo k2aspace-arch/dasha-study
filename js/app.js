@@ -6,7 +6,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",
 const pl = (n,a,b,c) => { const m=Math.abs(n)%100, d=m%10; return `${n} ${m>10&&m<20?c:d===1?a:d>=2&&d<=4?b:c}` };
 const keysOf = b => b.groups.flatMap((g,gi)=>g.chapters.flatMap((c,ci)=>c.p.map((_,pi)=>`${b.id}.${gi}.${ci}.${pi}`)));
 const PDFLIB_URL = "js/vendor/pdf-lib.min.js";
-const NAV = [["home","Главная","⌂"],["diary","Дневник","✓"],["oge","ОГЭ","★"],["rewards","Награды","♛"],["board","Доска","✎"],["tutor","ИИ-учитель","?"],["stats","Статистика","▤"],["account","Личный кабинет","◉"]];
+const NAV = [["home","Главная","⌂"],["diary","Дневник","✓"],["schedule","Расписание","◷"],["fill","Заполнялка","⇪"],["oge","ОГЭ","★"],["rewards","Награды","♛"],["board","Доска","✎"],["tutor","ИИ-учитель","?"],["stats","Статистика","▤"],["account","Личный кабинет","◉"]];
 const LONG_DATE = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long"});
 
 /* ---------- данные ---------- */
@@ -70,10 +70,11 @@ function renderHome(){
     .concat(CAL.oge.map(([d,t])=>[daysUntil(d), t.replace("ОГЭ по ","до ОГЭ: "), `${LONG_DATE.format(day(d))}, по проекту расписания`]));
   const notFive = GRADE_SUBJECTS.filter(([id])=>{ const r = g.g[id]||{}; const v = r.t2 || r.t1; return v && v!=="5" && v!=="зач"; });
   const rows = GRADE_SUBJECTS.map(([id,name])=>{ const r = g.g[id] || {};
-    return `<tr><td>${esc(name)}</td>${["t1","t2","t3","y"].map(t=>`<td><select id="gr-${id}-${t}" data-g="${id}" data-t="${t}" class="g${esc(r[t]||"")}" aria-label="${esc(name)}, ${t==="y"?"год":t[1]+"-й триместр"}">${gradeOpts(r[t]||"")}</select></td>`).join("")}</tr>`; }).join("");
+    return `<tr><td>${esc(name)}</td>${["t1","t2","t3","y"].map(t=>`<td><span class="gcell g${esc(r[t]||"")}">${esc(r[t]||"—")}</span></td>`).join("")}</tr>`; }).join("");
   const fa = t => { const a = avg(g,t); return a ? a.toFixed(2).replace(".",",") : "—"; };
   $("main").innerHTML = `<div class="stack">
   <section class="panel"><div class="quoterow"><p class="quote" id="quote">${esc(q)}</p><button class="btn" id="nextq" type="button">Ещё фраза</button></div></section>
+  ${Journal.soonPanel()}
   <section class="panel dadrow"><div><h3>Похвастаться успехами</h3><p class="hint">Учитель Клод напишет папе, чего ты добилась и над чем стоит ещё немного поработать.</p></div><button class="btn primary" type="button" data-dad>Рассказать папе о моих успехах</button></section>
   <section class="panel"><h3>Сколько осталось</h3>
     <div class="counts">${cnt.map(([n,l,s])=>`<div class="count"><div class="big">${Math.max(0,n)}</div><div class="lbl">${esc(l)}</div><div class="sm">${esc(s)}</div></div>`).join("")}</div>
@@ -84,11 +85,12 @@ function renderHome(){
     <div class="tablewrap"><table class="grades"><thead><tr><th>Предмет</th><th>1 трим.</th><th>2 трим.</th><th>3 трим.</th><th>Год</th></tr></thead>
     <tbody>${rows}</tbody><tfoot><tr><td>Средний балл</td><td>${fa("t1")}</td><td>${fa("t2")}</td><td>${fa("t3")}</td><td>${fa("y")}</td></tr></tfoot></table></div>
     <div class="legend">${notFive.length ? `<span class="chip warn">Не пятёрка сейчас: ${esc(notFive.map(x=>x[1]).join(", "))}</span>` : `<span class="chip ok">Все текущие оценки отличные</span>`}</div>
-    <p class="hint">Оценки можно менять прямо в таблице, они сохраняются сами.</p>
+    <p class="hint">Итоговые оценки попадают сюда из электронного дневника через <a href="#fill">заполнялку</a>.</p>
   </section>
   <section class="panel"><h3>Учебники</h3><div class="booklinks">${BOOKS.map(b=>`<a class="booklink" href="#${b.id}" style="--c:${b.color}"><b>${esc(b.subject)}</b><div class="bar"><i style="width:${pct(b)}%"></i></div><span class="sm">${pct(b)}% параграфов пройдено</span></a>`).join("")}</div></section>
   </div>`;
   $("main").querySelector("[data-dad]").addEventListener("click", ()=>Points.openReport());
+  Journal.bindEv($("main"));
   $("nextq").addEventListener("click",()=>{ let n; do{ n = QUOTES[Math.floor(Math.random()*QUOTES.length)] }while(n===$("quote").textContent && QUOTES.length>1); $("quote").textContent = n; });
   $("main").querySelectorAll("select[data-g]").forEach(s=>s.addEventListener("change",()=>{
     const gg = S.grades(); gg.g[s.dataset.g] = Object.assign({}, gg.g[s.dataset.g]||{}, {[s.dataset.t]: s.value});
@@ -388,7 +390,7 @@ let pendingBoard = null;
 let chat = []; try{ chat = JSON.parse(localStorage.getItem("dasha:chat")||"[]") }catch(e){ chat = [] }
 const saveChat = () => { try{ localStorage.setItem("dasha:chat", JSON.stringify(chat.slice(-40).map(m=>({role:m.role, content:m.content, board:!!m.board})))) }catch(e){} };
 const SUBJ_ALL = GRADE_SUBJECTS.map(([id,n])=>[id,n]);
-let tutorAv = null;
+let tutorAv = null, tutorPhoto = null;
 function renderTutor(){
   const ok = Store.aiAvailable();
   let subj = "algebra"; try{ subj = localStorage.getItem("dasha:subj") || "algebra" }catch(e){}
@@ -402,12 +404,14 @@ function renderTutor(){
         <button class="btn" type="button" data-q="Объясни тему простыми словами и дай один пример: ">Объясни тему</button>
         <button class="btn" type="button" data-q="Проверь моё решение на доске. Найди ошибки, но не решай за меня.">Проверь решение</button>
         <button class="btn" type="button" data-q="Дай мне одну задачу как в ОГЭ по этой теме и не говори ответ: ">Задача как в ОГЭ</button>
+        <button class="btn" type="button" data-q="Проверь мою домашку на фото. Найди ошибки, но не исправляй сам: задавай вопросы, чтобы я нашла их сама." data-photo="1">Проверь домашку по фото</button>
       </div>
       <textarea id="chatin" placeholder="Спроси что угодно по учёбе…" aria-label="Вопрос"></textarea>
       <div class="chatrow">
         <label for="chatsubj" class="sm">Предмет</label>
         <select id="chatsubj">${SUBJ_ALL.map(([id,n])=>`<option value="${id}" ${id===subj?"selected":""}>${esc(n)}</option>`).join("")}</select>
         <label class="ck"><input type="checkbox" id="chatboard" ${pendingBoard?"checked":""}> Приложить лист с доски</label>
+        <button class="btn" type="button" id="chatphoto">📷 Приложить фото</button><span id="chatphotoprev"></span>
         <span style="flex:1"></span>
         <button class="btn" type="button" id="chatnew">Новый разговор</button>
         <button class="btn primary" type="submit" id="chatsend" ${ok?"":"disabled"}>Отправить</button>
@@ -419,7 +423,10 @@ function renderTutor(){
   tutorAv.say(ok ? "Привет, Даша! Спрашивай, разберёмся вместе" : "Я пока не подключён, но скоро буду помогать", 5000);
   if(pendingBoard){ $("chatin").value = "Проверь моё решение на доске. Найди ошибки, но не решай за меня."; }
   try{ const q = sessionStorage.getItem("dasha:tutorq"); if(q){ sessionStorage.removeItem("dasha:tutorq"); $("chatin").value = q; const sj = sessionStorage.getItem("dasha:tutorsubj"); if(sj && $("chatsubj").querySelector(`option[value="${sj}"]`)) $("chatsubj").value = sj; $("chatin").focus(); } }catch(e){}
-  $("main").querySelectorAll("[data-q]").forEach(b=>b.addEventListener("click",()=>{ $("chatin").value = b.dataset.q; if(b.dataset.q.includes("доске")) $("chatboard").checked = true; $("chatin").focus(); }));
+  const drawTP = () => { const el = $("chatphotoprev"); if(!el) return; el.innerHTML = tutorPhoto ? `<span class="photochip"><img src="${tutorPhoto.url}" alt="Приложенное фото"><button class="pg" type="button" id="chatphotorm" aria-label="Убрать фото">✕</button></span>` : ""; const rm = $("chatphotorm"); if(rm) rm.addEventListener("click", ()=>{ tutorPhoto = null; drawTP(); }); };
+  const pickTP = async () => { const got = await Photo.pick(false); if(got[0]){ tutorPhoto = got[0]; drawTP(); } };
+  $("chatphoto").addEventListener("click", pickTP); drawTP();
+  $("main").querySelectorAll("[data-q]").forEach(b=>b.addEventListener("click",()=>{ if(b.dataset.photo && !tutorPhoto) pickTP(); $("chatin").value = b.dataset.q; if(b.dataset.q.includes("доске")) $("chatboard").checked = true; $("chatin").focus(); }));
   $("chatsubj").addEventListener("change",e=>{ try{ localStorage.setItem("dasha:subj", e.target.value) }catch(_){} });
   $("chatnew").addEventListener("click",()=>{ chat = []; saveChat(); drawChat(); });
   $("chatin").addEventListener("keydown",e=>{ if(e.key==="Enter" && (e.ctrlKey||e.metaKey)) $("chatform").requestSubmit(); });
@@ -433,14 +440,17 @@ function renderTutor(){
         if(blob){ image = await toWhitePngBase64(blob); boardUrl = "data:image/png;base64,"+image; } }catch(_){}
     }
     pendingBoard = null;
-    chat.push({role:"user", content:text, board:!!image, img:boardUrl}); $("chatin").value = ""; $("chatboard").checked = false;
+    let imageType = "png", photo = false;
+    if(tutorPhoto){ image = tutorPhoto.b64; imageType = "jpeg"; photo = true; boardUrl = null; tutorPhoto = null; const el = $("chatphotoprev"); if(el) el.innerHTML = ""; }
+    if(window.Points) Points.logAct();
+    chat.push({role:"user", content:text, board:!!image && !photo, photo, img:boardUrl}); $("chatin").value = ""; $("chatboard").checked = false;
     const thinking = {role:"assistant", content:"Думаю…", pending:true}; chat.push(thinking); drawChat();
     if(tutorAv){ tutorAv.stop(); tutorAv.setMood("think"); tutorAv.say("Хм, сейчас подумаю…"); }
     $("chatsend").disabled = true;
     try{
       const msgs = chat.filter(m=>!m.pending && !m.err).slice(-16).map(m=>({role:m.role, content:m.content}));
       const subjName = (SUBJ_ALL.find(s=>s[0]===$("chatsubj").value)||[])[1] || "";
-      const r = await Store.ask({ subject: subjName, messages: msgs, image });
+      const r = await Store.ask({ mode: image ? "check" : "chat", subject: subjName, messages: msgs, image, imageType });
       thinking.content = r.text || "Пустой ответ."; delete thinking.pending;
     }catch(err){ thinking.content = "Не получилось получить ответ: " + err.message; thinking.err = true; delete thinking.pending; }
     if(tutorAv && tutorAv.el.isConnected){ tutorAv.setMood(thinking.err ? "squint" : "smile"); tutorAv.say(thinking.err ? "Ой, что-то пошло не так" : "Вот что я думаю!", 3000); setTimeout(()=>{ if(tutorAv){ tutorAv.setMood("idle"); tutorAv.start(); } }, 3000); }
@@ -449,7 +459,7 @@ function renderTutor(){
 }
 function drawChat(){
   const log = $("chatlog"); if(!log) return;
-  log.innerHTML = chat.length ? chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"} ${m.err?"err":""}">${esc(m.content)}${m.img?`<img src="${m.img}" alt="Лист с доски">`:(m.board?`<br><small>📎 лист с доски</small>`:"")}</div>`).join("")
+  log.innerHTML = chat.length ? chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"} ${m.err?"err":""}">${esc(m.content)}${m.img?`<img src="${m.img}" alt="Лист с доски">`:(m.board?`<br><small>📎 лист с доски</small>`:m.photo?`<br><small>📷 фото</small>`:"")}</div>`).join("")
     : `<p class="emptychat">Здесь появится разговор. Например: «Объясни, как решать квадратные неравенства методом интервалов».</p>`;
   log.scrollTop = log.scrollHeight;
 }
@@ -532,6 +542,7 @@ async function route(){
   if(id.startsWith("t/")){ renderShelf(id.split("/")[1]); return Topic.render(id.slice(2)); }
   if(id.startsWith("q/")){ renderShelf(id.split("/")[1]); return Topic.renderQuiz(id.slice(2)); }
   if(window.Points) Points.renderBar();
+  if(window.Journal) Journal.notify();
   if(id !== "tutor" && tutorAv){ tutorAv.destroy(); tutorAv = null; }
   renderShelf(id);
   const b = BOOKS.find(x=>x.id===id), e = EMPTY.find(x=>x.id===id);
@@ -542,7 +553,9 @@ async function route(){
   if(id==="tutor") return renderTutor();
   if(id==="stats") return renderStats();
   if(id==="account") return renderAccount();
-  if(id==="diary") return Points.renderDiary();
+  if(id==="diary") return Journal.renderDiary();
+  if(id==="fill") return Journal.renderFill();
+  if(id==="schedule") return Journal.renderSchedule();
   if(id==="rewards") return Points.renderRewards();
   if(id==="oge") return Oge.render();
   return renderHome();

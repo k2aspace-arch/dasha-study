@@ -81,7 +81,7 @@ function render(arg){
     </div>
     <p class="hint" id="thint"></p>
     <form class="chatform" id="tform"><textarea id="tin" placeholder="Вопрос, ответ учителю или условие задачи…" aria-label="Сообщение учителю"></textarea>
-      <div class="chatrow"><span class="sm" id="tselinfo"></span><span style="flex:1"></span><button class="btn" type="button" id="tnew">Начать заново</button><button class="btn primary" type="submit" id="tsend">Отправить</button></div></form>
+      <div class="chatrow"><button class="btn" type="button" id="tphoto">📷 Приложить фото</button><span id="tphotoprev"></span><span class="sm" id="tselinfo"></span><span style="flex:1"></span><button class="btn" type="button" id="tnew">Начать заново</button><button class="btn primary" type="submit" id="tsend">Отправить</button></div></form>
   </section>
   <section class="panel" id="tnb"></section>
   <section class="panel dadrow"><div><h3>Итоговые вопросы по главе</h3><p class="hint">Тест на понимание и пара заданий нарисовать по теме «${esc(t.c.t)}».</p></div><a class="btn" href="#q/${b.id}/${t.ckey}">Пройти</a></section>
@@ -95,6 +95,7 @@ function render(arg){
   $("topen") && $("topen").addEventListener("click", ()=>Reader.open(b, rg[0], `${t.ci+1}.${t.pi+1}. ${t.title}`));
   $("tdone").addEventListener("change", e=>{ App.setDone(t.key, e.target.checked); if(window.Points) Points.renderBar(); });
   $("tknow").addEventListener("change", e=>setKnow(t.key, e.target.value));
+  $("tphoto").addEventListener("click", async()=>{ const got = await Photo.pick(false); if(got[0]){ cur.photo = got[0]; drawPhoto(); say("Фото приложено. Нажми «Проверь моё решение», «Подсказка» или просто отправь вопрос."); } });
   $("tnew").addEventListener("click", ()=>{ cur.chat = []; cur.level = 0; persist(); draw(); });
   cur.onReader = () => selInfo(); window.addEventListener("reader:change", cur.onReader); selInfo();
   $("main").querySelectorAll("[data-act]").forEach(btn=>btn.addEventListener("click", ()=>act(btn.dataset.act)));
@@ -103,6 +104,8 @@ function render(arg){
   if(!ai) $("main").querySelectorAll("[data-act],#tsend").forEach(x=>{ if(x.dataset.act!=="got") x.disabled = true; });
   if(ai && !cur.chat.length && q){ if(q.includes("scratch")) act("explain"); else if(q.includes("brief")) act("brief"); }
 }
+function drawPhoto(){ const el = $("tphotoprev"); if(!el || !cur) return; el.innerHTML = cur.photo ? `<span class="photochip"><img src="${cur.photo.url}" alt="Приложенное фото"><button class="pg" type="button" id="tphotorm" aria-label="Убрать фото">✕</button></span>` : "";
+  const rm = $("tphotorm"); if(rm) rm.addEventListener("click", ()=>{ cur.photo = null; drawPhoto(); }); }
 function selInfo(){
   if(!cur) return; const st = Reader.state(), el = $("tselinfo"); if(!el) return;
   el.textContent = st.sel && st.book && st.book.id===cur.t.b.id ? `Выделено в учебнике: «${st.sel.text.slice(0,60)}${st.sel.text.length>60?"…":""}»` : st.open && st.book && st.book.id===cur.t.b.id ? "Можно выделить текст в учебнике и спросить о нём" : "";
@@ -138,20 +141,22 @@ async function act(a){
     return say("Открой учебник и выдели мышкой непонятное место. Если текст не выделяется (учебник отсканирован), просто открой нужную страницу и нажми кнопку ещё раз.");
   }
   if(a==="hint"){
-    if(!text && !cur.nb.hasInk()) return say("Напиши в поле номер или условие задачи (или начни решать в тетради) и нажми «Подсказка» ещё раз.");
+    if(!text && !cur.nb.hasInk() && !cur.photo) return say("Напиши в поле номер или условие задачи (или начни решать в тетради) и нажми «Подсказка» ещё раз.");
     $("tin").value = "";
-    return send("hint", text ? `Дай подсказку к задаче: ${text}` : "Дай подсказку к задаче, которую я решаю в тетради.", {tag:"Подсказка", image: cur.nb.hasInk() ? cur.nb.image() : null, imageType:"jpeg"});
+    return send("hint", text ? `Дай подсказку к задаче: ${text}` : "Дай подсказку к задаче, которую я решаю в тетради.", {tag:"Подсказка", image: !cur.photo && cur.nb.hasInk() ? cur.nb.image() : null, imageType:"jpeg"});
   }
   if(a==="check"){
-    if(!cur.nb.hasInk()) return say("Сначала реши задачу в тетради ниже, потом нажми «Проверь моё решение».");
+    if(!cur.nb.hasInk() && !cur.photo) return say("Сначала реши задачу в тетради ниже или приложи фото решения, потом нажми «Проверь моё решение».");
     await cur.nb.save(); $("tin").value = "";
-    return send("check", text ? `Проверь моё решение. Задача: ${text}` : "Проверь моё решение в тетради.", {tag:"Проверка решения", image: cur.nb.image(), imageType:"jpeg"});
+    return send("check", text ? `Проверь моё решение. Задача: ${text}` : "Проверь моё решение в тетради.", {tag: cur.photo ? "Проверка решения по фото" : "Проверка решения", image: cur.photo ? null : cur.nb.image(), imageType:"jpeg"});
   }
 }
 async function send(mode, content, opt){
   opt = opt || {};
   if(!Store.aiAvailable()){ say("Учитель пока не подключён."); return; }
   const t = cur.t, me = cur;
+  if(!opt.image && me.photo){ opt.image = me.photo.b64; opt.imageType = "jpeg"; opt.tag = (opt.tag ? opt.tag + " · " : "") + "📷 фото"; me.photo = null; drawPhoto(); }
+  if(window.Points) Points.logAct();
   me.chat.push({ role:"user", content, mode, tag:opt.tag }); const thinking = { role:"assistant", content:"Думаю…", pending:true }; me.chat.push(thinking); draw();
   me.busy = true; me.av.stop(); me.av.setMood("think"); me.av.say(mode==="check" ? "Смотрю твоё решение…" : "Открываю учебник…");
   try{
