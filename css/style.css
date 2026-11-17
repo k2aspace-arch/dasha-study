@@ -763,10 +763,6 @@ table.grades th:nth-child(n+6){white-space:nowrap}
 #profp details.more>summary{white-space:nowrap}
 #profp details.more .morebox{position:static;margin-top:8px;box-shadow:none;max-width:560px}
 .wcol select{font-size:13px;padding:4px 6px}
-body.dock-wide{--dockw:min(760px,52vw)}
-@media (max-width:1279px){ body.dock-wide .dock{width:min(760px,100vw)} }
-body.dock-wide #dockbody .tutorstage{height:160px}
-@media (max-width:600px){ #dockwide{display:none} }
 .tutormain .chat{min-height:220px;max-height:60vh}
 .goalp{display:grid;grid-template-columns:150px minmax(0,1fr);gap:20px;align-items:center}
 .goalart{color:var(--ink);background:var(--paper);border:1.5px dashed var(--line);border-radius:16px;padding:12px;display:grid;place-items:center}
@@ -786,3 +782,11 @@ body.dock-wide #dockbody .tutorstage{height:160px}
 .dayed{margin-top:8px} .dayed .dwday{max-width:320px}
 .repimg{position:relative;max-height:52vh;overflow:auto;border-radius:12px;border:1.5px solid var(--line);background:var(--paper);margin:10px 0;min-height:80px;display:grid;place-items:center}
 .repimg img{width:100%;height:auto;display:block;user-select:none;-webkit-user-drag:none}
+.maincol{min-width:0;display:flex;flex-direction:column;gap:0}
+#dockslot:empty{display:none}
+#dockslot{margin-bottom:24px}
+.dock.inline{position:static;width:auto;height:auto;max-height:none;z-index:auto;border:1.5px solid var(--line);border-radius:var(--r,18px);box-shadow:0 2px 12px rgba(0,0,0,.05);overflow:hidden;top:auto;border-top:1.5px solid var(--line)}
+.dock.inline #dockbody{overflow:visible}
+.dock.inline .chat{max-height:55vh;overflow-y:auto}
+.dock.inline .tutorstage{height:140px}
+body.dock-inline .dockbtn{z-index:44}

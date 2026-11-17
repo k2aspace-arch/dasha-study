@@ -42,16 +42,23 @@ function bindTheme(root){
 /* ================= ВЫДВИЖНОЙ ЧАТ С УЧИТЕЛЕМ СПРАВА ================= */
 const Dock = (()=>{
   let kind = null, cleanup = null, claimed = false, hidden = false, away = false, awayClean = null;
-  const isWide = () => { try{ return localStorage.getItem("dasha:dockwide")==="1" }catch(e){ return false } };
-  const setWide = v => { try{ localStorage.setItem("dasha:dockwide", v ? "1" : "0") }catch(e){} document.body.classList.toggle("dock-wide", v); const b = $("dockwide"); if(b){ b.textContent = v ? "⤡" : "⤢"; b.title = v ? "Сделать уже" : "Сделать шире"; } };
+  // «в странице»: учитель встаёт блоком над содержимым страницы, как раньше; «сбоку»: выдвижная панель справа
+  const isInline = () => { try{ return localStorage.getItem("dasha:dockinline")==="1" }catch(e){ return false } };
+  const setInline = v => { try{ localStorage.setItem("dasha:dockinline", v ? "1" : "0") }catch(e){}
+    const el = $("dock"), slot = $("dockslot"); if(!el || !slot) return;
+    if(v && el.parentNode !== slot) slot.appendChild(el); if(!v && el.parentNode === slot) document.body.insertBefore(el, $("dockbtn"));
+    el.classList.toggle("inline", v); document.body.classList.toggle("dock-inline", v);
+    const b = $("dockwide"); if(b){ b.textContent = v ? "⇥" : "⤢"; b.title = v ? "Свернуть вбок" : "Встроить в страницу"; b.setAttribute("aria-label", b.title); }
+    if(!el.hidden) apply(true); };
   const wide = () => window.innerWidth >= 1280;
   const want = () => { try{ const v = localStorage.getItem("dasha:dock"); return v===null ? wide() : v==="1"; }catch(e){ return wide(); } };
   const remember = v => { try{ localStorage.setItem("dasha:dock", v ? "1" : "0") }catch(e){} };
   function apply(open){
     const el = $("dock"), btn = $("dockbtn"); if(!el) return;
     el.hidden = hidden || !open; btn.hidden = hidden || open;
-    document.body.classList.toggle("dock-open", !hidden && open && wide());
-    document.body.classList.toggle("dock-over", !hidden && open && !wide());
+    const inl = isInline();
+    document.body.classList.toggle("dock-open", !inl && !hidden && open && wide());
+    document.body.classList.toggle("dock-over", !inl && !hidden && open && !wide());
   }
   function run(){ if(cleanup){ try{ cleanup() }catch(e){} } cleanup = null; }
   const D = {
@@ -67,8 +74,8 @@ const Dock = (()=>{
     hide(){ hidden = true; apply(false); },
     ping(){ const el = $("dock"), b = $("dockbtn"); if(el && el.hidden && b) b.classList.add("ping"); }
   };
-  document.addEventListener("click", e=>{ if(e.target.closest("#dockbtn")) D.open(); else if(e.target.closest("#dockclose")) D.close(); else if(e.target.closest("#dockwide")) setWide(!isWide()); });
-  setTimeout(()=>setWide(isWide()), 0);
+  document.addEventListener("click", e=>{ if(e.target.closest("#dockbtn")) D.open(); else if(e.target.closest("#dockclose")) D.close(); else if(e.target.closest("#dockwide")){ setInline(!isInline()); if(isInline()) $("dock").scrollIntoView({ behavior:"smooth", block:"start" }); } });
+  setTimeout(()=>setInline(isInline()), 0);
   window.addEventListener("resize", ()=>{ const el = $("dock"); if(el && !hidden) apply(!el.hidden); });
   return D;
 })();
