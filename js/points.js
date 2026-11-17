@@ -27,7 +27,7 @@ const REWARDS = {
   twoWeeks: { title:"Вкусняшка с доставкой", hint:"Каждые 2 недели", choices:["Пицца","Суши или роллы","Торт или пирожные","Бабл-ти и десерт","Бургер","Своё"] },
   month:    { title:"Выход на выбор", hint:"Каждый месяц", choices:["Мастер-класс","Верховая езда","Урок вождения","Ресторан на выбор","Каток или скалодром","Своё"] },
   quarter:  { title:"Абонемент", hint:"Каждые 3 месяца", choices:["Танцы","Верховая езда","Бассейн","Йога или фитнес","Своё"] },
-  trip:     { title:"Поездка с сопровождением", hint:"Аттестат со средним баллом выше 4,9" },
+  dress:    { title:"Платье на выпускной", hint:"Средний балл аттестата выше 4,9" },
   laptop:   { title:"Ноутбук", hint:"Аттестат с отличием, 2500 очков, 90% программы и по 30 заданий ОГЭ в каждой части" }
 };
 const HW_SUBJECTS = GRADE_SUBJECTS.filter(([id])=>!["pe","trud","nat"].includes(id));
@@ -152,7 +152,11 @@ function renderRewards(){
       ${goalRow("ОГЭ русский, тестовая часть", parts.rus, RULES.goals.ogePart)}
       ${goalRow("Годовые оценки", avg ? Math.round(avg*100) : 0, 500, avg ? avg.toFixed(2).replace(".",",") : "—")}
     </div>
-    <p class="hint">Ноутбук: аттестат с отличием (все пятёрки), ${RULES.goals.final} очков, 90% программы и по ${RULES.goals.ogePart} верных заданий ОГЭ в каждой части. Поездка с сопровождением: средний балл аттестата выше 4,9.</p>
+    <p class="hint">Ноутбук: аттестат с отличием (все пятёрки), ${RULES.goals.final} очков, 90% программы и по ${RULES.goals.ogePart} верных заданий ОГЭ в каждой части.</p>
+  </section>
+  <section class="panel"><h3>Цель: платье на выпускной</h3>
+    <div class="subjrows">${goalRow("Средний балл аттестата", avg ? Math.round(avg*100) : 0, 491, avg ? avg.toFixed(2).replace(".",",") + (avg>4.9?" · есть!":" из 4,91+") : "—")}</div>
+    <p class="hint">Платье на выпускной: средний балл аттестата выше 4,9. Считается по годовым оценкам из таблицы на главной.</p>
   </section>
   <section class="panel"><h3>Каждые 2 недели: вкусняшка с доставкой</h3><div class="rwgrid">${by("twoWeeks").map(card).join("")}</div></section>
   <section class="panel"><h3>Каждый месяц: выход на выбор</h3><div class="rwgrid">${by("month").length ? by("month").map(card).join("") : `<p class="hint">Первый месяц начнётся 1 декабря.</p>`}</div></section>

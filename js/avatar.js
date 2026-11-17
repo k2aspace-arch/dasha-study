@@ -4,36 +4,37 @@
 const SVG = `
 <svg class="av-svg" viewBox="0 0 160 200" aria-hidden="true">
   <g class="av-body">
-    <ellipse class="av-shadow" cx="80" cy="192" rx="38" ry="6"/>
-    <g class="av-leg av-leg-l"><rect x="58" y="150" width="12" height="34" rx="6"/><ellipse cx="62" cy="186" rx="12" ry="6"/></g>
-    <g class="av-leg av-leg-r"><rect x="90" y="150" width="12" height="34" rx="6"/><ellipse cx="98" cy="186" rx="12" ry="6"/></g>
-    <g class="av-arm av-arm-l"><rect x="20" y="96" width="30" height="12" rx="6"/></g>
+    <ellipse class="av-shadow" cx="80" cy="193" rx="50" ry="6"/>
+    <g class="av-leg av-leg-l"><rect x="40" y="134" width="13" height="26" rx="2"/><rect x="92" y="134" width="13" height="26" rx="2"/></g>
+    <g class="av-leg av-leg-r"><rect x="57" y="134" width="13" height="26" rx="2"/><rect x="109" y="134" width="13" height="26" rx="2"/></g>
+    <g class="av-arm av-arm-l"><rect x="12" y="80" width="22" height="20" rx="2"/></g>
     <g class="av-torso">
-      <path class="av-blob" d="M80 26c30 0 52 22 54 54 2 34-6 62-22 72-10 7-22 8-32 8s-22-1-32-8C32 142 24 114 26 80 28 48 50 26 80 26z"/>
-      <g class="av-spark"><path d="M80 4l4 12 12-4-8 10 10 8-13-1-1 13-4-12-4 12-1-13-13 1 10-8-8-10 12 4z"/></g>
+      <rect class="av-blob" x="28" y="40" width="104" height="100" rx="8"/>
+      <path class="av-pix" d="M30 60h100M30 80h100M30 100h100M30 120h100M48 42v96M68 42v96M88 42v96M108 42v96"/>
+      <g class="av-spark"><path class="av-cap" d="M80 14l34 12-34 12-34-12z"/><path class="av-capb" d="M62 32v9q18 7 36 0v-9"/><path class="av-tassel" d="M114 26v14"/><circle class="av-tasselb" cx="114" cy="42" r="3"/></g>
       <g class="av-face">
         <g class="av-eyes">
-          <g class="av-eye av-eye-l"><ellipse class="av-white" cx="64" cy="78" rx="11" ry="13"/><circle class="av-pupil" cx="66" cy="80" r="5.5"/><circle class="av-glint" cx="68" cy="77" r="1.8"/></g>
-          <g class="av-eye av-eye-r"><ellipse class="av-white" cx="98" cy="78" rx="11" ry="13"/><circle class="av-pupil" cx="100" cy="80" r="5.5"/><circle class="av-glint" cx="102" cy="77" r="1.8"/></g>
-          <path class="av-squint" d="M54 80q10-9 20 0M88 80q10-9 20 0"/>
+          <g class="av-eye av-eye-l"><rect class="av-pupil" x="55" y="69" width="11" height="18" rx="2"/><rect class="av-glint" x="57" y="71" width="3" height="4"/></g>
+          <g class="av-eye av-eye-r"><rect class="av-pupil" x="95" y="69" width="11" height="18" rx="2"/><rect class="av-glint" x="97" y="71" width="3" height="4"/></g>
+          <path class="av-squint" d="M53 80q7-8 14 0M93 80q7-8 14 0"/>
         </g>
         <g class="av-glasses">
-          <path class="av-temple" d="M46 74L30 68M116 75L132 69"/>
-          <circle class="av-lens" cx="63" cy="79" r="17.5"/><circle class="av-lens" cx="100" cy="80" r="15.5"/>
-          <path class="av-bridge" d="M80.5 76q2-6 4.5-.5"/>
-          <rect class="av-tape" x="79" y="71" width="7" height="8" rx="1.5" transform="rotate(12 82.5 75)"/>
-          <path class="av-shine" d="M52 72q4-7 11-8M91 73q3-5 9-6"/>
+          <path class="av-temple" d="M44 74L28 69M117 74L132 69"/>
+          <circle class="av-lens" cx="60.5" cy="78" r="16.5"/><circle class="av-lens" cx="100.5" cy="78.5" r="15"/>
+          <path class="av-bridge" d="M76.8 75q4.2-7 8.8-.5"/>
+          <rect class="av-tape" x="77" y="70" width="7" height="8" rx="1.5" transform="rotate(12 80.5 74)"/>
+          <path class="av-shine" d="M50 71q4-7 11-8M91 72q3-5 9-6"/>
         </g>
-        <path class="av-brows" d="M50 54q12-6 24 1M88 56q10-5 21 0"/>
-        <circle class="av-cheek" cx="52" cy="98" r="6"/><circle class="av-cheek" cx="110" cy="98" r="6"/>
-        <path class="av-mouth" d="M70 102q11 10 22 0"/>
-        <path class="av-mouth-big" d="M66 100q15 20 30 0z"/>
-        <path class="av-mouth-o" d="M77 104a4 5 0 1 0 8 0a4 5 0 1 0-8 0"/>
+        <path class="av-brows" d="M47 54q12-6 25 1M89 56q10-5 22 0"/>
+        <rect class="av-cheek" x="42" y="98" width="10" height="6" rx="3"/><rect class="av-cheek" x="108" y="98" width="10" height="6" rx="3"/>
+        <path class="av-mouth" d="M73 103q7 5 14 0"/>
+        <path class="av-mouth-big" d="M70 99h20q-1 13-10 13t-10-13z"/>
+        <rect class="av-mouth-o" x="76" y="101" width="8" height="8" rx="2"/>
       </g>
     </g>
     <g class="av-tie"><path d="M80 128l-13-7v14z M80 128l13-7v14z"/><circle cx="80" cy="128" r="3.5"/></g>
-    <g class="av-arm av-arm-r"><rect x="110" y="96" width="30" height="12" rx="6"/>
-      <g class="av-pen"><rect x="134" y="70" width="5" height="34" rx="2" transform="rotate(20 136 87)"/><path d="M140 100l-3 9-2-9z" transform="rotate(20 136 87)"/></g>
+    <g class="av-arm av-arm-r"><rect x="126" y="80" width="22" height="20" rx="2"/>
+      <g class="av-pen"><rect x="142" y="58" width="5" height="34" rx="2" transform="rotate(20 144 75)"/><path d="M148 88l-3 9-2-9z" transform="rotate(20 144 75)"/></g>
     </g>
   </g>
   <g class="av-think"><circle cx="128" cy="40" r="4"/><circle cx="138" cy="28" r="6"/><ellipse cx="146" cy="12" rx="12" ry="9"/><text x="146" y="16" text-anchor="middle">…</text></g>

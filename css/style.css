@@ -517,3 +517,32 @@ details.plain>summary{display:block;padding:6px 0;list-style:none}
 @keyframes tdraw{to{stroke-dashoffset:0}}
 @keyframes tpop{from{opacity:0;transform:scale(.2)}to{opacity:1}}
 @media (prefers-reduced-motion: reduce){ .tdraw .d{animation:none;stroke-dashoffset:0} .tdraw .pt{animation:none} }
+
+/* ---------- новый квадратный учитель ---------- */
+.av-blob{fill:#d97757;stroke:#3b1d12;stroke-width:5;stroke-linejoin:round}
+.av-pix{stroke:rgba(255,255,255,.16);stroke-width:1.2;fill:none}
+.av-leg rect,.av-arm rect{fill:#d97757;stroke:#3b1d12;stroke-width:4;stroke-linejoin:round}
+.av-pupil{fill:#1b0f0a}
+.av-glint{fill:#fff;opacity:.8}
+.av-squint{stroke:#1b0f0a}
+.av-brows{stroke:#3b1d12}
+.av-mouth{stroke:#3b1d12;stroke-width:3.5}
+.av-mouth-big{fill:#f08a5d;stroke:#3b1d12;stroke-width:2.5}
+.av-mouth-o{fill:#f08a5d;stroke:#3b1d12;stroke-width:2}
+.av-cheek{fill:#ff9fb0;opacity:.75}
+.av-cap{fill:#2b2b3a;stroke:#1b1b26;stroke-width:2;stroke-linejoin:round}
+.av-capb{fill:#2b2b3a;stroke:#1b1b26;stroke-width:2}
+.av-tassel{stroke:#f5b041;stroke-width:2.5}
+.av-tasselb{fill:#f5b041}
+.av-spark path{stroke-linejoin:round}
+.av-spark{transform-origin:80px 30px;transform-box:view-box;transform:rotate(-8deg)}
+.av-svg[data-mood="smile"] .av-spark{animation:av-cap 1.2s ease-in-out}
+@keyframes av-cap{50%{transform:rotate(6deg) translateY(-6px)}}
+.av-leg-l,.av-leg-r{transform-origin:50% 0}
+.av-svg.walking .av-leg-l{animation:av-hop .3s ease-in-out infinite alternate}
+.av-svg.walking .av-leg-r{animation:av-hop .3s ease-in-out infinite alternate-reverse}
+@keyframes av-hop{from{transform:translateY(0)}to{transform:translateY(-5px)}}
+.av-svg.blink .av-pupil,.av-svg.blink .av-glint{transform:scaleY(.12);transform-box:fill-box;transform-origin:center}
+.av-svg[data-mood="squint"] .av-pupil,.av-svg[data-mood="squint"] .av-glint{display:none}
+.av-svg[data-mood="think"] .av-pupil{transform:translate(2px,-4px)}
+.av-svg[data-mood="write"] .av-pupil{transform:translate(3px,3px)}
