@@ -42,7 +42,7 @@ const lsGet = k => { try{ return JSON.parse(localStorage.getItem("dasha:"+k) || 
 const lsSet = (k,v) => { try{ localStorage.setItem("dasha:"+k, JSON.stringify(v)) }catch(e){} };
 
 let cur = null; // { t, nb, av, chat, level, busy }
-function leave(){ if(cur){ if(cur.nb) cur.nb.destroy(); if(cur.av) cur.av.destroy(); window.removeEventListener("reader:change", cur.onReader); } cur = null; }
+function leave(){ if(Study.Dock.kind()==="topic") Study.Dock.release(); if(cur){ if(cur.nb) cur.nb.destroy(); if(cur.av) cur.av.destroy(); window.removeEventListener("reader:change", cur.onReader); } cur = null; }
 
 function render(arg){
   leave();
@@ -53,18 +53,7 @@ function render(arg){
   const prev = all[i-1], next = all[i+1], link = x => `#t/${b.id}/${x.join(".")}`, k = know().k[t.key];
   const saved = lsGet("tchat:"+t.key) || { msgs:[], level:0 };
   cur = { t, rg, chat: saved.msgs || [], level: saved.level || 0, busy:false };
-  $("main").innerHTML = `<div class="stack topic" style="--c:${b.color}">
-  <section class="panel topic-head">
-    <div class="crumbs"><a href="#${b.id}">${esc(b.subject)}</a> · ${esc(t.c.n)} ${esc(t.c.t)}</div>
-    <h2>${t.ci+1}.${t.pi+1}. ${esc(t.title)}</h2>
-    <div class="topic-row">
-      ${rg ? `<button class="btn primary" type="button" id="topen" ${file?"":"disabled"}>Открыть учебник на стр. ${rg[0]}</button>` : `<span class="chip warn">Страница темы не указана</span> <a href="#account">Указать в личном кабинете</a>`}
-      <label class="ck"><input type="checkbox" id="tdone" ${App.done[t.key]?"checked":""}> Тема пройдена</label>
-      <span class="knchip kn${k===undefined?"":k}" id="tknow" title="Заполняется по твоим ответам учителю, итоговым вопросам и срезу знаний">${k===undefined?"Знание: пока не проверено":"Знание: "+KNOW[k].toLowerCase()}</span>
-    </div>
-    <div class="topic-nav">${prev?`<a class="btn" href="${link(prev)}">← Предыдущая тема</a>`:""}<span style="flex:1"></span>${next?`<a class="btn" href="${link(next)}">Следующая тема →</a>`:""}</div>
-  </section>
-  <section class="panel teacher">
+  const teacherHtml = `<div class="teacher topic" style="--c:${b.color}">
     <div class="tutorstage" id="tstage"></div>
     ${ai ? "" : `<p class="note"><b>Учитель пока не подключён.</b> Как только ИИ будет включён, здесь заработают объяснения по учебнику, подсказки и проверка решений. Тетрадь работает уже сейчас.</p>`}
     ${rg ? "" : `<p class="note">Без страницы темы учитель не знает, что написано в учебнике. Укажи страницу в личном кабинете.</p>`}
@@ -87,10 +76,22 @@ function render(arg){
     <form class="chatform" id="tform"><textarea id="tin" placeholder="Вопрос, ответ учителю или условие задачи… Enter — отправить, Shift+Enter — новая строка" aria-label="Сообщение учителю"></textarea>
       <div class="chatrow"><button class="ibtn" type="button" id="tphoto" title="Приложить фото" aria-label="Приложить фото">📷</button><span id="tphotoprev"></span><span class="sm" id="tselinfo"></span><span style="flex:1"></span><button class="ibtn" type="button" id="tnew" title="Начать заново" aria-label="Начать заново">↺</button><button class="btn primary" type="submit" id="tsend">Отправить</button></div></form>
     ${Study.exercisesHtml(b, t.key)}
+  </div>`;
+  $("main").innerHTML = `<div class="stack topic" style="--c:${b.color}">
+  <section class="panel topic-head">
+    <div class="crumbs"><a href="#${b.id}">${esc(b.subject)}</a> · ${esc(t.c.n)} ${esc(t.c.t)}</div>
+    <h2>${t.ci+1}.${t.pi+1}. ${esc(t.title)}</h2>
+    <div class="topic-row">
+      ${rg ? `<button class="btn primary" type="button" id="topen" ${file?"":"disabled"}>Открыть учебник на стр. ${rg[0]}</button>` : `<span class="chip warn">Страница темы не указана</span> <a href="#account">Указать в личном кабинете</a>`}
+      <label class="ck"><input type="checkbox" id="tdone" ${App.done[t.key]?"checked":""}> Тема пройдена</label>
+      <span class="knchip kn${k===undefined?"":k}" id="tknow" title="Заполняется по твоим ответам учителю, итоговым вопросам и срезу знаний">${k===undefined?"Знание: пока не проверено":"Знание: "+KNOW[k].toLowerCase()}</span>
+    </div>
+    <div class="topic-nav">${prev?`<a class="btn" href="${link(prev)}">← Предыдущая тема</a>`:""}<span style="flex:1"></span>${next?`<a class="btn" href="${link(next)}">Следующая тема →</a>`:""}</div>
   </section>
   <section class="panel" id="tnb"></section>
   <section class="panel dadrow"><div><h3>Итоговые вопросы по главе</h3><p class="hint">Тест на понимание и пара заданий нарисовать по теме «${esc(t.c.t)}».</p></div><a class="btn" href="#q/${b.id}/${t.ckey}">Пройти</a></section>
   </div>`;
+  Study.Dock.claim("topic", "Учитель Клод", `${t.ci+1}.${t.pi+1}. ${t.title}`, null).innerHTML = teacherHtml;
   const ruled = b.id === "rus";
   cur.nb = Notebook.mount($("tnb"), { bookId:b.id, key:t.ckey, ruled, title:`Тетрадь · ${b.subject}`, sub:`${t.c.n} ${t.c.t}. У каждой главы своя тетрадь: со следующей главой начнётся новая.` });
   cur.av = Avatar.create($("tstage"), {compact:true}); cur.av.start();
@@ -102,11 +103,11 @@ function render(arg){
   $("tphoto").addEventListener("click", async()=>{ const got = await Photo.pick(false); if(got[0]){ cur.photo = got[0]; drawPhoto(); say("Фото приложено. Нажми «Проверь моё решение», «Подсказка» или просто отправь вопрос."); } });
   $("tnew").addEventListener("click", ()=>{ cur.chat = []; cur.level = 0; persist(); draw(); });
   cur.onReader = () => selInfo(); window.addEventListener("reader:change", cur.onReader); selInfo();
-  $("main").querySelectorAll("[data-act]").forEach(btn=>btn.addEventListener("click", ()=>{ const d = btn.closest("details.more"); if(d) d.open = false; act(btn.dataset.act); }));
+  document.querySelectorAll("#dockbody [data-act]").forEach(btn=>btn.addEventListener("click", ()=>{ const d = btn.closest("details.more"); if(d) d.open = false; act(btn.dataset.act); }));
   $("tform").addEventListener("submit", e=>{ e.preventDefault(); const v = $("tin").value.trim(); if(!v) return; $("tin").value = ""; send(lastMode(), v); });
   $("tin").addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); $("tform").requestSubmit(); } });
-  if(!ai) $("main").querySelectorAll("[data-act],#tsend").forEach(x=>{ if(x.dataset.act!=="got") x.disabled = true; });
-  if(ai && !cur.chat.length && q){ if(q.includes("scratch")) act("explain"); else if(q.includes("brief")) act("brief"); }
+  if(!ai) document.querySelectorAll("#dockbody [data-act],#tsend").forEach(x=>{ if(x.dataset.act!=="got") x.disabled = true; });
+  if(ai && !cur.chat.length && q){ Study.Dock.open(); if(q.includes("scratch")) act("explain"); else if(q.includes("brief")) act("brief"); }
 }
 function drawPhoto(){ const el = $("tphotoprev"); if(!el || !cur) return; el.innerHTML = cur.photo ? `<span class="photochip"><img src="${cur.photo.url}" alt="Приложенное фото"><button class="pg" type="button" id="tphotorm" aria-label="Убрать фото">✕</button></span>` : "";
   const rm = $("tphotorm"); if(rm) rm.addEventListener("click", ()=>{ cur.photo = null; drawPhoto(); }); }
@@ -175,7 +176,7 @@ async function send(mode, content, opt){
     const pages = me.rg && hasFile(t.b) ? await pagesFor(t.b, me.rg[0], me.rg[1]) : [];
     const msgs = me.chat.filter(m=>!m.pending && !m.err).slice(-20).map(m=>({ role:m.role, content:m.content }));
     const r = await Store.ask({ mode, subject:t.b.subject, topic:{ book:t.b.title, chapter:`${t.c.n} ${t.c.t}`, title:t.title }, pages, context: Study.cardText(t.b, t.key), messages:msgs, selection:opt.selection, image:opt.image||null, imageType:opt.imageType });
-    const mk = Study.marks((r && r.text) || "Пустой ответ."); thinking.content = mk.text; delete thinking.pending;
+    const mk = Study.marks((r && r.text) || "Пустой ответ."); thinking.content = mk.text; delete thinking.pending; Study.Dock.ping();
     if(mk.know){ setKnow(t.key, mk.know); thinking.know = mk.know; const el = $("tknow"); if(el && cur===me){ el.className = "knchip kn"+mk.know; el.textContent = "Знание: " + KNOW[mk.know].toLowerCase(); } }
     if(me.av.el.isConnected){ me.av.setMood("smile"); me.av.say(mode.startsWith("simpler") ? "Так понятнее?" : mode==="check" ? "Посмотрела? Ответь на мой вопрос" : "Вот!", 3500); }
   }catch(err){ thinking.content = "Не получилось получить ответ: " + err.message; thinking.err = true; delete thinking.pending; if(me.av.el.isConnected){ me.av.setMood("squint"); me.av.say("Ой, связь пропала", 3000); } }

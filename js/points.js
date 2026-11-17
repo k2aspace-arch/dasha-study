@@ -21,14 +21,14 @@ const RULES = {
   year:  {"5":120, "4":40, "3":-40, "2":-80},            // годовая
   streakMax: 10,                // бонус за серию: +1 за каждый день серии, не больше 10 в день
   idlePenalty: -10,             // со 2-го дня простоя подряд
-  goals: { twoWeeks:180, month:400, quarter:1100, final:2500, program:0.9, ogePart:30, ogeTask:30 }
+  goals: { twoWeeks:180, month:400, quarter:1100, final:2500, program:0.9, ogePart:30, ogeTask:30, termAvg:4.9 }
 };
 const REWARDS = {
   twoWeeks: { title:"Вкусняшка с доставкой", hint:"Каждые 2 недели", choices:["Пицца","Суши или роллы","Торт или пирожные","Бабл-ти и десерт","Бургер","Своё"] },
   month:    { title:"Выход на выбор", hint:"Каждый месяц", choices:["Мастер-класс","Верховая езда","Урок вождения","Ресторан на выбор","Каток или скалодром","Своё"] },
-  quarter:  { title:"Абонемент", hint:"Каждые 3 месяца", choices:["Танцы","Верховая езда","Бассейн","Йога или фитнес","Своё"] },
+  quarter:  { title:"Абонемент", hint:"Каждый триместр, если средний балл выше 4,9", choices:["Танцы","Верховая езда","Бассейн","Йога или фитнес","Своё"] },
   dress:    { title:"Платье на выпускной", hint:"Средний балл аттестата выше 4,9" },
-  laptop:   { title:"Ноутбук", hint:"Аттестат с отличием, 2500 очков, 90% программы и больше 30 верных решений каждого задания ОГЭ" }
+  laptop:   { title:"Ноутбук", hint:"Аттестат с отличием, 2500 очков, 90% программы и у каждого задания ОГЭ 30 верных из 33 последних" }
 };
 const HW_SUBJECTS = GRADE_SUBJECTS.filter(([id])=>!["pe","trud","nat"].includes(id));
 
@@ -86,18 +86,22 @@ function compute(){
   const state = todayActive ? "hot" : idle === 0 ? "wait" : idle === 1 ? "cool" : "out";
   return { byDay, total, streak, best, idle, state, todayActive };
 }
+const fmtAvg = v => v===null||v===undefined ? "—" : v.toFixed(2).replace(".",",");
 const sumRange = (byDay, a, b) => Object.entries(byDay).filter(([d])=>d>=a && d<=b).reduce((s,[,r])=>s+r.pts, 0);
 
 /* периоды наград */
-function periods(c){
-  const today = todayIso(), out = [];
+function periods(c, all){
+  const today = todayIso(), out = [], lim = all ? CAL.end : today;
   // 2 недели от старта
-  for(let a = RULES.start, i = 1; a <= today; a = addDays(a,14), i++){ const b = addDays(a,13); out.push({kind:"twoWeeks", id:`2w-${i}`, a, b, label:`${DM.format(day(a))} – ${DM.format(day(b))}`, goal:RULES.goals.twoWeeks}); }
+  for(let a = RULES.start, i = 1; a <= lim; a = addDays(a,14), i++){ const b = addDays(a,13); out.push({kind:"twoWeeks", id:`2w-${i}`, a, b, label:`${DM.format(day(a))} – ${DM.format(day(b))}`, goal:RULES.goals.twoWeeks}); }
   // месяцы, начиная с декабря
-  for(let y = 2026, m = 11; ; m++){ if(m===12){ m=0; y++; } const a = iso(new Date(y,m,1)); if(a > today || a > "2027-06-30") break; const b = iso(new Date(y,m+1,0));
+  for(let y = 2026, m = 11; ; m++){ if(m===12){ m=0; y++; } const a = iso(new Date(y,m,1)); if(a > lim || a > "2027-06-30") break; const b = iso(new Date(y,m+1,0));
     out.push({kind:"month", id:`m-${a.slice(0,7)}`, a, b, label:new Intl.DateTimeFormat("ru-RU",{month:"long",year:"numeric"}).format(day(a)), goal:RULES.goals.month}); }
-  [["2026-12-01","2027-02-28","декабрь – февраль"],["2027-03-01","2027-05-31","март – май"]].forEach(([a,b,l],i)=>{ if(a<=today) out.push({kind:"quarter", id:`q-${i+1}`, a, b, label:l, goal:RULES.goals.quarter}); });
-  return out.map(p=>Object.assign(p, { pts: sumRange(c.byDay, p.a, p.b), over: p.b < today }));
+  // триместры: абонемент, если средний балл за триместр выше 4,9
+  const g = S.grades().g;
+  [[1,"t2"],[2,"t3"]].forEach(([i,t])=>{ const [a,b,l] = CAL.terms[i]; if(a<=lim){ const v = GRADE_SUBJECTS.map(([id])=>Number((g[id]||{})[t])).filter(x=>x>=2), av = v.length ? v.reduce((x,y)=>x+y,0)/v.length : null;
+    out.push({kind:"quarter", id:`tr-${i+1}`, a, b, label:l, goal:RULES.goals.termAvg, avg:av, byAvg:true}); } });
+  return out.map(p=>Object.assign(p, { pts: sumRange(c.byDay, p.a, p.b), over: p.b < today, future: p.a > today }, p.byAvg ? { ok: p.avg!==null && p.avg > p.goal, over: p.b < today && p.avg!==null } : { ok: sumRange(c.byDay, p.a, p.b) >= p.goal }));
 }
 function ogeParts(){
   const O = ogeLog().a, cnt = {"math1":0, "math2":0, "rus":0};
@@ -106,15 +110,25 @@ function ogeParts(){
 }
 // сколько раз верно решено каждое задание ОГЭ: { math:{1:n,…,25:n}, rus:{1:n,…,9:n} }
 const OGE_N = { math:25, rus:13 };
-function ogeCounts(){
-  const out = { math:{}, rus:{} }; Object.entries(OGE_N).forEach(([e,n])=>{ for(let i=1;i<=n;i++) out[e][i] = 0; });
-  ogeLog().a.forEach(([, exam, num, ok])=>{ if(ok && out[exam] && out[exam][num]!==undefined) out[exam][num]++; });
+// последние 33 решения каждого задания (1 — верно, 0 — ошибка), из тренировок, практики и пробных
+const OGE_WIN = 33;
+function ogeLast(){
+  const out = { math:{}, rus:{} }; Object.entries(OGE_N).forEach(([e,n])=>{ for(let i=1;i<=n;i++) out[e][i] = []; });
+  ogeLog().a.forEach(([, exam, num, ok])=>{ const l = out[exam] && out[exam][num]; if(l) l.push(ok ? 1 : 0); });
+  Object.values(out).forEach(o=>Object.keys(o).forEach(k=>o[k] = o[k].slice(-OGE_WIN)));
   return out;
 }
+// верных среди последних 33: цель на ноутбук — не меньше 30 у каждого задания
+function ogeCounts(){ const L = ogeLast(), out = { math:{}, rus:{} }; Object.keys(L).forEach(e=>Object.entries(L[e]).forEach(([k,a])=>out[e][k] = a.reduce((x,y)=>x+y,0))); return out; }
 // заработанные бонусы: каждый выполненный период превращается в квадратик в кабинете
+function squares(){
+  const c = compute(), used = Object.assign({u:{}}, Store.get("bonuses", {})).u;
+  return periods(c, true).map(p=>{ const ok = p.ok, u = used[p.id] || null;
+    return { id:p.id, kind:p.kind, title:REWARDS[p.kind].title, choices:REWARDS[p.kind].choices||[], label:p.label, pts:p.pts, goal:p.goal, avg:p.avg, byAvg:p.byAvg, used:u, state: p.future ? "fut" : ok ? (u ? "used" : "avail") : p.over ? "miss" : "now" }; });
+}
 function bonuses(){
   const c = compute(), used = Object.assign({u:{}}, Store.get("bonuses", {})).u;
-  return periods(c).filter(p=>p.pts >= p.goal).map(p=>({ id:p.id, kind:p.kind, title:REWARDS[p.kind].title, choices:REWARDS[p.kind].choices||[], label:p.label, used: used[p.id] || null }));
+  return periods(c).filter(p=>p.ok).map(p=>({ id:p.id, kind:p.kind, title:REWARDS[p.kind].title, choices:REWARDS[p.kind].choices||[], label:p.label, used: used[p.id] || null }));
 }
 function programShare(){ const all = BOOKS.flatMap(keysOf); return all.length ? all.filter(k=>App.done[k]).length / all.length : 0; }
 function yearAvg(){ const g = S.grades().g; const v = GRADE_SUBJECTS.map(([id])=>Number((g[id]||{}).y)).filter(x=>x>=2); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; }
@@ -131,7 +145,7 @@ function renderBar(){
     <a href="#rewards" class="sb-pts"><b>${c.total}</b><span class="sm">очков</span></a>
     ${cur2w?`<a href="#rewards" class="sb-next"><span class="sm">До вкусняшки: ${Math.max(0, cur2w.goal - cur2w.pts)} очков до ${DM.format(day(cur2w.b))}</span><span class="bar"><i style="width:${Math.min(100, Math.round(100*cur2w.pts/cur2w.goal))}%"></i></span></a>`:""}
     <span class="sb-state sm">${STATE_TXT[c.state]}</span>
-    ${(()=>{ if(!window.Journal) return ""; const up = Journal.upcoming(3)[0]; return up ? `<a href="#schedule" class="chip warn sb-soon">${Journal.TYPES[up.type]||"Событие"} ${Journal.when(up.date)}: ${esc(Journal.subjName(up.subj))}</a>` : Journal.importDue() ? `<a href="#fill" class="chip sb-soon">Пришли скрин оценок за неделю</a>` : ""; })()}
+    ${(()=>{ if(!window.Journal) return ""; const up = Journal.upcoming(3)[0]; return up ? `<a href="#diary" class="chip warn sb-soon">${Journal.TYPES[up.type]||"Событие"} ${Journal.when(up.date)}: ${esc(Journal.subjName(up.subj))}</a>` : Journal.importDue() ? `<a href="#diary" class="chip sb-soon">Пришли скрин оценок за неделю</a>` : ""; })()}
     <a href="#diary" class="btn sb-diary">Дневник</a>`;
 }
 
@@ -139,17 +153,14 @@ function renderBar(){
 const dayLine = rec => `За этот день: <b>${rec?rec.pts:0}</b> очков${rec&&rec.active?" · день засчитан в серию":" · чтобы день засчитался в серию, сделай домашку, параграф, итоговые вопросы, позанимайся с учителем или реши 3 задания ОГЭ"}.`;
 /* ---------- награды ---------- */
 function renderRewards(){
-  const c = compute(), ps = periods(c), parts = ogeParts(), prog = programShare(), avg = yearAvg();
-  const used = Object.assign({u:{}}, Store.get("bonuses", {})).u, oc = ogeCounts(), allTasks = [...Object.entries(oc.math), ...Object.entries(oc.rus)], doneTasks = allTasks.filter(([,n])=>n > RULES.goals.ogeTask).length;
-  const card = p => { const ok = p.pts >= p.goal, r = REWARDS[p.kind];
-    return `<div class="rw ${ok?"ok":""} ${p.over&&!ok?"miss":""}">
-      <div class="rw-top"><b>${esc(r.title)}</b><span class="sm">${esc(p.label)}</span></div>
-      <div class="bar"><i style="width:${Math.min(100,Math.round(100*p.pts/p.goal))}%"></i></div>
-      <span class="sm">${p.pts} из ${p.goal} очков${ok?" · получено!":p.over?" · период закончился":""}</span>
-      ${ok ? (used[p.id] ? `<span class="chip">Использован ${esc(used[p.id].date ? DM.format(day(used[p.id].date)) : "")}</span>` : `<a class="chip ok" href="#account">Бонус в личном кабинете</a>`) : ""}
-    </div>`; };
+  const c = compute(), ps = periods(c, true), parts = ogeParts(), prog = programShare(), avg = yearAvg();
+  const used = Object.assign({u:{}}, Store.get("bonuses", {})).u, oc = ogeCounts(), allTasks = [...Object.entries(oc.math), ...Object.entries(oc.rus)], doneTasks = allTasks.filter(([,n])=>n >= RULES.goals.ogeTask).length;
+  const card = p => { const ok = p.ok, u = used[p.id];
+    const st = p.future ? "fut" : ok ? (u ? "used" : "avail") : p.over ? "miss" : "now";
+    const note = { fut:"впереди", used:`использован${u && u.date ? " "+DM.format(day(u.date)) : ""}${u && u.how ? ": "+esc(u.how) : ""}`, avail:`<a href="#account">доступен, используй в кабинете</a>`, miss:p.byAvg?`средний балл ${fmtAvg(p.avg)}`:"не набрано", now:p.byAvg?(p.avg!==null?`средний балл ${fmtAvg(p.avg)}, нужно выше 4,9`:"нужен средний балл выше 4,9"):`${p.pts} из ${p.goal} очков` }[st];
+    return `<div class="rsq rsq-${st}" title="${esc(p.label)}"><b>${esc(p.label)}</b>${st==="now"&&!p.byAvg?`<div class="bar"><i style="width:${Math.min(100,Math.round(100*p.pts/p.goal))}%"></i></div>`:""}<span class="sm">${note}</span></div>`; };
   const goalRow = (label, cur, goal, fmt) => `<div class="subjrow" style="--c:var(--accent)"><span>${label}</span><div class="bar"><i style="width:${Math.min(100,Math.round(100*cur/goal))}%"></i></div><span>${fmt||cur+"/"+goal}</span></div>`;
-  const by = k => ps.filter(p=>p.kind===k).reverse();
+  const by = k => ps.filter(p=>p.kind===k);
   $("main").innerHTML = `<div class="stack">
   <section class="panel"><h2>Награды</h2>
     <div class="statnums" style="margin-top:12px">
@@ -160,29 +171,30 @@ function renderRewards(){
     <div class="subjrows">
       ${goalRow("Очки", c.total, RULES.goals.final)}
       ${goalRow("Пройдено программы", Math.round(prog*100), 90, Math.round(prog*100)+"%")}
-      ${goalRow("Задания ОГЭ, где больше 30 верных", doneTasks, allTasks.length)}
+      ${goalRow("Задания ОГЭ: 30 верных из 33 последних", doneTasks, allTasks.length)}
       ${goalRow("Годовые оценки", avg ? Math.round(avg*100) : 0, 500, avg ? avg.toFixed(2).replace(".",",") : "—")}
     </div>
-    <details class="plain"><summary class="sm">Сколько раз верно решено каждое задание ОГЭ</summary>
-      ${[["math","Математика"],["rus","Русский"]].map(([e,n])=>`<div class="ogecnt"><b class="sm">${n}</b>${Object.entries(oc[e]).map(([k,v])=>`<span class="ogec ${v>RULES.goals.ogeTask?"ok":""}" title="Задание ${k}: верно ${v}"><i>${k}</i>${v}</span>`).join("")}</div>`).join("")}
+    <details class="plain"><summary class="sm">Верных среди 33 последних по каждому заданию ОГЭ</summary>
+      ${[["math","Математика"],["rus","Русский"]].map(([e,n])=>`<div class="ogecnt"><b class="sm">${n}</b>${Object.entries(oc[e]).map(([k,v])=>`<span class="ogec ${v>=RULES.goals.ogeTask?"ok":""}" title="Задание ${k}: верно ${v} из последних 33"><i>${k}</i>${v}</span>`).join("")}</div>`).join("")}
     </details>
-    <p class="hint">Ноутбук: аттестат с отличием (все пятёрки), ${RULES.goals.final} очков, 90% программы и больше ${RULES.goals.ogeTask} верных решений КАЖДОГО задания ОГЭ (все номера математики и русского).</p>
+    <p class="hint">Ноутбук: аттестат с отличием (все пятёрки), ${RULES.goals.final} очков, 90% программы и у КАЖДОГО задания ОГЭ не меньше ${RULES.goals.ogeTask} верных из 33 последних решений (тренировки и пробные считаются вместе).</p>
   </section>
   <section class="panel"><h3>Цель: платье на выпускной</h3>
     <div class="subjrows">${goalRow("Средний балл аттестата", avg ? Math.round(avg*100) : 0, 491, avg ? avg.toFixed(2).replace(".",",") + (avg>4.9?" · есть!":" из 4,91+") : "—")}</div>
     <p class="hint">Платье на выпускной: средний балл аттестата выше 4,9. Считается по годовым оценкам из таблицы на главной.</p>
   </section>
   <section class="panel"><h3>Каждые 2 недели: вкусняшка с доставкой</h3><div class="rwgrid">${by("twoWeeks").map(card).join("")}</div></section>
-  <section class="panel"><h3>Каждый месяц: выход на выбор</h3><div class="rwgrid">${by("month").length ? by("month").map(card).join("") : `<p class="hint">Первый месяц начнётся 1 декабря.</p>`}</div></section>
-  <section class="panel"><h3>Каждые 3 месяца: абонемент</h3><div class="rwgrid">${by("quarter").length ? by("quarter").map(card).join("") : `<p class="hint">Первый период: декабрь – февраль.</p>`}</div></section>
-  <section class="panel"><h3>Как начисляются очки</h3><div class="rules">
+  <section class="panel"><h3>Каждый месяц: выход на выбор</h3><div class="rwgrid">${by("month").map(card).join("")}</div></section>
+  <section class="panel"><h3>Каждый триместр: абонемент</h3><p class="hint" style="margin-top:0">Если средний балл за триместр выше 4,9. Считается по итоговым оценкам за триместр из таблицы на главной.</p><div class="rwgrid">${by("quarter").map(card).join("")}</div></section>
+  <p class="hint rsq-legend"><span class="rsq-dot rsq-avail"></span>доступен <span class="rsq-dot rsq-used"></span>использован <span class="rsq-dot rsq-now"></span>идёт сейчас <span class="rsq-dot rsq-fut"></span>впереди</p>
+  <details class="plain rulesd"><summary class="sm">Как начисляются очки</summary><div class="rules">
     <p>Очки только копятся и никогда не тратятся. Когда за период набрано нужное число очков, в личном кабинете появляется бонус-квадратик. Бонусы тоже копятся: используй, когда захочешь, и запиши, когда и как.</p>
     <p>Оценки и пропуски приходят только из электронного дневника через заполнялку. Текущая оценка: 5 → +5, 4 → +2, 3 → −3, 2 → −8. День с Н без причины: ${RULES.absent}. Болезнь (Б) и уважительная причина не снимают очки и не ломают серию. Скрин оценок за неделю: +${RULES.weekly}.</p>
     <p>Домашка: +${RULES.hw} за задание из учебника, +${RULES.hwOther} за своё (доклад, проект, задача). Пройденный параграф: +${RULES.paragraph}. Верное задание ОГЭ: +${RULES.ogeOk}. Пробный вариант ОГЭ: +${RULES.ogeTest}. Итоговые вопросы по главе: +${RULES.quiz}, без ошибок ещё +5.</p>
     <p>Контрольная: 5 → +20, 4 → +10, 3 → 0, 2 → −15. Итоговая за триместр: 5 → +80, 4 → +30, 3 → −30. Годовая: 5 → +120, 4 → +40, 3 → −40.</p>
     <p>Серия: день засчитывается, если сделана домашка, параграф, итоговые вопросы по главе или 3 задания ОГЭ. Каждый день серии даёт бонус +1, +2 … до +${RULES.streakMax}. Выходные и каникулы серию не ломают.</p>
     <p>Если в учебный день не было занятий, серия <b>остывает</b>. На второй день простоя она <b>гаснет</b>, и начиная с этого дня за каждый пустой учебный день снимается ${-RULES.idlePenalty} очков.</p>
-  </div></section></div>`;
+  </div></details></div>`;
 }
 
 /* ---------- отчёт папе ---------- */
@@ -220,16 +232,27 @@ function localReport(){
 function openReport(){
   const ov = document.createElement("div"); ov.className = "av-overlay";
   ov.innerHTML = `<div class="av-sheet report"><div class="av-sheet-lines"></div><h2 style="position:relative;margin:0">Для папы</h2><textarea id="reptext" class="reptext" aria-label="Текст отчёта"></textarea>
-    <div class="chatrow" style="position:relative">${navigator.share?`<button class="btn primary" type="button" id="repshare">Отправить…</button>`:""}<a class="btn ${navigator.share?"":"primary"}" id="reptg" target="_blank" rel="noopener">Telegram</a><a class="btn" id="repwa" target="_blank" rel="noopener">WhatsApp</a><button class="btn" type="button" id="repcopy">Скопировать</button><button class="btn" type="button" id="repclose">Закрыть</button></div>
+    <div class="chatrow" style="position:relative">${navigator.share?`<button class="btn primary" type="button" id="repshare">Отправить…</button>`:""}<button class="btn ${navigator.share?"":"primary"}" type="button" id="reptg">Telegram</button><button class="btn" type="button" id="repwa">WhatsApp</button><button class="btn" type="button" id="repcopy">Скопировать</button><button class="btn" type="button" id="repclose">Закрыть</button></div>
     <p class="hint" id="repnote" style="position:relative"></p></div><div class="av-host"></div>`;
   document.body.appendChild(ov);
   const a = Avatar.create(ov.querySelector(".av-host")); a.setMood("think"); a.say("Сейчас всё расскажу…");
-  const set = txt => { $("reptext").value = txt; const u = encodeURIComponent(txt); $("reptg").href = `https://t.me/share/url?url=${u}`; $("repwa").href = `https://api.whatsapp.com/send?text=${u}`; };
+  const set = txt => { $("reptext").value = txt; };
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
+  const copy = async () => { const t = $("reptext").value; try{ await navigator.clipboard.writeText(t); return true; }catch(e){ $("reptext").select(); try{ return document.execCommand("copy"); }catch(_){ return false; } } };
+  // открыть мессенджер: на телефоне сначала приложение, если не открылось — веб-версия
+  const go = async (app, web) => {
+    const copied = await copy();
+    $("repnote").textContent = copied ? "Текст скопирован. Если в мессенджере он не появился сам, просто вставь его в чат с папой." : "Если текст не появился сам, выдели его здесь и скопируй.";
+    if(mobile){ let left = false; const onHide = () => { left = true; }; document.addEventListener("visibilitychange", onHide, {once:true});
+      location.href = app; setTimeout(()=>{ document.removeEventListener("visibilitychange", onHide); if(!left && !document.hidden) location.href = web; }, 1200); }
+    else { const w = window.open(web, "_blank", "noopener"); if(!w) location.href = web; }
+  };
+  $("reptg").addEventListener("click", ()=>{ const u = encodeURIComponent($("reptext").value); go(`tg://msg?text=${u}`, `https://t.me/share/url?url=${u}`); });
+  $("repwa").addEventListener("click", ()=>{ const u = encodeURIComponent($("reptext").value); go(`whatsapp://send?text=${u}`, mobile ? `https://api.whatsapp.com/send?text=${u}` : `https://web.whatsapp.com/send?text=${u}`); });
   const close = () => { a.destroy(); ov.remove(); };
   $("repclose").addEventListener("click", close);
   $("repcopy").addEventListener("click", async()=>{ try{ await navigator.clipboard.writeText($("reptext").value); $("repnote").textContent = "Скопировано, можно вставить в любой мессенджер."; }catch(e){ $("reptext").select(); $("repnote").textContent = "Выдели текст и скопируй вручную."; } });
   if($("repshare")) $("repshare").addEventListener("click", async()=>{ try{ await navigator.share({ text: $("reptext").value }); }catch(e){} });
-  $("reptext").addEventListener("input", ()=>set($("reptext").value));
   set(localReport());   // кнопки работают сразу, ИИ потом заменит текст на свой
   if(Store.aiAvailable()) (async()=>{
     $("repnote").textContent = "Учитель дописывает отчёт…";
@@ -240,5 +263,5 @@ function openReport(){
   })(); else { a.setMood("smile"); a.say("Готово! Можно отправлять", 4000); }
 }
 
-window.Points = { compute, bonuses, ogeCounts, REWARDS, renderBar, renderRewards, logAct(){ const a = Object.assign({d:{}}, Store.get("act", {})); a.d = Object.assign({}, a.d); const t = todayIso(); a.d[t] = (a.d[t]||0)+1; Store.set("act", a, 2000); }, openReport, ogeLog, logOge(exam, num, ok){ const o = ogeLog(); o.a = o.a.concat([[Date.now(), exam, num, ok ? 1 : 0]]); Store.set("oge", o, 1500); renderBar(); } };
+window.Points = { compute, bonuses, squares, ogeCounts, ogeLast, REWARDS, renderBar, renderRewards, logAct(){ const a = Object.assign({d:{}}, Store.get("act", {})); a.d = Object.assign({}, a.d); const t = todayIso(); a.d[t] = (a.d[t]||0)+1; Store.set("act", a, 2000); }, openReport, ogeLog, logOge(exam, num, ok){ const o = ogeLog(); o.a = o.a.concat([[Date.now(), exam, num, ok ? 1 : 0]]); Store.set("oge", o, 1500); renderBar(); } };
 })();

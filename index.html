@@ -3,19 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Дашины учебники</title>
+<title>Dasha’s study</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@500;700&family=JetBrains+Mono:wght@400;600&family=Caveat:wght@700&display=swap">
-<script>try{var p=JSON.parse(localStorage.getItem("dasha:prefs")||"null")||{},r=document.documentElement;r.dataset.skin=p.skin||"pink";r.dataset.pattern=p.pattern||"grid";if(p.mode&&p.mode!=="auto")r.dataset.theme=p.mode;}catch(e){document.documentElement.dataset.skin="pink";}</script>
+<script>try{var p=JSON.parse(localStorage.getItem("dasha:prefs")||"null")||{},r=document.documentElement;r.dataset.skin=p.skin||"pink";r.dataset.pattern=p.pattern||"grid";if(p.mode&&p.mode!=="auto")r.dataset.theme=p.mode;r.dataset.tstyle=p.tstyle||"prof";if(p.tcolor)r.style.setProperty("--tc",p.tcolor);}catch(e){document.documentElement.dataset.skin="pink";}</script>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div class="wrap">
   <header class="top">
     <div>
-      <h1>Дашины учебники</h1>
+      <h1>Dasha’s study</h1>
       <p class="sub" id="authbar" hidden><span id="whoami"></span> <button class="btn" id="logout" type="button" hidden style="margin-left:8px;padding:4px 10px">Выйти</button></p>
     </div>
+    <a id="mebtn" class="mebtn" href="#account" hidden aria-label="Личный кабинет" title="Личный кабинет"><img id="meimg" alt="" hidden><span id="meinit">Д</span></a>
   </header>
   <div id="streakbar" class="streakbar" hidden></div>
   <p class="note" id="savewarn" hidden><b>Не сохранилось.</b> Проверь интернет: изменения пока есть только на этом устройстве.</p>
@@ -25,6 +26,8 @@
   </div>
 </div>
 
+<aside id="dock" class="dock" hidden aria-label="Чат с учителем"><div class="dock-head"><div><b id="docktitle">Учитель Клод</b><div class="sm" id="docksub"></div></div><button class="ibtn" id="dockclose" type="button" aria-label="Скрыть чат" title="Скрыть чат">✕</button></div><div id="dockbody"></div></aside>
+<button id="dockbtn" class="dockbtn" type="button" hidden aria-label="Открыть чат с учителем"><span class="dockface" aria-hidden="true"><i></i><i></i></span><span>Учитель</span></button>
 <button id="rtab" class="rtab" type="button" hidden aria-label="Развернуть учебник">📖 <span id="rtabname">Учебник</span></button>
 <aside id="reader" hidden aria-label="Учебник">
   <div id="rhandle" role="separator" aria-orientation="vertical" aria-label="Изменить ширину учебника" tabindex="0"></div>
@@ -79,6 +82,7 @@
 <script src="js/notebook.js"></script>
 <script src="js/topic.js"></script>
 <script src="js/journal.js"></script>
+<script src="js/calendar.js"></script>
 <script src="js/study.js"></script>
 </body>
 </html>

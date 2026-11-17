@@ -7,6 +7,11 @@
   const LS = "dasha:";
   let user = null;
   const cache = {};
+  // общие данные учебников (PDF, страницы, оглавление, карточки): видны всем, у каждого может быть своя версия
+  const shared = {}, sharedOwner = {};
+  const SHARED = /^(book|toc|idx)-/;
+  // путь в бакете: общие файлы лежат в папке shared/, свои — в папке пользователя
+  const fp = path => path.startsWith("shared/") ? path : user.id+"/"+path;
   const timers = {}, chains = {};
 
   /* ---------- IndexedDB: локальные файлы и кэш скачанных ---------- */
@@ -39,19 +44,40 @@
     },
     async signIn(email, password){ const { error } = await sb.auth.signInWithPassword({email, password}); if(error) throw error; },
     async signUp(email, password){ const { data, error } = await sb.auth.signUp({email, password}); if(error) throw error; return !!data.session; },
-    async signOut(){ await sb.auth.signOut(); Object.keys(cache).forEach(k=>delete cache[k]); },
+    async signOut(){ await sb.auth.signOut(); Object.keys(cache).forEach(k=>delete cache[k]); Object.keys(shared).forEach(k=>{ delete shared[k]; delete sharedOwner[k]; }); },
+    // действия администратора идут через серверную функцию: секретный ключ есть только там
+    async admin(payload){ return Store.ask(Object.assign({ admin:true }, payload)); },
 
     async loadAll(){
       const { data, error } = await sb.from("docs").select("key,value");
       if(error) throw error;
       (data||[]).forEach(r=>{ cache[r.key] = r.value; lsSet(r.key, r.value); });
+      try{ const sh = await sb.from("shared").select("key,value,owner"); (sh.data||[]).forEach(r=>{ shared[r.key] = r.value; sharedOwner[r.key] = r.owner; }); }catch(e){}
     },
+    // своя версия, а если её нет — общая
     get(key, fallback){
       if(key in cache) return cache[key];
       const v = lsGet(key);
       if(v !== null && !cloud){ cache[key] = v; return v; }
+      if(SHARED.test(key) && key in shared) return shared[key];
       return fallback;
     },
+    hasOwn(key){ return key in cache && cache[key] !== null; },
+    getShared(key){ return key in shared ? shared[key] : null; },
+    sharedMine(key){ return !(key in shared) || sharedOwner[key] === (user && user.id); },
+    async setShared(key, value){
+      if(!cloud || !user) return;
+      shared[key] = value; sharedOwner[key] = user.id;
+      const { error } = await sb.from("shared").upsert({ key, value, owner:user.id, updated_at:new Date().toISOString() });
+      if(error) console.warn("shared", key, error.message);
+    },
+    keys(){ const out = new Set(Object.keys(cache)); try{ for(let i=0;i<localStorage.length;i++){ const k = localStorage.key(i); if(k && k.startsWith(LS)) out.add(k.slice(LS.length)); } }catch(e){} return [...out]; },
+    async del(key){
+      clearTimeout(timers[key]); delete cache[key]; try{ localStorage.removeItem(LS+key) }catch(e){}
+      if(cloud && user){ const { error } = await sb.from("docs").delete().eq("user_id", user.id).eq("key", key); if(error) throw error; }
+    },
+    async flush(){ await Promise.all(Object.values(chains)); },
+    async updateUser(v){ const { error } = await sb.auth.updateUser(v); if(error) throw error; },
     // запись с задержкой: частые изменения сливаются в одну
     set(key, value, delay){
       cache[key] = value; lsSet(key, value);
@@ -62,6 +88,8 @@
           chains[key] = (chains[key]||Promise.resolve()).then(async()=>{
             const { error } = await sb.from("docs").upsert({ user_id:user.id, key, value: cache[key], updated_at: new Date().toISOString() });
             if(error){ console.warn("save", key, error.message); if(Store.onSaveError) Store.onSaveError(error); }
+            // общая версия учебника обновляется, пока её владелец — этот пользователь (или её ещё нет)
+            if(SHARED.test(key) && Store.sharedMine(key)) await Store.setShared(key, cache[key]);
           }).finally(res);
         }, delay ?? 500);
       });
@@ -71,21 +99,21 @@
     async putFile(path, blob){
       await idbPut("f:"+path, blob).catch(()=>{});
       if(!cloud) return;
-      const { error } = await sb.storage.from("files").upload(user.id+"/"+path, blob, { upsert:true, contentType: blob.type || "application/octet-stream" });
+      const { error } = await sb.storage.from("files").upload(fp(path), blob, { upsert:true, contentType: blob.type || "application/octet-stream" });
       if(error) throw error;
     },
     async getFile(path){
       const local = await idbGet("f:"+path);
       if(local) return local;
       if(!cloud || !user) return null;
-      const { data, error } = await sb.storage.from("files").download(user.id+"/"+path);
+      const { data, error } = await sb.storage.from("files").download(fp(path));
       if(error) throw error;
       idbPut("f:"+path, data).catch(()=>{});
       return data;
     },
     async removeFile(path){
       await idbDel("f:"+path);
-      if(cloud && user) await sb.storage.from("files").remove([user.id+"/"+path]);
+      if(cloud && user) await sb.storage.from("files").remove([fp(path)]);
     },
     maxPart: cloud ? 45*1024*1024 : Infinity,
 

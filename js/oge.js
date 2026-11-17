@@ -300,22 +300,30 @@ function stats(){
 }
 function renderMenu(){
   clearInterval(timer); session = null; dropTeacher();
-  const by = stats(), oc = Points.ogeCounts(), goal = 30;
+  const oc = Points.ogeCounts(), last = Points.ogeLast(), goal = 30;
+  const bar = (id, n) => { const a = (last[id]||{})[n] || []; return `<span class="ogebar" title="Последние ${a.length} из 33: верно ${a.reduce((x,y)=>x+y,0)}">${Array.from({length:33},(_,i)=>`<i class="${i<a.length?(a[i]?"g":"r"):""}"></i>`).join("")}</span>`; };
   const block = (id) => { const E = EXAMS[id], C = CAT[id], total = Object.values(C).reduce((a,x)=>a+x[1],0);
     return `<section class="panel oge-ex"><h3>${E.name} <span class="sm">· ${Object.keys(C).length} заданий, максимум ${total} баллов${id==="rus"?" + грамотность за изложение и сочинение":""}</span></h3>
       <button class="btn primary" type="button" data-test="${id}">${E.test.title}, ${E.test.min} минут</button>
-      <div class="oge-types">${Object.entries(C).map(([n,[t,max]])=>{ const s = by[id+n] || {n:0,ok:0}, auto = !!E.tasks[n], c = (oc[id]||{})[n] || 0;
-        return `<div class="ogetype"><span class="num">${n}</span><span class="nm">${esc(t)} <span class="chip ${max>1?"warn":""}">${pl(max,"балл","балла","баллов")}</span>${auto?"":` <span class="chip">с учителем</span>`}</span><span class="sm ${c>goal?"okc":""}" title="Цель на ноутбук: больше ${goal} верных">${c}/${goal+1}</span><button class="btn" type="button" data-train="${id}:${n}">${auto?"Тренировать":"Решать"}</button></div>`; }).join("")}</div>
+      <div class="oge-types">${Object.entries(C).map(([n,[t,max]])=>{ const auto = !!E.tasks[n], c = (oc[id]||{})[n] || 0;
+        return `<div class="ogetype"><span class="num">${n}</span><span class="nm">${esc(t)} <span class="chip ${max>1?"warn":""}">${pl(max,"балл","балла","баллов")}</span>${auto?"":` <span class="chip">с учителем</span>`}</span>${bar(id,n)}<span class="sm ${c>=goal?"okc":""}" title="Цель: 30 верных из 33 последних">${c}/30</span><button class="btn" type="button" data-train="${id}:${n}">${auto?"Тренировать":"Решать"}</button></div>`; }).join("")}</div>
       </section>`; };
   $("main").innerHTML = `<div class="stack">
     <section class="panel"><h2>ОГЭ</h2><p class="hint" style="margin:6px 0 12px">Все задания экзамена по порядку, у каждого его вес в баллах. Задания с пометкой «с учителем» (развёрнутые, изложение, сочинение и те, что пока не генерируются) решаются с ИИ-учителем: он даёт условие или берёт его из сборника, а потом проверяет по критериям ФИПИ. Критерии спрятаны в шапке каждого задания.</p>
-      <p class="hint">Цель на ноутбук: больше ${goal} верных решений каждого задания. Счётчик справа: сколько уже.</p>
-      ${Study.ogeBooksHtml()}
+      <p class="hint">У каждого задания полоска из 33 последних решений: зелёные — верно, красные — ошибки (тренировки, задания с учителем и пробные вместе). Цель на ноутбук: у каждого задания 30 верных из 33 последних. Чем больше красного, тем дольше стоит решать.</p>
     </section>
+    ${historyHtml()}
     ${block("math")}${block("rus")}</div>`;
-  Study.bindOgeBooks($("main"));
   $("main").querySelectorAll("[data-train]").forEach(b=>b.addEventListener("click",()=>{ const [e,n] = b.dataset.train.split(":"); EXAMS[e].tasks[n] ? startTrain(e, Number(n)) : startPractice(e, Number(n)); }));
   $("main").querySelectorAll("[data-test]").forEach(b=>b.addEventListener("click",()=>startTest(b.dataset.test)));
+}
+function historyHtml(){
+  const L = (Object.assign({list:[]}, Store.get("ogeTests", {})).list||[]).slice().reverse();
+  if(!L.length) return "";
+  const D = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+  return `<section class="panel"><h3>Мои пробные</h3><div class="tablewrap"><table class="grades ogehist"><thead><tr><th>Когда</th><th>Экзамен</th><th>Баллы вовремя</th><th>Время</th><th>Сделано</th><th>Повторить</th></tr></thead><tbody>
+    ${L.slice(0,15).map(t=>`<tr><td>${D.format(new Date(t.ts))}</td><td>${t.exam==="math"?"Математика":"Русский"}</td><td><b>${t.pts!==undefined?`${t.pts}/${t.ptsMax}`:`${t.ok}/${t.n}`}</b></td><td>${t.spent!==undefined?`${t.spent} из ${t.limit} мин`:"—"}</td><td>${t.answered!==undefined?`${t.answered}/${t.n}${t.late?`, ${t.late} после времени`:""}`:"—"}</td><td>${(t.wrong||[]).map(n=>`<a href="#oge/${t.exam}/${n}">№${n}</a>`).join(" ")||"—"}</td></tr>`).join("")}
+    </tbody></table></div></section>`;
 }
 /* учитель под заданием: тетрадь, фото, чат */
 let teach = null;
@@ -340,6 +348,7 @@ function startTrain(exam, num){
   $("main").innerHTML = `<div class="stack"><div id="ogetrain"></div><section class="panel" id="ogeteach"></section></div>`;
   drawTrain();
   mountTeacher(exam, num, () => { const t = session && session.task; return t ? `Условие: ${plain(t.q)}${t.opts?" Варианты: "+t.opts.map((o,i)=>`${i+1}) ${plain(o)}`).join(" "):""}\nВерный ответ (не называй его сразу, веди наводящими вопросами): ${shown(t)}` : ""; });
+  if(teach){ const t = session.task; teach.setTask(`№${num}. ${plain(t.q)}${t.opts?" "+t.opts.map((o,i)=>`${i+1}) ${plain(o)}`).join(" "):""}`); }
 }
 function drawTrain(){
   const s = session, t = s.task, T = EXAMS[s.exam].tasks[s.num];
@@ -348,6 +357,7 @@ function drawTrain(){
     <form id="ogeform">${taskHtml(t)}<div id="ogefb" aria-live="polite"></div>
     <div class="btnrow"><button class="btn primary" type="submit" id="ogego">Проверить</button><button class="btn" type="button" id="ogeend">Закончить серию</button></div></form></section>`;
   const inp = $("main").querySelector("[data-ans]"); inp.focus();
+  if(teach) teach.setTask(`№${s.num}. ${plain(t.q)}${t.opts?" "+t.opts.map((o,i)=>`${i+1}) ${plain(o)}`).join(" "):""}`);
   $("ogeend").addEventListener("click", ()=>endTrain());
   $("ogeform").addEventListener("submit", e=>{ e.preventDefault();
     if(!s.answered){ if(!inp.value.trim()){ inp.focus(); return; }
@@ -369,18 +379,17 @@ function startTest(exam){
   clearInterval(timer);
   const E = EXAMS[exam], nums = Object.keys(E.tasks).map(Number), list = [];
   nums.forEach(n=>{ list.push(make(exam,n)); if(exam==="rus") list.push(make(exam,n)); });
-  session = { mode:"test", exam, list, ans:list.map(()=>""), end: Date.now() + E.test.min*60e3 };
+  session = { mode:"test", exam, list, ans:list.map(()=>""), at:list.map(()=>0), start: Date.now(), end: Date.now() + E.test.min*60e3 };
   $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><b>${E.name}: пробный вариант</b><span class="timer" id="ogetimer" role="timer"></span><button class="btn" type="button" id="ogequit">Выйти без оценки</button></div>
     <form id="ogeform">${list.map((t,i)=>taskHtml(t,i)).join("")}<div class="btnrow"><button class="btn primary" type="submit">Завершить и проверить</button></div></form></section>`;
-  const tick = () => { const left = Math.max(0, session.end - Date.now()), m = Math.floor(left/60e3), sec = Math.floor(left/1e3)%60;
-    const el = $("ogetimer"); if(!el){ clearInterval(timer); return; }
-    el.textContent = `Осталось ${m}:${String(sec).padStart(2,"0")}`; el.classList.toggle("low", left < 5*60e3);
-    if(left <= 0){ clearInterval(timer); submitTest(true); } };
+  const mmss = ms => `${Math.floor(ms/60e3)}:${String(Math.floor(ms/1e3)%60).padStart(2,"0")}`;
+  const tick = () => { const el = $("ogetimer"); if(!el || !session){ clearInterval(timer); return; } const left = session.end - Date.now();
+    el.textContent = left > 0 ? `Осталось ${mmss(left)}` : `Время вышло · +${mmss(-left)} сверх`; el.classList.toggle("low", left < 5*60e3); el.classList.toggle("over", left <= 0); };
   tick(); timer = setInterval(tick, 1000);
-  $("main").querySelectorAll("[data-ans]").forEach(inp=>inp.addEventListener("input",()=>session.ans[Number(inp.dataset.ans)] = inp.value));
+  $("main").querySelectorAll("[data-ans]").forEach(inp=>inp.addEventListener("input",()=>{ const i = Number(inp.dataset.ans); session.ans[i] = inp.value; session.at[i] = Date.now(); }));
   $("ogequit").addEventListener("click", ()=>{ clearInterval(timer); session = null; renderMenu(); });
   $("ogeform").addEventListener("submit", e=>{ e.preventDefault(); const empty = session.ans.filter(a=>!a.trim()).length;
-    if(empty && !confirmInline(empty)) return; submitTest(false); });
+    if(empty && !confirmInline(empty)) return; submitTest(); });
 }
 let confirmArmed = false;
 function confirmInline(empty){
@@ -390,20 +399,24 @@ function confirmInline(empty){
   setTimeout(()=>{ confirmArmed = false; if(btn.isConnected) btn.textContent = "Завершить и проверить"; }, 5000);
   return false;
 }
-async function submitTest(timeout){
+async function submitTest(){
   clearInterval(timer); confirmArmed = false;
   const s = session; if(!s) return; session = null;
-  const res = s.list.map((t,i)=>({ t, v:s.ans[i], ok: check(t, s.ans[i]) }));
+  const now = Date.now(), res = s.list.map((t,i)=>({ t, v:s.ans[i], ok: check(t, s.ans[i]), inTime: !!s.ans[i].trim() && s.at[i] <= s.end }));
   res.forEach(r=>{ if(r.v.trim()) Points.logOge(s.exam, r.t.num, r.ok); });
-  const ok = res.filter(r=>r.ok).length;
-  const tl = Object.assign({list:[]}, Store.get("ogeTests", {})); tl.list = tl.list.concat([{ ts:Date.now(), exam:s.exam, ok, n:res.length }]); Store.set("ogeTests", tl, 0);
-  $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><a href="#oge" class="btn" id="ogeback">← К заданиям</a><b>${EXAMS[s.exam].name}: верно ${ok} из ${res.length}${timeout?" · время вышло":""}</b></div>
+  const okIn = res.filter(r=>r.ok && r.inTime), okAll = res.filter(r=>r.ok).length, answered = res.filter(r=>r.v.trim()).length, late = res.filter(r=>r.v.trim() && !r.inTime).length;
+  const pts = okIn.reduce((a,r)=>a+maxOf(s.exam, r.t.num),0), ptsMax = res.reduce((a,r)=>a+maxOf(s.exam, r.t.num),0), spent = Math.round((now - s.start)/60e3), limit = EXAMS[s.exam].test.min;
+  const wrong = [...new Set(res.filter(r=>!r.ok).map(r=>r.t.num))];
+  const tl = Object.assign({list:[]}, Store.get("ogeTests", {})); tl.list = tl.list.concat([{ ts:now, exam:s.exam, ok:okIn.length, okAll, n:res.length, answered, late, pts, ptsMax, spent, limit, wrong }]); Store.set("ogeTests", tl, 0);
+  $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><a href="#oge" class="btn" id="ogeback">← К заданиям</a><b>${EXAMS[s.exam].name}: ${pts} из ${ptsMax} баллов за время</b></div>
+    <p>Вовремя верно ${okIn.length} из ${res.length}. Время: ${spent} мин из ${limit}${spent>limit?` (сверх времени ${spent-limit} мин)`:""}. Всего сделано ${answered} из ${res.length}${late?`, после звонка ${late}`:""}, верно всего ${okAll}.</p>
+    ${wrong.length?`<p class="hint">Повторить задания: ${wrong.map(n=>`<a href="#oge/${s.exam}/${n}">№${n} ${esc(CAT[s.exam][n][0])}</a>`).join(", ")}. Они появятся в рекомендациях на главной.</p>`:""}
     <div class="tablewrap"><table class="grades ogeres"><thead><tr><th>№</th><th>Задание</th><th>Твой ответ</th><th>Правильный</th><th></th></tr></thead><tbody>
-    ${res.map((r,i)=>`<tr><td>${i+1}</td><td>${r.t.num}. ${esc(EXAMS[s.exam].tasks[r.t.num].t)}</td><td>${esc(r.v||"—")}</td><td>${esc(shown(r.t))}</td><td>${r.ok?`<span class="chip ok">верно</span>`:`<span class="chip warn">ошибка</span>`}</td></tr>`).join("")}
+    ${res.map((r,i)=>`<tr><td>${i+1}</td><td>${r.t.num}. ${esc(EXAMS[s.exam].tasks[r.t.num].t)}</td><td>${esc(r.v||"—")}${r.v.trim()&&!r.inTime?` <span class="chip">после времени</span>`:""}</td><td>${esc(shown(r.t))}</td><td>${r.ok?`<span class="chip ok">верно</span>`:`<span class="chip warn">ошибка</span>`}</td></tr>`).join("")}
     </tbody></table></div>
     <details class="pages-ed"><summary>Посмотреть задания с ошибками</summary>${res.filter(r=>!r.ok).map(r=>taskHtml(r.t, undefined, r.v)).join("") || "<p>Ошибок нет!</p>"}</details></section>`;
   $("main").querySelectorAll("details [data-ans]").forEach(i=>i.readOnly = true);
-  await finish(`test:${s.exam}`, ok, res.length, `Пробный вариант, ${EXAMS[s.exam].name.toLowerCase()}`);
+  await finish(`test:${s.exam}`, okIn.length, res.length, `Пробный вариант, ${EXAMS[s.exam].name.toLowerCase()}`);
 }
 
 /* развёрнутые и не генерируемые задания: условие от учителя, из сборника или своё; проверка по критериям */
@@ -426,7 +439,7 @@ function startPractice(exam, num){
     try{ const r = await Store.ask({ mode:"ogegen", text:`Экзамен: ОГЭ, ${EXAMS[exam].name.toLowerCase()}. Задание №${num}: ${t}.` });
       const j = JSON.parse(r.text.slice(r.text.indexOf("{"), r.text.lastIndexOf("}")+1));
       session.task = String(j.text||""); session.answer = j.answer || ""; session.taskCrit = j.criteria || "";
-      $("ptask").innerHTML = Draw.html(session.task).replace(/\n/g,"<br>"); $("pstat").textContent = "";
+      $("ptask").innerHTML = Draw.html(session.task); $("pstat").textContent = ""; if(teach) teach.setTask(`№${num}. ${plain(session.task)}`);
     }catch(e){ $("pstat").textContent = "Не получилось: " + e.message; }
     $("pgen").disabled = false; $("pgen").textContent = "Другое задание";
   });
@@ -440,5 +453,5 @@ function askTeacher(t, given, ok){
   try{ sessionStorage.setItem("dasha:tutorq", txt); sessionStorage.setItem("dasha:tutorsubj", t.exam==="math" ? "algebra" : "rus"); }catch(e){}
   location.hash = "#tutor";
 }
-window.Oge = { render: renderMenu, make, check, EXAMS, CAT, leave(){ clearInterval(timer); session = null; dropTeacher(); } };
+window.Oge = { render: renderMenu, openTask(e, n){ if(!CAT[e] || !CAT[e][n]) return renderMenu(); EXAMS[e].tasks[n] ? startTrain(e, n) : startPractice(e, n); }, make, check, EXAMS, CAT, leave(){ clearInterval(timer); session = null; dropTeacher(); } };
 })();

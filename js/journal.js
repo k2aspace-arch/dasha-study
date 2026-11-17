@@ -43,10 +43,10 @@ const bookOf = id => BOOKS.find(b=>b.id===id);
 
 /* ---------- заполнялка ---------- */
 let fill = { imgs:[], text:"", result:null };
-function renderFill(){
+function renderFill(host){
   const ai = Store.aiAvailable(), last = lastImport();
-  $("main").innerHTML = `<div class="stack">
-  <section class="panel"><h2>Заполнялка</h2>
+  (host || $("main")).innerHTML = `<div class="stack">
+  <section class="panel"><h3>Заполнялка</h3>
     <p class="hint" style="margin:6px 0 12px">Пришли скриншоты из электронного дневника или вставь текст: оценки, Н, расписание контрольных, домашку, фото классной тетради. ИИ сам разберёт и разнесёт всё по местам: оценки и пропуски в журнал, контрольные и экзамены в расписание, итоговые оценки в таблицу на главной.</p>
     <p class="note ${importDue()?"warn":""}">${last ? `Последний раз присылали ${DM.format(new Date(last))}.` : "Ещё ничего не присылали."} Раз в неделю присылай скрин оценок за прошлую неделю: за это +10 очков, а все оценки и Н превращаются в очки автоматически.</p>
     ${ai ? "" : `<p class="note"><b>Заполнялке нужен ИИ.</b> Она заработает, когда будет задеплоена новая версия функции.</p>`}
@@ -84,7 +84,8 @@ function drawResult(){
   const E = (r.events||[]).filter(e=>validDate(e.date) && validSubj(e.subject)).map(e=>({ ...e, type: TYPES[e.type] ? e.type : "other", dup: ev.list.some(x=>x.date===e.date && x.subj===e.subject && x.type===(TYPES[e.type]?e.type:"other")) }));
   const H = (r.homework||[]).filter(h=>validDate(h.date) && validSubj(h.subject) && (h.text||h.page||h.paragraph||h.exercise)).map(h=>({ ...h, text:h.text||"", dup: j.hw.some(x=>x.date===h.date && x.subj===h.subject && hwLabel(x)===hwLabel({page:h.page, par:h.paragraph, ex:h.exercise, text:h.text||""})) }));
   const C = (r.classwork||[]).filter(c=>validDate(c.date) && validSubj(c.subject) && (c.paragraph||c.page||c.exercise||c.text)).map(c=>({ ...c, dup: j.cls.some(x=>x.date===c.date && x.subj===c.subject && (x.ex||"")===String(c.exercise||"")) }));
-  fill.parsed = { G, A, E, H, C };
+  const Ls = (r.lessons||[]).filter(x=>validDate(x.date) && validSubj(x.subject)).map(x=>({ ...x, dup:false }));
+  fill.parsed = { G, A, E, H, C, L: Ls };
   const row = (sec, i, it, html) => `<label class="frow ${it.dup?"dup":""}"><input type="checkbox" data-pick="${sec}:${i}" ${it.dup?"":"checked"}> ${html}${it.dup?` <span class="chip">уже есть</span>`:""}</label>`;
   const R = { absent:"Н, без причины", sick:"болела", excused:"по уважительной" };
   $("fres").hidden = false;
@@ -94,7 +95,8 @@ function drawResult(){
     ${E.length?`<h4>В расписание · ${E.length}</h4>${E.map((e,i)=>row("E",i,e,`<span>${DMW.format(day(e.date))}${e.time?` ${esc(e.time)}`:""}</span><span>${esc(subjName(e.subject))}</span><b>${TYPES[e.type]}</b><span class="sm">${esc(e.note||"")}</span>`)).join("")}`:""}
     ${H.length?`<h4>Домашка · ${H.length}</h4>${H.map((h,i)=>row("H",i,h,`<span>${DMW.format(day(h.date))}</span><span>${esc(subjName(h.subject))}</span><span class="sm">${esc(hwLabel({page:h.page, par:h.paragraph, ex:h.exercise, text:h.text}))}</span>`)).join("")}`:""}
     ${C.length?`<h4>Классная работа · ${C.length}</h4>${C.map((c,i)=>row("C",i,c,`<span>${DMW.format(day(c.date))}</span><span>${esc(subjName(c.subject))}</span><span class="sm">${esc(hwLabel({page:c.page, par:c.paragraph, ex:c.exercise, text:c.text}))}</span>`)).join("")}`:""}
-    ${!G.length&&!A.length&&!E.length&&!H.length&&!C.length ? `<p>Ничего не нашёл. Попробуй скриншот почётче или вставь текст.</p>` : ""}
+    ${Ls.length?`<h4>Уроки в календарь · ${Ls.length}</h4>${Ls.map((x,i)=>row("L",i,x,`<span>${DMW.format(day(x.date))}</span><span>${esc(String(x.n||""))}${x.time?" · "+esc(x.time):""}</span><span>${esc(subjName(x.subject))}</span>`)).join("")}`:""}
+    ${!G.length&&!A.length&&!E.length&&!H.length&&!C.length&&!Ls.length ? `<p>Ничего не нашёл. Попробуй скриншот почётче или вставь текст.</p>` : ""}
     ${r.unclear ? `<p class="note">Не разобрал: ${esc(r.unclear)}</p>` : ""}
     <div class="btnrow"><button class="btn primary" type="button" id="fapply">Разнести отмеченное</button><button class="btn" type="button" id="fdrop">Отменить</button></div>`;
   $("fdrop").addEventListener("click", ()=>{ fill.result = null; $("fres").hidden = true; });
@@ -103,7 +105,8 @@ function drawResult(){
 function applyFill(){
   const P = fill.parsed, picked = sec => P[sec].filter((_,i)=>{ const c = $("fres").querySelector(`[data-pick="${sec}:${i}"]`); return c && c.checked; });
   const j = journal(), ev = events(), now = Date.now(), gg = S.grades();
-  const G = picked("G"), A = picked("A"), E = picked("E"), H = picked("H"), C = picked("C");
+  const G = picked("G"), A = picked("A"), E = picked("E"), H = picked("H"), C = picked("C"), Ls = picked("L");
+  const nl = Ls.length && window.Calendar ? Calendar.addLessons(Ls) : 0;
   C.forEach(c=>j.cls.push({ id:"c"+now+Math.random().toString(36).slice(2,6), date:c.date, subj:c.subject, par:String(c.paragraph||""), page:String(c.page||""), ex:String(c.exercise||""), text:c.text||"", src:"fill", ts:now }));
   let finals = 0;
   G.forEach(g=>{ j.grades.push({ id:"g"+now+Math.random().toString(36).slice(2,6), date:g.date, subj:g.subject, mark:g.mark, kind:g.kind, note:g.note||"", ts:now });
@@ -115,7 +118,8 @@ function applyFill(){
   Store.set("journal", j, 0); Store.set("events", ev, 0); if(finals) Store.set("grades", gg, 0);
   fill = { imgs:[], text:"", result:null };
   if(window.Points) Points.renderBar();
-  $("main").querySelector("#fres").innerHTML = `<h3>Готово</h3><p>Разнесено: ${pl(G.length,"оценка","оценки","оценок")}, ${pl(A.length,"пропуск","пропуска","пропусков")}, ${pl(E.length,"событие","события","событий")} в расписание, ${pl(H.length,"домашка","домашки","домашек")}${C.length?`, классных работ: ${C.length}`:""}${finals?`, итоговых оценок в таблицу: ${finals}`:""}.</p><div class="btnrow"><a class="btn" href="#diary">Открыть дневник</a><a class="btn" href="#schedule">Расписание</a></div>`;
+  $("main").querySelector("#fres").innerHTML = `<h3>Готово</h3><p>Разнесено: ${pl(G.length,"оценка","оценки","оценок")}, ${pl(A.length,"пропуск","пропуска","пропусков")}, ${pl(E.length,"событие","события","событий")} в расписание, ${pl(H.length,"домашка","домашки","домашек")}${C.length?`, классных работ: ${C.length}`:""}${nl?`, уроков в календарь: ${nl}`:""}${finals?`, итоговых оценок в таблицу: ${finals}`:""}.</p><div class="btnrow"><button class="btn" type="button" id="fdiary">Обновить дневник</button></div>`;
+  $("fdiary").addEventListener("click", ()=>renderDiary());
   $("ftext").value = ""; drawImgs();
 }
 
@@ -165,7 +169,7 @@ function renderCls(host){
   const j = journal(), list = j.cls.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0, 12);
   const row = c => `<div class="hwi"><div class="hwmain"><div><b>${esc(subjName(c.subj))}</b> <span class="sm">${DMW.format(day(c.date))}</span></div><div>${esc(hwLabel(c))||"—"}</div></div><div class="evb"><button class="pg" type="button" data-clsdel="${c.id}" aria-label="Удалить запись">✕</button></div></div>`;
   host.innerHTML = `<h3>Что делали на уроке</h3>
-    <p class="hint">Параграф, страницы, номера, которые решали в классе, или что обсуждали. По этим записям учитель знает, что уже разобрано в классе, а что можно дать на дорешивание. Можно прислать фото классной тетради в <a href="#fill">заполнялку</a>.</p>
+    <p class="hint">Параграф, страницы, номера, которые решали в классе, или что обсуждали. По этим записям учитель знает, что уже разобрано в классе, а что можно дать на дорешивание. Можно прислать фото классной тетради в <a href="#diary">заполнялку</a>.</p>
     ${list.length ? list.map(row).join("") : ""}
     <details class="hwadd" ${list.length?"":"open"}><summary class="btn">+ Записать урок</summary>
     <form id="clsform" class="evform">
@@ -191,19 +195,20 @@ function renderDiary(){
 
   const R = { absent:"Н", sick:"Б", excused:"УП" };
   $("main").innerHTML = `<div class="stack">
-  <section class="panel"><div class="dadrow"><h2>Дневник</h2><a class="btn primary" href="#fill">Прислать скрин в заполнялку</a></div>
+  <section class="panel"><div class="dadrow"><h2>Дневник</h2><a class="btn primary" href="#fillbox" data-tofill>Прислать скрин в заполнялку</a></div>
     <p class="hint" style="margin:6px 0 0">Оценки и пропуски попадают сюда только из электронного дневника через заполнялку, вручную их не вносят. Очки за них считаются сами. Домашку можно добавлять и отмечать самой.</p>
     ${importDue() ? `<p class="note warn"><b>Пора прислать скрин оценок за прошлую неделю.</b> За это +10 очков.</p>` : ""}
   </section>
-  ${up.length ? `<section class="panel"><h3>Скоро</h3>${up.map(evRow).join("")}</section>` : ""}
+  <div id="fillbox"></div>
+  <div id="schedbox"></div>
   <section class="panel" id="hwbox"></section>
   <section class="panel" id="clsbox"></section>
   <section class="panel"><h3>Оценки и пропуски</h3>${dates.length ? dates.map(d=>`<div class="jday"><div class="jdate">${DMW.format(day(d))}</div><div class="jitems">${
       j.grades.filter(g=>g.date===d).map(g=>`<span class="jg" title="${esc(KIND[g.kind]||"")}${g.note?": "+esc(g.note):""}"><span>${esc(subjName(g.subj))}</span><b class="mk m${g.mark}">${g.mark}</b>${g.kind!=="current"?`<small>${esc(KIND[g.kind])}</small>`:""}</span>`).join("") +
       j.abs.filter(a=>a.date===d).map(a=>`<span class="jg ja"><span>${esc(a.subj?subjName(a.subj):"весь день")}</span><b>${R[a.reason]||"Н"}</b></span>`).join("")}</div></div>`).join("")
     : `<p class="hint">Пока пусто. Пришли скрин оценок из электронного дневника в заполнялку.</p>`}</section></div>`;
-  renderHw($("hwbox")); renderCls($("clsbox"));
-  bindEv($("main"));
+  renderFill($("fillbox")); renderSchedule($("schedbox")); renderHw($("hwbox")); renderCls($("clsbox"));
+  $("main").querySelector("[data-tofill]").addEventListener("click", e=>{ e.preventDefault(); $("fillbox").scrollIntoView({behavior:"smooth"}); });
 }
 
 /* ---------- расписание ---------- */
@@ -216,11 +221,15 @@ function evRow(e){
     <div class="evb">${n>=0?`<button class="btn primary" type="button" data-prep="${e.id}">Подготовиться</button><button class="btn" type="button" data-ics="${e.id}">В календарь</button>`:""}<button class="pg" type="button" data-evdel="${e.id}" aria-label="Удалить">✕</button></div>
     <div class="evprep" id="prep-${e.id}" hidden></div></div>`;
 }
-function renderSchedule(){
+function renderSchedule(host){
+  host = host || $("main");
   const all = events().list.slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)), fut = all.filter(e=>daysTo(e.date)>=0), past = all.filter(e=>daysTo(e.date)<0).reverse();
   const notif = "Notification" in window ? Notification.permission : "unsupported";
-  $("main").innerHTML = `<div class="stack">
-  <section class="panel"><h2>Расписание</h2><p class="hint" style="margin:6px 0 12px">Контрольные, зачёты и экзамены. За несколько дней до события сайт напомнит и предложит подготовиться. Кнопка «В календарь» добавит событие в календарь телефона с напоминаниями за 3 дня и за 1 день.</p>
+  host.innerHTML = `<div class="stack">
+  <section class="panel"><h3>Расписание: контрольные, зачёты, экзамены</h3>
+    ${fut.length ? fut.map(evRow).join("") : `<p class="hint">Впереди пока ничего. Добавь сама или пришли скрин расписания в заполнялку.</p>`}
+    <details class="hwadd"><summary class="btn">+ Добавить событие</summary>
+    <p class="hint" style="margin:6px 0 12px">За несколько дней до события сайт напомнит и предложит подготовиться. «В календарь» добавит событие в календарь телефона с напоминаниями за 3 дня и за 1 день.</p>
     <form id="evform" class="evform">
       <label>Дата<input type="date" id="evdate" required min="${today()}"></label>
       <label>Время<input type="time" id="evtime"></label>
@@ -231,16 +240,16 @@ function renderSchedule(){
       <button class="btn primary" type="submit">Добавить</button>
     </form>
     <p class="sm" style="margin-top:10px">${notif==="granted" ? "Уведомления в браузере включены." : notif==="unsupported" ? "" : `<button class="btn" type="button" id="evnotif">Включить уведомления в браузере</button> Сайт напомнит, когда он открыт.`}</p>
-  </section>
-  <section class="panel"><h3>Впереди</h3>${fut.length ? fut.map(evRow).join("") : `<p class="hint">Пока ничего. Добавь сама или пришли скрин расписания в <a href="#fill">заполнялку</a>.</p>`}</section>
-  ${past.length ? `<section class="panel"><details class="plain"><summary><b>Прошедшие · ${past.length}</b></summary>${past.slice(0,30).map(evRow).join("")}</details></section>` : ""}</div>`;
+    </details>
+    ${past.length ? `<details class="plain" style="margin-top:10px"><summary class="sm">Прошедшие · ${past.length}</summary>${past.slice(0,30).map(evRow).join("")}</details>` : ""}
+  </section></div>`;
   const syncCh = () => { const o = chapterOpts($("evsubj").value); $("evch").innerHTML = o; $("evchwrap").hidden = !o; };
   $("evsubj").addEventListener("change", syncCh); syncCh();
   $("evform").addEventListener("submit", e=>{ e.preventDefault(); const ev = events();
     ev.list.push({ id:"e"+Date.now(), date:$("evdate").value, time:$("evtime").value, subj:$("evsubj").value, type:$("evtype").value, ch:$("evch").value||"", note:$("evnote").value.trim() });
-    Store.set("events", ev, 0); if(window.Points) Points.renderBar(); renderSchedule(); });
-  const nb = $("evnotif"); if(nb) nb.addEventListener("click", async()=>{ try{ await Notification.requestPermission(); }catch(e){} renderSchedule(); notify(); });
-  bindEv($("main"));
+    Store.set("events", ev, 0); if(window.Points) Points.renderBar(); renderSchedule(host); });
+  const nb = $("evnotif"); if(nb) nb.addEventListener("click", async()=>{ try{ await Notification.requestPermission(); }catch(e){} renderSchedule(host); notify(); });
+  bindEv(host);
 }
 function bindEv(root){
   root.querySelectorAll("[data-evdel]").forEach(b=>b.addEventListener("click",()=>{ const ev = events(); ev.list = ev.list.filter(x=>x.id!==b.dataset.evdel); Store.set("events", ev, 0); if(window.Points) Points.renderBar(); b.closest(".evrow").remove(); }));
@@ -282,7 +291,7 @@ function soonPanel(){
   const up = upcoming(7);
   if(!up.length && !importDue()) return "";
   return `<section class="panel soon">${up.length ? `<h3>Скоро</h3>${up.slice(0,4).map(evRow).join("")}` : ""}
-    ${importDue() ? `<p class="note warn" style="margin-top:${up.length?12:0}px"><b>Пора прислать скрин оценок за прошлую неделю.</b> <a href="#fill">Открыть заполнялку</a> (+10 очков)</p>` : ""}</section>`;
+    ${importDue() ? `<p class="note warn" style="margin-top:${up.length?12:0}px"><b>Пора прислать скрин оценок за прошлую неделю.</b> <a href="#diary">Открыть заполнялку</a> (+10 очков)</p>` : ""}</section>`;
 }
 
 window.Journal = { renderFill, renderDiary, renderSchedule, soonPanel, bindEv, upcoming, importDue, journal, events, notify, when, subjName, TYPES };

@@ -102,14 +102,57 @@ function svg(spec){
   return `<svg class="tdraw" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(spec.title || "Рисунок учителя")}">${out}</svg>`;
 }
 
-// текст ответа -> HTML: обычный текст экранируется, блоки <draw> становятся рисунками
+/* лёгкий Markdown для ответов учителя: заголовки, списки, жирный, маркер, «Ответ:» */
+function inline(t){
+  return t.replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_\n]+?)__/g, '<u>$1</u>')
+    .replace(/==([^=\n]+?)==/g, '<mark>$1</mark>')
+    .replace(/!!([^!\n]+?)!!/g, '<span class="md-red">$1</span>')
+    .replace(/(^|[\s(«])\*(\S(?:[^*\n]*?\S)?)\*(?=[\s).,!?:;»]|$)/g, '$1<em>$2</em>');
+}
+function md(src){
+  const lines = esc(src).split("\n"), out = []; let list = null, para = [];
+  const flushP = () => { if(para.length){ out.push(`<p>${inline(para.join("<br>"))}</p>`); para = []; } };
+  const flushL = () => { if(list){ out.push(`<${list.t}>${list.items.map(x=>`<li>${inline(x)}</li>`).join("")}</${list.t}>`); list = null; } };
+  lines.forEach(raw=>{ const l = raw.trim(); let m;
+    if(!l){ flushP(); flushL(); return; }
+    if((m = l.match(/^#{1,4}\s+(.*)$/))){ flushP(); flushL(); out.push(`<h4 class="md-h">${inline(m[1].replace(/\*\*/g,""))}</h4>`); return; }
+    if((m = l.match(/^(?:[-•–]|\*(?!\*))\s+(.*)$/))){ flushP(); if(!list || list.t!=="ul"){ flushL(); list = {t:"ul", items:[]}; } list.items.push(m[1]); return; }
+    if((m = l.match(/^(\d+)[.)]\s+(.*)$/))){ flushP(); if(!list || list.t!=="ol"){ flushL(); list = {t:"ol", items:[]}; } list.items.push(m[2]); return; }
+    if(/^(?:\*\*)?Ответ\s*:/i.test(l)){ flushP(); flushL(); out.push(`<p class="md-ans">${inline(l)}</p>`); return; }
+    flushL(); para.push(l);
+  });
+  flushP(); flushL(); return out.join("");
+}
+// текст ответа -> HTML: текст в лёгком Markdown, блоки <draw> становятся рисунками с кнопками «сохранить»
 function html(text){
   const parts = String(text||"").split(/<draw>([\s\S]*?)<\/draw>/i);
-  return parts.map((p,i)=>{
-    if(i%2===0) return esc(p.replace(/^\n+|\n+$/g, i ? "" : "$&"));
-    try{ const spec = JSON.parse(p.trim().replace(/^```(json)?|```$/g,"")); return svg(spec); }catch(e){ return ""; }
-  }).join("");
+  return `<div class="md">${parts.map((p,i)=>{
+    if(i%2===0) return md(p);
+    try{ const spec = JSON.parse(p.trim().replace(/^```(json)?|```$/g,""));
+      const memo = spec.kind==="memo", data = encodeURIComponent(JSON.stringify(spec));
+      return `<figure class="tfig ${memo?"memo":""}">${memo||spec.title?`<figcaption>${memo?"📌 ":""}${esc(spec.title||"Памятка")}</figcaption>`:""}${svg(spec)}<div class="tfig-acts"><button class="ibtn" type="button" data-memo="${data}" title="Сохранить в памятки" aria-label="Сохранить в памятки">⭐</button><button class="ibtn" type="button" data-png="${data}" title="Скачать картинкой" aria-label="Скачать картинкой">⬇</button></div></figure>`; }catch(e){ return ""; }
+  }).join("")}</div>`;
 }
 
-window.Draw = { html, svg, compile };
+/* сохранение рисунков: в памятки (Store "memos") и картинкой */
+function memos(){ const d = Object.assign({list:[]}, Store.get("memos", {})); d.list = d.list.slice(); return d; }
+function saveMemo(spec){ const d = memos(); if(d.list.some(x=>JSON.stringify(x.spec)===JSON.stringify(spec))) return false; d.list.unshift({ id:"m"+Date.now(), spec, title: spec.title || "Рисунок учителя", kind: spec.kind || "task", ts: Date.now() }); Store.set("memos", d, 0); return true; }
+async function png(spec){
+  const raw = svg(spec).replace('<svg class="tdraw"', `<svg xmlns="http://www.w3.org/2000/svg" width="${W*2}" height="${H*2}" style="background:#fffefa;font-family:sans-serif"`)
+    .replace(/class="d[^"]*"/g, 'stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"').replace(/class="lbl sm"/g,'font-size="11" fill="#5d6a80"').replace(/class="lbl"/g,'font-size="14" font-weight="600"').replace(/class="grid"/g,'stroke="#e2e8f2"');
+  const img = new Image(); img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(raw); await img.decode();
+  const c = document.createElement("canvas"); c.width = W*2; c.height = H*2; const x = c.getContext("2d"); x.fillStyle = "#fffefa"; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height);
+  const a = document.createElement("a"); a.href = c.toDataURL("image/png"); a.download = (spec.title || "рисунок учителя").replace(/[\\/:*?"<>|]/g,"") + ".png"; a.click();
+}
+document.addEventListener("click", e=>{
+  const m = e.target.closest("[data-memo]"), p = e.target.closest("[data-png]");
+  try{
+    if(m){ const ok = saveMemo(JSON.parse(decodeURIComponent(m.dataset.memo))); m.textContent = "✓"; m.title = ok ? "Сохранено в памятки" : "Уже в памятках"; }
+    if(p) png(JSON.parse(decodeURIComponent(p.dataset.png)));
+  }catch(err){ console.error(err); }
+});
+
+window.Draw = { html, svg, compile, md, memos };
 })();

@@ -11,7 +11,7 @@ const SVG = `
     <g class="av-torso">
       <rect class="av-blob" x="28" y="40" width="104" height="100" rx="8"/>
       <path class="av-pix" d="M30 60h100M30 80h100M30 100h100M30 120h100M48 42v96M68 42v96M88 42v96M108 42v96"/>
-      <g class="av-spark"><path class="av-cap" d="M80 14l34 12-34 12-34-12z"/><path class="av-capb" d="M62 32v9q18 7 36 0v-9"/><path class="av-tassel" d="M114 26v14"/><circle class="av-tasselb" cx="114" cy="42" r="3"/></g>
+      <g class="av-spark"><path class="av-cap" d="M80 14l34 12-34 12-34-12z"/><path class="av-capb" d="M62 32v9q18 7 36 0v-9"/><path class="av-tassel" d="M114 26v14"/><circle class="av-tasselb" cx="114" cy="42" r="3"/></g><g class="av-bow"><path d="M80 40l-22-13v26z M80 40l22-13v26z"/><circle cx="80" cy="40" r="6"/></g>
       <g class="av-face">
         <g class="av-eyes">
           <g class="av-eye av-eye-l"><rect class="av-pupil" x="55" y="69" width="11" height="18" rx="2"/><rect class="av-glint" x="57" y="71" width="3" height="4"/></g>

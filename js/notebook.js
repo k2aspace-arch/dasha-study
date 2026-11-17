@@ -34,7 +34,16 @@ function mount(host, opts){
     <div class="nb-sheet"><canvas class="nb-bg" width="${W}" height="${H}"></canvas><canvas class="nb-ink" width="${W}" height="${H}"></canvas></div>
   </div>`;
   const bg = host.querySelector(".nb-bg"), cv = host.querySelector(".nb-ink"), ctx = cv.getContext("2d"), sheetEl = host.querySelector(".nb-sheet");
-  drawPaper(bg.getContext("2d"), ruled);
+  // условие задания вверху листа, «от руки» синей ручкой
+  let task = opts.task || "";
+  function paintBg(){ const b = bg.getContext("2d"); drawPaper(b, ruled); if(!task) return;
+    b.save(); b.fillStyle = "#1d3fbf"; b.font = `40px "Caveat", "Golos Text", cursive`; b.textBaseline = "alphabetic";
+    const maxW = W - 160, lh = ruled ? 56 : 48, words = String(task).replace(/\s+/g," ").trim().split(" "), lines = []; let line = "";
+    words.forEach(w=>{ const t = line ? line+" "+w : w; if(b.measureText(t).width > maxW && line){ lines.push(line); line = w; } else line = t; }); if(line) lines.push(line);
+    const show = lines.slice(0, 8); if(lines.length > 8) show[7] += " …";
+    show.forEach((l,i)=>b.fillText(l, 40, (ruled ? 150 - 10 : 40) + (ruled ? i*lh : (i+1)*lh - 8)));
+    b.restore(); }
+  paintBg(); if(document.fonts && document.fonts.load) document.fonts.load('40px "Caveat"').then(paintBg).catch(()=>{});
   const info = host.querySelector("[data-nb-info]");
 
   async function load(){
@@ -61,7 +70,7 @@ function mount(host, opts){
   const style = c => { c.lineCap = c.lineJoin = "round";
     if(st.tool==="eraser"){ c.globalCompositeOperation = "destination-out"; c.lineWidth = 34; c.strokeStyle = "#000"; }
     else if(st.tool==="marker"){ c.globalCompositeOperation = "multiply"; c.globalAlpha = .35; c.lineWidth = 26; c.strokeStyle = st.color==="#1d3fbf" ? "#ffd400" : st.color; }
-    else { c.lineWidth = 3.2; c.strokeStyle = st.color; } };
+    else { c.lineWidth = st.press ? 2.2 + st.press*2.6 : 3.2; c.strokeStyle = st.color; } };
   let drawing = false, pts = [];
   const redraw = () => { ctx.putImageData(st.undo[st.undo.length-1],0,0); ctx.save(); style(ctx); ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); pts.forEach(p=>ctx.lineTo(p.x+0.01,p.y)); ctx.stroke(); ctx.restore(); };
   function snap(){ st.undo.push(ctx.getImageData(0,0,W,H)); if(st.undo.length>25) st.undo.shift(); }
@@ -75,10 +84,13 @@ function mount(host, opts){
     ta.addEventListener("blur", commit); ta.addEventListener("keydown", e=>{ if(e.key==="Escape"){ ta.value = ""; ta.blur(); } if(e.key==="Enter" && (e.ctrlKey||e.metaKey)) ta.blur(); });
   }
   cv.addEventListener("pointerdown", ev=>{
+    // стилус: как только им начали писать, пальцем лист только листается (защита от ладони)
+    if(ev.pointerType==="pen" && !st.pen){ st.pen = true; cv.style.touchAction = "pan-y pinch-zoom"; }
+    if(st.pen && ev.pointerType==="touch") return;
     if(st.tool==="text"){ ev.preventDefault(); const p = pos(ev); setTimeout(()=>placeText(p), 0); return; }
-    ev.preventDefault(); drawing = true; snap(); cv.setPointerCapture(ev.pointerId); pts = [pos(ev)]; redraw(); });
-  cv.addEventListener("pointermove", ev=>{ if(!drawing) return; (ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev]).forEach(e=>pts.push(pos(e))); redraw(); });
-  const end = () => { if(drawing){ drawing = false; changed(); } };
+    ev.preventDefault(); drawing = ev.pointerId; st.press = ev.pointerType==="pen" && ev.pressure ? ev.pressure : 0; snap(); cv.setPointerCapture(ev.pointerId); pts = [pos(ev)]; redraw(); });
+  cv.addEventListener("pointermove", ev=>{ if(drawing===false || ev.pointerId!==drawing) return; (ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev]).forEach(e=>pts.push(pos(e))); redraw(); });
+  const end = ev => { if(drawing!==false && (!ev || ev.pointerId===drawing)){ drawing = false; changed(); } };
   cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
 
   host.querySelectorAll("[data-nbtool]").forEach(b=>b.addEventListener("click",()=>{ st.tool = b.dataset.nbtool; host.querySelectorAll("[data-nbtool]").forEach(x=>x.setAttribute("aria-pressed", x===b)); cv.classList.toggle("texting", st.tool==="text"); }));
@@ -96,6 +108,7 @@ function mount(host, opts){
   load();
   return {
     save,
+    setTask(t){ task = t || ""; paintBg(); },
     hasInk(){ return ctx.getImageData(0,0,W,H).data.some((v,i)=>i%4===3 && v); },
     // лист вместе с клеткой или линейкой, для проверки учителем (JPEG base64)
     image(){ const c = document.createElement("canvas"), s = 0.7; c.width = W*s; c.height = H*s; const x = c.getContext("2d");

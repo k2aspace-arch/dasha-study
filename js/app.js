@@ -6,7 +6,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",
 const pl = (n,a,b,c) => { const m=Math.abs(n)%100, d=m%10; return `${n} ${m>10&&m<20?c:d===1?a:d>=2&&d<=4?b:c}` };
 const keysOf = b => b.groups.flatMap((g,gi)=>g.chapters.flatMap((c,ci)=>c.p.map((_,pi)=>`${b.id}.${gi}.${ci}.${pi}`)));
 const PDFLIB_URL = "js/vendor/pdf-lib.min.js";
-const NAV = [["home","Главная","⌂"],["diary","Дневник","✓"],["schedule","Расписание","◷"],["fill","Заполнялка","⇪"],["oge","ОГЭ","★"],["rewards","Награды","♛"],["tutor","ИИ-учитель","?"],["stats","Статистика","▤"],["account","Личный кабинет","◉"]];
+const NAV = [["home","Главная","⌂"],["diary","Дневник","✓"],["calendar","Календарь","▦"],["memos","Памятки","⭐"],["oge","ОГЭ","★"],["rewards","Награды","♛"],["tutor","ИИ-учитель","?"],["stats","Статистика","▤"]];
 const LONG_DATE = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long"});
 
 /* ---------- данные ---------- */
@@ -63,16 +63,50 @@ function gradeOpts(v){
   return ["","5","4","3","2","зач"].map(o=>`<option value="${o}" ${o===v?"selected":""}>${o||"—"}</option>`).join("");
 }
 function avg(g, t){ const n = GRADE_SUBJECTS.map(([id])=>Number(g.g[id]&&g.g[id][t])).filter(x=>x>=2); return n.length ? (n.reduce((a,b)=>a+b,0)/n.length) : null; }
+/* оценки: настоящие из дневника и серые прогнозы. Прогноз по умолчанию 5, годовая — по триместрам,
+   аттестат: у предметов с ОГЭ — среднее годовой и экзамена, математика в аттестате одна (алгебра + геометрия + вероятность) */
+const MATH = ["algebra","geometry","prob"];
+const rnd = x => x===null ? null : Math.floor(x + 0.5 + 1e-9);
+const numAvg = a => { const n = a.map(Number).filter(x=>x>=2); return n.length ? n.reduce((x,y)=>x+y,0)/n.length : null; };
+function gradeModel(g){
+  const f = g.f || {}, out = {};
+  const pick = (id, t, def) => { const r = (g.g[id]||{})[t]; if(r) return { v:r, real:true };
+    const o = (f[id]||{})[t]; if(o) return { v:o, set:true }; return { v: def===null||def===undefined ? "" : String(def), auto:true }; };
+  GRADE_SUBJECTS.forEach(([id])=>{ const o = out[id] = {};
+    ["t1","t2","t3"].forEach(t=>o[t] = pick(id, t, (g.g[id]||{}).t1==="зач" ? "зач" : 5));
+    const ys = ["t1","t2","t3"].map(t=>o[t].v);
+    o.y = pick(id, "y", ys.includes("зач") && !numAvg(ys) ? "зач" : rnd(numAvg(ys)));
+    if(!MATH.includes(id)){ o.oge = pick(id, "oge", id==="rus" ? 5 : "");
+      const y = Number(o.y.v), e = Number(o.oge.v);
+      o.att = pick(id, "att", id==="nat" ? "" : o.y.v==="зач" ? "зач" : e>=2 && y>=2 ? rnd((y+e)/2) : o.y.v); }
+  });
+  const m = out.math = {};
+  m.y = pick("math", "y", rnd(numAvg(MATH.map(id=>out[id].y.v))));
+  m.oge = pick("math", "oge", 5);
+  m.att = pick("math", "att", rnd(numAvg([m.y.v, m.oge.v])));
+  return out;
+}
+function attAvg(M){ return numAvg(GRADE_SUBJECTS.filter(([id])=>!MATH.includes(id)).map(([id])=>M[id].att.v).concat([M.math.att.v])); }
 function renderHome(){
   const g = S.grades();
   const q = QUOTES[Math.floor(Math.random()*QUOTES.length)];
   const cnt = [[schoolDaysLeft(), "учебных дней осталось", `до ${LONG_DATE.format(day(CAL.end))}, без выходных и каникул`]]
     .concat(CAL.oge.map(([d,t])=>[daysUntil(d), t.replace("ОГЭ по ","до ОГЭ: "), `${LONG_DATE.format(day(d))}, по проекту расписания`]));
   const notFive = GRADE_SUBJECTS.filter(([id])=>{ const r = g.g[id]||{}; const v = r.t2 || r.t1; return v && v!=="5" && v!=="зач"; });
-  const rows = GRADE_SUBJECTS.map(([id,name])=>{ const r = g.g[id] || {};
-    return `<tr><td>${esc(name)}</td>${["t1","t2","t3","y"].map(t=>`<td><span class="gcell g${esc(r[t]||"")}">${esc(r[t]||"—")}</span></td>`).join("")}</tr>`; }).join("");
-  const fa = t => { const a = avg(g,t); return a ? a.toFixed(2).replace(".",",") : "—"; };
+  const M = gradeModel(g);
+  const cell = (id, t, c, span) => { const sp = span ? ` rowspan="${span}" class="mathcell"` : "";
+    if(c.real) return `<td${sp}><span class="gcell g${esc(c.v)}">${esc(c.v)}</span></td>`;
+    const def = c.auto ? c.v : "";
+    return `<td${sp}><select class="gcell gfc${c.set?" gset":""}" data-fc="${id}" data-t="${t}" title="Прогноз. Поменяй, и всё пересчитается" aria-label="Прогноз">
+      <option value="">${esc(c.auto ? (c.v||"—") : "авто")}</option>${["5","4","3","2"].map(o=>`<option ${c.set&&c.v===o?"selected":""}>${o}</option>`).join("")}</select></td>`; };
+  const rows = GRADE_SUBJECTS.map(([id,name])=>{ const o = M[id];
+    const tail = MATH.includes(id) ? (id===MATH[0] ? cell("math","y",M.math.y,3) + cell("math","oge",M.math.oge,3) + cell("math","att",M.math.att,3) : "") : `<td class="sm muted">—</td>` + cell(id,"oge",o.oge) + cell(id,"att",o.att);
+    return `<tr><td>${esc(name)}</td>${["t1","t2","t3","y"].map(t=>cell(id,t,o[t])).join("")}${tail}</tr>`; }).join("");
+  const f2 = a => a ? a.toFixed(2).replace(".",",") : "—";
+  const colAvg = t => f2(numAvg(GRADE_SUBJECTS.map(([id])=>M[id][t].v)));
+  const ogeAvg = f2(numAvg(GRADE_SUBJECTS.filter(([id])=>!MATH.includes(id)).map(([id])=>M[id].oge.v).concat([M.math.oge.v])));
   $("main").innerHTML = `<div class="stack">
+  ${Calendar.todayPanel()}
   <section class="panel"><div class="quoterow"><p class="quote" id="quote">${esc(q)}</p><button class="btn" id="nextq" type="button">Ещё фраза</button></div></section>
   ${Journal.soonPanel()}
   ${Study.recoHome()}
@@ -83,16 +117,23 @@ function renderHome(){
     <p class="hint">Каникулы и конец года взяты по обычному графику триместров, сверь их со школой. Даты ОГЭ взяты из проекта расписания на 2027 год и могут измениться.</p>
   </section>
   <section class="panel"><h3>Оценки</h3>
-    <div class="tablewrap"><table class="grades"><thead><tr><th>Предмет</th><th>1 трим.</th><th>2 трим.</th><th>3 трим.</th><th>Год</th></tr></thead>
-    <tbody>${rows}</tbody><tfoot><tr><td>Средний балл</td><td>${fa("t1")}</td><td>${fa("t2")}</td><td>${fa("t3")}</td><td>${fa("y")}</td></tr></tfoot></table></div>
+    <div class="tablewrap"><table class="grades"><thead><tr><th>Предмет</th><th>1 трим.</th><th>2 трим.</th><th>3 трим.</th><th>Год</th><th title="Математика в аттестате одна: годовая по алгебре, геометрии и вероятности">Матем.</th><th>ОГЭ</th><th>Аттестат</th></tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr><td>Средний балл</td><td>${colAvg("t1")}</td><td>${colAvg("t2")}</td><td>${colAvg("t3")}</td><td>${colAvg("y")}</td><td>${M.math.y.v||"—"}</td><td>${ogeAvg}</td><td><b>${f2(attAvg(M))}</b></td></tr></tfoot></table></div>
+    <p class="hint">Серые цифры — прогноз: пока везде 5. Поменяй любую, и годовая, математика, аттестат и средний балл пересчитаются. Годовая считается по триместрам, в аттестат по русскому и математике идёт среднее годовой и ОГЭ. Математика в аттестате одна: из алгебры, геометрии и вероятности.</p>
     <div class="legend">${notFive.length ? `<span class="chip warn">Не пятёрка сейчас: ${esc(notFive.map(x=>x[1]).join(", "))}</span>` : `<span class="chip ok">Все текущие оценки отличные</span>`}</div>
-    <p class="hint">Итоговые оценки попадают сюда из электронного дневника через <a href="#fill">заполнялку</a>.</p>
+    <p class="hint">Итоговые оценки попадают сюда из электронного дневника через <a href="#diary">заполнялку</a>.</p>
   </section>
   <section class="panel"><h3>Учебники</h3><div class="booklinks">${BOOKS.map(b=>`<a class="booklink" href="#${b.id}" style="--c:${b.color}"><b>${esc(b.subject)}</b><div class="bar"><i style="width:${pct(b)}%"></i></div><span class="sm">${pct(b)}% параграфов пройдено</span></a>`).join("")}</div></section>
   </div>`;
   $("main").querySelector("[data-dad]").addEventListener("click", ()=>Points.openReport());
-  Journal.bindEv($("main"));
+  Journal.bindEv($("main")); Calendar.bindToday($("main"));
   $("nextq").addEventListener("click",()=>{ let n; do{ n = QUOTES[Math.floor(Math.random()*QUOTES.length)] }while(n===$("quote").textContent && QUOTES.length>1); $("quote").textContent = n; });
+  $("main").querySelectorAll("select[data-fc]").forEach(s=>s.addEventListener("change",()=>{
+    const gg = S.grades(), f = Object.assign({}, gg.f||{}), id = s.dataset.fc;
+    f[id] = Object.assign({}, f[id]||{}); if(s.value) f[id][s.dataset.t] = s.value; else delete f[id][s.dataset.t];
+    Store.set("grades", Object.assign({}, gg, { f }), 0); renderHome();
+    const again = $("main").querySelector(`select[data-fc="${id}"][data-t="${s.dataset.t}"]`); if(again) again.focus();
+  }));
   $("main").querySelectorAll("select[data-g]").forEach(s=>s.addEventListener("change",()=>{
     const gg = S.grades(); gg.g[s.dataset.g] = Object.assign({}, gg.g[s.dataset.g]||{}, {[s.dataset.t]: s.value});
     Store.set("grades", gg); renderHome();
@@ -153,12 +194,19 @@ function mountBook(b){
 }
 
 /* ================= ЛИЧНЫЙ КАБИНЕТ ================= */
+// общая или своя версия учебника
+function shareLine(b){
+  if(Store.mode!=="cloud" || !Store.getShared) return "";
+  const k = "book-"+b.id, sh = Store.getShared(k), own = Store.hasOwn(k), mine = Store.sharedMine(k);
+  if(!sh) return own ? `<p class="hint sm">Ты первая загрузила этот учебник: он станет доступен всем пользователям сайта.</p>` : "";
+  if(!own || mine) return `<p class="hint sm"><span class="chip">общий учебник</span> Им пользуются все. Можно загрузить свой PDF: тогда у тебя будет своя версия.</p>`;
+  return `<p class="hint sm"><span class="chip warn">своя версия</span> У остальных общий учебник.
+    <button class="btn" type="button" data-useshared="${b.id}">Вернуть общий</button> <button class="btn" type="button" data-pubshared="${b.id}">Сделать мою версию общей</button></p>`;
+}
 function renderAccount(openId){
   curBook = null;
   const who = Store.mode==="cloud" ? `Ты вошла как <b>${esc(Store.user.email)}</b>.` : "Сайт работает без облака: всё хранится только в этом браузере.";
   $("main").innerHTML = `<div class="stack">
-  <section class="panel"><h2>Личный кабинет</h2><p class="hint" style="margin:6px 0 0">${who} Здесь загружаются PDF учебников и указываются страницы параграфов. После этого параграфы открываются на своей странице прямо из учебника.</p>
-    ${Store.mode==="cloud"?`<div class="btnrow"><button class="btn" id="acclogout" type="button">Выйти из аккаунта</button></div>`:""}</section>
   ${Study.accountPanels()}
   <section class="panel"><h3>Учебники: PDF и страницы</h3><p class="hint" style="margin:0">Загрузи PDF каждого учебника и проверь страницы параграфов.</p></section>
   ${BOOKS.map(b=>{ const m = S.book(b.id), file = hasFile(b), set = Object.keys(m.pages||{}).length, total = keysOf(b).length;
@@ -171,6 +219,7 @@ function renderAccount(openId){
         ${file?`<button class="btn" data-open="${b.id}" type="button">Открыть учебник</button><button class="btn" data-auto="${b.id}" type="button">Найти страницы тем автоматически</button>`:""}
         <input type="file" id="file-${b.id}" accept="application/pdf,.pdf" hidden>
       </div>
+      ${shareLine(b)}
       <p class="status" id="status-${b.id}" aria-live="polite"></p>
       <details class="pages-ed" ${openId===b.id?"open":""}><summary class="btn" style="display:inline-block;margin-top:6px">Номера страниц параграфов</summary>
         <div class="editbar"><label for="offset-${b.id}">Страниц в файле до первой страницы учебника:</label><input type="number" id="offset-${b.id}" data-off="${b.id}" min="-50" max="300" value="${Number(m.offset)||0}"><span>Если в PDF есть обложка и титульные листы, впиши, сколько их. Тогда номера ниже совпадут с номерами в книге.</span></div>
@@ -183,7 +232,12 @@ function renderAccount(openId){
       </details></section>`; }).join("")}
   </div>`;
   const main = $("main");
-  const lo = $("acclogout"); if(lo) lo.addEventListener("click", ()=>$("logout").click());
+  main.querySelectorAll("[data-useshared]").forEach(btn=>btn.addEventListener("click", async()=>{ const id = btn.dataset.useshared;
+    for(const k of ["book-","toc-","idx-"]) if(Store.getShared(k+id)) await Store.del(k+id).catch(()=>{});
+    if(window.Reader) Reader.clearCache(); Study.apply(); renderAccount(id); }));
+  main.querySelectorAll("[data-pubshared]").forEach(btn=>btn.addEventListener("click", async()=>{ const id = btn.dataset.pubshared;
+    for(const k of ["book-","toc-","idx-"]) if(Store.hasOwn(k+id)) await Store.setShared(k+id, Store.get(k+id));
+    renderAccount(id); }));
   main.querySelectorAll("[data-up]").forEach(btn=>{ const id = btn.dataset.up, b = BOOKS.find(x=>x.id===id), fi = $("file-"+id);
     btn.addEventListener("click",()=>fi.click());
     fi.addEventListener("change",()=>{ const f = fi.files && fi.files[0]; fi.value = ""; sayTarget = "status-"+id;
@@ -234,7 +288,7 @@ async function handleFile(b, file, after){
   const stamp = Date.now(), parts = [];
   if(file.size <= Store.maxPart){
     say(Store.mode==="cloud" ? "Загружаю учебник в облако…" : "Сохраняю учебник…");
-    const path = `books/${b.id}/${stamp}-1.pdf`;
+    const path = `${Store.mode==="cloud"?"shared/":""}books/${b.id}/${stamp}-1.pdf`;
     await Store.putFile(path, new Blob([bytes], {type:"application/pdf"}));
     parts.push({from:1, to:n, path});
   } else {
@@ -253,7 +307,7 @@ async function handleFile(b, file, after){
         to = from + Math.max(0, Math.floor((to-from+1)/2) - 1);
       }
       say(`Загружаю в облако: страницы ${from}–${to} из ${n}…`);
-      const path = `books/${b.id}/${stamp}-${i++}.pdf`;
+      const path = `${Store.mode==="cloud"?"shared/":""}books/${b.id}/${stamp}-${i++}.pdf`;
       await Store.putFile(path, new Blob([out], {type:"application/pdf"}));
       parts.push({from, to, path});
       from = to + 1;
@@ -262,7 +316,8 @@ async function handleFile(b, file, after){
   const m = S.book(b.id), old = m.chunks || [];
   m.chunks = parts; m.totalPages = n; m.fileName = file.name;
   await S.setBook(b.id, m);
-  for(const c of old){ try{ await Store.removeFile(c.path) }catch(e){} }
+  const inShared = ((Store.getShared && Store.getShared("book-"+b.id)) || {}).chunks || [];
+  for(const c of old){ if(inShared.some(x=>x.path===c.path)) continue; try{ await Store.removeFile(c.path) }catch(e){} }
   if(window.Reader) Reader.clearCache();
   if(after) after(); else renderAccount();
   say(`Готово: ${pl(n,"страница","страницы","страниц")}. ${Store.mode==="cloud"?"Учебник откроется на любом устройстве после входа.":"Учебник сохранён в этом браузере."}`);
@@ -318,7 +373,7 @@ async function renderBoard(host){
     try{ await Store.removeFile(`boards/${B.cur}.png`) }catch(_){}
     renderBoard();
   });
-  $("bask").addEventListener("click",async()=>{ await flushBoard(); pendingBoard = B.cur; const cb = $("chatboard"); if(cb){ cb.checked = true; const ci = $("chatin"); if(!ci.value.trim()) ci.value = "Проверь моё решение на доске. Найди ошибки, но не решай за меня."; ci.focus(); ci.scrollIntoView({block:"center", behavior:"smooth"}); } });
+  $("bask").addEventListener("click",async()=>{ await flushBoard(); pendingBoard = B.cur; if(Study.Dock.kind()!=="general") renderGeneralChat(); Study.Dock.open(); const cb = $("chatboard"); if(cb){ cb.checked = true; const ci = $("chatin"); if(!ci.value.trim()) ci.value = "Проверь моё решение на доске. Найди ошибки, но не решай за меня."; ci.focus(); ci.scrollIntoView({block:"center", behavior:"smooth"}); } });
   // рисование
   let drawing = false, last = null;
   const pos = ev => { const r = cv.getBoundingClientRect(); return { x:(ev.clientX-r.left)*B.W/r.width, y:(ev.clientY-r.top)*B.H/r.height, cx: ev.clientX-r.left, cy: ev.clientY-r.top }; };
@@ -379,11 +434,19 @@ const SUBJ_ALL = GRADE_SUBJECTS.map(([id,n])=>[id,n]);
 let tutorAv = null, tutorPhoto = null;
 let drawMode = false;
 function renderTutor(){
+  $("main").innerHTML = `<section class="panel"><h2>ИИ-учитель и доска</h2>
+    <p class="hint" style="margin:0">Чат с учителем открывается справа в любом разделе. Здесь большая доска: реши на ней и нажми «Учителю».</p></section>
+    <div id="tutorboard"></div>`;
+  renderBoard($("tutorboard"));
+  Study.Dock.open();
+}
+// общий чат с учителем: живёт в выдвижной панели справа, когда страница не дала свой (тема, ОГЭ)
+function renderGeneralChat(){
   const ok = Store.aiAvailable();
   let subj = "algebra"; try{ subj = localStorage.getItem("dasha:subj") || "algebra" }catch(e){}
-  $("main").innerHTML = `<section class="panel"><h2>ИИ-учитель</h2>
-    <p class="hint" style="margin:0 0 14px">Объясняет темы, проверяет решения с доски и даёт задачи как в ОГЭ. Сначала подсказывает, а готовый ответ даёт, только если попросить.</p>
-    ${ok ? "" : `<p class="note"><b>Пока не подключён.</b> ${Store.mode==="cloud" ? "Для ИИ-учителя нужен ключ Anthropic API на сервере. Остальные разделы работают." : "Сайт ещё не подключён к облаку, поэтому ИИ-учитель недоступен."}</p>`}
+  const body = Study.Dock.claim("general", "Учитель Клод", "Спрашивай что угодно по учёбе", ()=>{ if(tutorAv){ tutorAv.destroy(); tutorAv = null; } });
+  body.innerHTML = `
+    ${ok ? "" : `<p class="note"><b>Пока не подключён.</b> ${Store.mode==="cloud" ? "Для ИИ-учителя нужен ключ на сервере. Остальные разделы работают." : "Сайт ещё не подключён к облаку, поэтому ИИ-учитель недоступен."}</p>`}
     <div class="tutorstage" id="tutorstage"></div>
     <div class="chat" id="chatlog" aria-live="polite"></div>
     <form class="chatform" id="chatform">
@@ -402,10 +465,8 @@ function renderTutor(){
         <button class="ibtn" type="button" id="chatnew" title="Новый разговор" aria-label="Новый разговор">↺</button>
         <button class="btn primary" type="submit" id="chatsend" ${ok?"":"disabled"}>Отправить</button>
       </div>
-    </form></section>
-    <div id="tutorboard"></div>`;
+    </form>`;
   drawChat();
-  renderBoard($("tutorboard"));
   if(tutorAv) tutorAv.destroy();
   tutorAv = Avatar.create($("tutorstage"), {compact:true}); tutorAv.start();
   tutorAv.say(ok ? "Привет, Даша! Спрашивай, разберёмся вместе" : "Я пока не подключён, но скоро буду помогать", 5000);
@@ -414,8 +475,8 @@ function renderTutor(){
   const drawTP = () => { const el = $("chatphotoprev"); if(!el) return; el.innerHTML = tutorPhoto ? `<span class="photochip"><img src="${tutorPhoto.url}" alt="Приложенное фото"><button class="pg" type="button" id="chatphotorm" aria-label="Убрать фото">✕</button></span>` : ""; const rm = $("chatphotorm"); if(rm) rm.addEventListener("click", ()=>{ tutorPhoto = null; drawTP(); }); };
   const pickTP = async () => { const got = await Photo.pick(false); if(got[0]){ tutorPhoto = got[0]; drawTP(); } };
   $("chatphoto").addEventListener("click", pickTP); drawTP();
-  $("main").querySelector("[data-draw]").addEventListener("click",()=>{ const v = $("chatin").value.trim(); drawMode = true; $("chatin").value = v ? "Нарисуй: " + v : "Нарисуй это схематично, чтобы было понятнее."; if(!v && !chat.length){ $("chatin").value = "Нарисуй: "; $("chatin").focus(); drawMode = false; return; } $("chatform").requestSubmit(); });
-  $("main").querySelectorAll("[data-q]").forEach(b=>b.addEventListener("click",()=>{ if(b.dataset.photo && !tutorPhoto) pickTP(); $("chatin").value = b.dataset.q; if(b.dataset.q.includes("доске")) $("chatboard").checked = true; $("chatin").focus(); }));
+  body.querySelector("[data-draw]").addEventListener("click",()=>{ const v = $("chatin").value.trim(); drawMode = true; $("chatin").value = v ? "Нарисуй: " + v : "Нарисуй это схематично, чтобы было понятнее."; if(!v && !chat.length){ $("chatin").value = "Нарисуй: "; $("chatin").focus(); drawMode = false; return; } $("chatform").requestSubmit(); });
+  body.querySelectorAll("[data-q]").forEach(b=>b.addEventListener("click",()=>{ if(b.dataset.photo && !tutorPhoto) pickTP(); $("chatin").value = b.dataset.q; if(b.dataset.q.includes("доске")) $("chatboard").checked = true; $("chatin").focus(); }));
   $("chatsubj").addEventListener("change",e=>{ try{ localStorage.setItem("dasha:subj", e.target.value) }catch(_){} });
   $("chatnew").addEventListener("click",()=>{ chat = []; saveChat(); drawChat(); });
   $("chatin").addEventListener("keydown",e=>{ if(e.key==="Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); $("chatform").requestSubmit(); } });
@@ -442,6 +503,7 @@ function renderTutor(){
       const r = await Store.ask({ mode: text.startsWith("Нарисуй") ? "draw" : image ? "check" : "chat", subject: subjName, messages: msgs, image, imageType });
       thinking.content = Study.marks(r.text || "Пустой ответ.").text; delete thinking.pending;
     }catch(err){ thinking.content = "Не получилось получить ответ: " + err.message; thinking.err = true; delete thinking.pending; }
+    Study.Dock.ping();
     if(tutorAv && tutorAv.el.isConnected){ tutorAv.setMood(thinking.err ? "squint" : "smile"); tutorAv.say(thinking.err ? "Ой, что-то пошло не так" : "Вот что я думаю!", 3000); setTimeout(()=>{ if(tutorAv){ tutorAv.setMood("idle"); tutorAv.start(); } }, 3000); }
     $("chatsend").disabled = false; saveChat(); drawChat();
   });
@@ -519,22 +581,26 @@ function renderLogin(){
 let eNb = null;
 function emptyNb(e){ if(eNb) eNb.destroy(); eNb = Notebook.mount($("enb"), { bookId:e.id, key:"all", ruled: e.id==="rus", title:`Тетрадь · ${e.subject}`, sub: e.id==="rus" ? "В линейку, как школьная тетрадь по русскому." : "В клетку." }); }
 async function route(){
-  if(Store.mode==="cloud" && !Store.user){ $("authbar").hidden = true; $("streakbar").hidden = true; renderLogin(); return; }
-  $("authbar").hidden = false;
-  $("whoami").textContent = Store.mode==="cloud" ? Store.user.email : "Данные хранятся только в этом браузере";
+  Study.Dock.begin();
+  await routeInner();
+  if(Store.mode==="cloud" && !Store.user) Study.Dock.hide(); else Study.Dock.end(renderGeneralChat);
+}
+async function routeInner(){
+  if(Store.mode==="cloud" && !Store.user){ $("authbar").hidden = true; $("streakbar").hidden = true; $("mebtn").hidden = true; renderLogin(); return; }
+  $("authbar").hidden = true; Study.drawMe();
   $("logout").hidden = Store.mode!=="cloud";
   const id = (location.hash||"").slice(1) || "home";
   if(id !== "tutor") await flushBoard();
-  if(id !== "oge" && window.Oge) Oge.leave();
+  if(window.Oge) Oge.leave();
   if(window.Topic) Topic.leave();
   if(window.Study) Study.leaveCut();
   if(eNb){ eNb.destroy(); eNb = null; }
   if(id.startsWith("t/")){ renderShelf(id.split("/")[1]); return Topic.render(id.slice(2)); }
+  if(id.startsWith("oge/")){ const [, e, n] = id.split("/"); renderShelf("oge"); return Oge.openTask(e, Number(n)); }
   if(id.startsWith("cut/")){ renderShelf("account"); return Study.renderCut(id.slice(4)); }
   if(id.startsWith("q/")){ renderShelf(id.split("/")[1]); return Topic.renderQuiz(id.slice(2)); }
   if(window.Points) Points.renderBar();
   if(window.Journal) Journal.notify();
-  if(id !== "tutor" && tutorAv){ tutorAv.destroy(); tutorAv = null; }
   renderShelf(id);
   const b = BOOKS.find(x=>x.id===id), e = EMPTY.find(x=>x.id===id);
   if(b) return mountBook(b);
@@ -543,10 +609,13 @@ async function route(){
   if(id==="board"){ location.replace("#tutor"); return; }
   if(id==="tutor") return renderTutor();
   if(id==="stats") return renderStats();
+  if(id==="memos") return Study.renderMemos();
   if(id==="account") return renderAccount();
+  if(id==="admin") return Study.renderAdmin();
   if(id==="diary") return Journal.renderDiary();
-  if(id==="fill") return Journal.renderFill();
-  if(id==="schedule") return Journal.renderSchedule();
+  if(id==="calendar") return Calendar.render();
+  if(id==="fill"){ location.replace("#diary"); return; }
+  if(id==="schedule"){ location.replace("#diary"); return; }
   if(id==="rewards") return Points.renderRewards();
   if(id==="oge") return Oge.render();
   return renderHome();

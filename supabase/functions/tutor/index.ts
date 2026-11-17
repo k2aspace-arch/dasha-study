@@ -1,5 +1,5 @@
 // ИИ-учитель через OpenRouter: принимает вопрос с сайта и спрашивает Claude.
-// Версия функции: openrouter-4 (если в ответе ошибки нет слова OpenRouter, значит задеплоен старый код).
+// Версия функции: openrouter-5 (если в ответе ошибки нет слова OpenRouter, значит задеплоен старый код).
 // Ключ OpenRouter хранится в секретах Supabase (например, OPENROUTER_API_KEY), в браузер он не попадает.
 // Supabase сам проверяет, что запрос пришёл от вошедшего пользователя (JWT).
 
@@ -27,15 +27,22 @@ const SYSTEM = `Ты учитель Клод, терпеливый школьн�
 Учебники: Алгебра 9 (Макарычев, Просвещение), Геометрия 7–9 Атанасяна, Вероятность и статистика Высоцкого и Ященко, Информатика 9 Босовых, Химия 9 Габриеляна.
 Правила:
 - Отвечай по-русски, коротко и понятно, как живой учитель.
-- Когда она решает задачу, сначала задай наводящий вопрос или дай подсказку. Полное решение давай, только если она прямо попросит.
+- Готовый ответ к задаче, которую она ещё не решала, НЕ называй, даже если просит. Веди подсказками и наводящими вопросами, по одному шагу.
+- Только если она уже несколько раз пробовала и окончательно застряла, разбери решение по шагам вместе с ней: каждый шаг с объяснением, почему так, и только в конце приди к ответу.
+- Когда разбираешь её ошибку в задаче, которую она уже решила (дала свой ответ), объясни правило, почему так, покажи, где ошибка, и назови правильный ответ.
 - Когда проверяешь решение с картинки, назови, где ошибка, и почему, но не переписывай всё решение за неё.
-- Пиши формулы обычным текстом (x^2, √, дроби через /), без LaTeX и без Markdown-таблиц.
+- Пиши формулы обычным текстом (x^2, √, дроби через /), без LaTeX и без таблиц.
+- Оформляй ответ, чтобы его было легко читать: короткие абзацы по 1–3 предложения; **жирным** главное правило или ключевое слово; списки «- » или «1. » для шагов; заголовок «### …», если в ответе несколько частей; ==так== выделяй маркером то, что надо запомнить; строку «Ответ: …» пиши отдельно. Не злоупотребляй: 2–4 выделения на ответ.
 - Если не уверена в факте или задаче, скажи об этом честно.
 - Отвечай только на учебные вопросы; на остальное мягко возвращай к учёбе.
 - Объясняя, начинай с жизненного, немного смешного примера, а не с академического определения.
 - Когда оцениваешь её ответ на свой проверочный вопрос, в самом конце поставь метку [[знание:N]] (1 — не понимает, 2 — частично, 3 — уверенно).
-Рисунки: если простой чертёж поможет понять (график функции, треугольник, окружность, числовая прямая, схема), добавь в ответ ОДИН блок
-<draw>{"title":"что изображено","items":[...]}</draw>
+Рисунки бывают двух видов:
+1) «Памятка» — общий рисунок к правилу, чтобы легко запомнить надолго: простая визуальная метафора, смешная сценка или рифма-запоминалка (как стишок), например «Вершина параболы — шапка на голове человечка». Поставь "kind":"memo" и "title":"Памятка: …".
+2) Рисунок к конкретной задаче: условие или идея схематично. Поставь "kind":"task".
+Выбирай по ситуации: объясняешь правило — памятка, решаете задачу — рисунок к задаче.
+Если простой чертёж поможет понять (график функции, треугольник, окружность, числовая прямая, схема), добавь в ответ ОДИН блок
+<draw>{"kind":"memo|task","title":"что изображено","items":[...]}</draw>
 Холст 400×300, начало координат в левом верхнем углу (y растёт вниз). Элементы items:
 {"t":"line","p":[x1,y1,x2,y2],"arrow":false,"dash":false,"color":"black"}
 {"t":"poly","p":[[x,y],[x,y],...],"closed":true,"fill":false}
@@ -74,7 +81,7 @@ const MODES: Record<string, string> = {
   simpler1: `Сейчас: ученица нажала «Непонятно». Возьми другой жизненный пример, ещё проще и смешнее прошлого, разбери его маленькими шагами и одним предложением свяжи с правилом учебника. В конце задай простой проверочный вопрос, другой.`,
   simpler2: `Сейчас: ученица снова нажала «Непонятно». Объясни совсем по-детски: на конфетах, яблоках, котиках или кубиках, очень маленькими шагами, и нарисуй это мультяшными значками (квадратные человечки, фрукты, коробки). Потом одним предложением свяжи с правилом. В конце самый простой проверочный вопрос.`,
   simpler3: `Сейчас: ученица в третий раз нажала «Непонятно». Не объясняй всё сразу: найди самый первый шаг, который ей непонятен, объясни только его на картинке со значками и спроси, что именно непонятно дальше. Будь очень тёплым: непонимание — нормально.`,
-  draw: `Сейчас: ученица нажала «Нарисуй». Нарисуй условие её задачи или текущую идею схематично и просто, в стиле мультика: квадратные человечки, фрукты, коробки, стрелки, подписи. Обязательно один блок <draw>. До рисунка одно предложение, что изображено, после — один наводящий вопрос. Задачу не решай.`,
+  draw: `Сейчас: ученица нажала «Нарисуй». Реши по ситуации: если сейчас разбирается конкретная задача, нарисуй её условие или идею схематично ("kind":"task"); если объясняется правило или тема, нарисуй памятку для запоминания ("kind":"memo"): простая смешная сценка, визуальная метафора, подпись-рифма. Стиль мультика: квадратные человечки, фрукты, коробки, стрелки, короткие подписи. Обязательно один блок <draw>. До рисунка одно предложение, после — для задачи один наводящий вопрос, для памятки — короткая запоминалка. Задачу не решай.`,
   oge: `Сейчас: разбор задания ОГЭ. В начале сообщения есть номер задания, условие и критерии оценивания ФИПИ (если даны). Помогай как репетитор ОГЭ: наводящие вопросы, подсказки по шагам, типичные ловушки этого номера. Когда ученица присылает ответ, решение или текст (фото или напечатанный), оцени строго по критериям, по каждому критерию коротко: сколько баллов и почему. В конце такой оценки поставь метку [[баллы:N/M]], где M — максимум за задание.`,
   chat: ``,
   report: ``,
@@ -132,6 +139,7 @@ const FILL = `Ты помощник-заполнялка школьного дн
  "events":[{"date":"YYYY-MM-DD","time":"HH:MM или пусто","subject":"<id>","type":"test|credit|exam|independent|other","note":"тема или описание"}],
  "homework":[{"date":"YYYY-MM-DD (на какой день задано)","subject":"<id>","kind":"book|other","paragraph":"номер параграфа или пусто","page":"страница или пусто","exercise":"номера упражнений или задач или пусто","text":"остальное описание: выучить правило, доклад, проект и т. п."}],
  "classwork":[{"date":"YYYY-MM-DD","subject":"<id>","paragraph":"номер параграфа или пусто","page":"страницы или пусто","exercise":"номера упражнений, решённых в классе","text":"что ещё делали: обсуждение, правило, самостоятельная"}],
+ "lessons":[{"date":"YYYY-MM-DD","n":"номер урока","time":"HH:MM или пусто","subject":"<id>"}],
  "unclear":"что не удалось разобрать, коротко, или пустая строка"}
 Правила:
 - subject: только id из списка предметов, который тебе дадут. Если предмет не подходит ни к одному, пропусти запись и упомяни в unclear.
@@ -139,6 +147,7 @@ const FILL = `Ты помощник-заполнялка школьного дн
 - Н — absent, Б — sick, УП/уважительная — excused.
 - Даты без года относи к текущему учебному году (сентябрь–декабрь 2026, январь–июнь 2027). Если дата неясна, бери ближайшую к сегодняшней из присланного контекста.
 - Домашка: kind=book, если это параграф, страница или упражнения из учебника; kind=other для доклада, проекта, сочинения, своей задачи.
+- lessons: расписание уроков по датам, если прислали расписание на день или неделю (номер урока, время начала, предмет).
 - classwork: что делали на уроке (тема урока, параграф, номера из классной тетради или с доски), если это видно.
 - Ничего не выдумывай: только то, что реально видно.`;
 
@@ -179,9 +188,73 @@ async function callOpenRouter(key: string, messages: Msg[], maxTokens: number): 
   throw Object.assign(new Error(lastErr), { status: Number(lastErr.split(" ")[0]) || 500 });
 }
 
+/* ---------- Админка: секретный ключ service_role есть только здесь, в браузер не уходит ----------
+   Админ — почта из секрета ADMIN_EMAILS (через запятую). Таблицы shared и docs_history: supabase/admin.sql */
+const SB_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const svc = (path: string, init: RequestInit = {}) => fetch(SB_URL + path, { ...init,
+  headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json", ...(init.headers ?? {}) } });
+async function caller(req: Request): Promise<{ id: string; email: string } | null> {
+  const r = await fetch(SB_URL + "/auth/v1/user", { headers: { apikey: ANON || SERVICE, Authorization: req.headers.get("Authorization") ?? "" } });
+  if (!r.ok) return null; const u = await r.json(); return u && u.id ? { id: u.id, email: String(u.email ?? "").toLowerCase() } : null;
+}
+async function admin(req: Request, body: Record<string, unknown>): Promise<Response> {
+  const me = await caller(req);
+  const admins = (Deno.env.get("ADMIN_EMAILS") ?? "").toLowerCase().split(/[\s,;]+/).filter(Boolean);
+  const isAdmin = !!me && admins.includes(me.email);
+  if (body.action === "whoami") return json({ admin: isAdmin });
+  if (!isAdmin) return json({ error: "Нет прав администратора" }, 403);
+  if (!SERVICE) return json({ error: "На сервере нет SUPABASE_SERVICE_ROLE_KEY" }, 500);
+  const uid = String(body.user ?? "");
+  const okId = /^[0-9a-f-]{36}$/i.test(uid);
+  const need = async (r: Response) => { if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 200)}`); return r.json(); };
+  switch (body.action) {
+    case "users": {
+      const d = await need(await svc("/auth/v1/admin/users?per_page=200"));
+      return json({ users: (d.users ?? []).map((u: { id: string; email: string; last_sign_in_at: string }) => ({ id: u.id, email: u.email, last: u.last_sign_in_at })) });
+    }
+    case "docs": {
+      if (!okId) return json({ error: "Нет пользователя" }, 400);
+      return json({ docs: await need(await svc(`/rest/v1/docs?user_id=eq.${uid}&select=key,value,updated_at&order=key`)) });
+    }
+    case "history": {
+      if (!okId) return json({ error: "Нет пользователя" }, 400);
+      return json({ history: await need(await svc(`/rest/v1/docs_history?user_id=eq.${uid}&select=key,op,changed_at&order=changed_at.desc&limit=500`)) });
+    }
+    case "restore": {
+      // состояние на момент at: для каждого ключа берём первое изменение ПОСЛЕ at, в нём лежит значение до изменения
+      if (!okId) return json({ error: "Нет пользователя" }, 400);
+      const at = new Date(String(body.at ?? "")); if (isNaN(+at)) return json({ error: "Нет даты" }, 400);
+      const rows: { key: string; old_value: unknown; changed_at: string }[] = await need(await svc(
+        `/rest/v1/docs_history?user_id=eq.${uid}&changed_at=gt.${encodeURIComponent(at.toISOString())}&select=key,old_value,changed_at&order=changed_at.asc&limit=20000`));
+      const first = new Map<string, unknown>();
+      for (const r of rows) if (!first.has(r.key)) first.set(r.key, r.old_value);
+      let restored = 0, removed = 0;
+      for (const [k, v] of first) {
+        if (v === null) { await svc(`/rest/v1/docs?user_id=eq.${uid}&key=eq.${encodeURIComponent(k)}`, { method: "DELETE" }); removed++; }
+        else { await need(await svc("/rest/v1/docs", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify({ user_id: uid, key: k, value: v, updated_at: new Date().toISOString() }) }).then(r => r.ok ? new Response("{}") : r)); restored++; }
+      }
+      return json({ restored, removed });
+    }
+    case "password": {
+      if (!okId) return json({ error: "Нет пользователя" }, 400);
+      const pw = String(body.password ?? ""); if (pw.length < 6) return json({ error: "Пароль от 6 символов" }, 400);
+      await need(await svc(`/auth/v1/admin/users/${uid}`, { method: "PUT", body: JSON.stringify({ password: pw, ban_duration: "none" }) }));
+      return json({ ok: true });
+    }
+  }
+  return json({ error: "Неизвестное действие" }, 400);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Нужен POST" }, 405);
+  if (req.headers.get("content-type")?.includes("json")) {
+    const peek = await req.clone().json().catch(() => null);
+    if (peek && peek.admin) { try { return await admin(req, peek); } catch (e) { console.error(e); return json({ error: String((e as Error).message || e).slice(0, 300) }, 500); } }
+  }
   const key = findKey();
   if (!key) return json({ error: "На сервере нет ключа OpenRouter. Добавь секрет OPENROUTER_API_KEY в Supabase." }, 500);
   try {

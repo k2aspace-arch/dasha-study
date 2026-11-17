@@ -10,9 +10,11 @@ const DM = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long"});
 const SKINS = [["pink","Розовый","#e0569b"],["lavender","Лавандовый","#8a5cf0"],["mint","Мятный","#14a37f"],["peach","Персиковый","#e8743a"],["blue","Голубой","#2a4fd6"]];
 const PATTERNS = [["grid","Клетка"],["lines","Линейка"],["dots","Точки"],["hearts","Сердечки"],["plain","Без узора"]];
 const MODES = [["auto","Как в системе"],["light","Светлая"],["dark","Тёмная"]];
+const TSTYLES = [["prof","Профессор: шапочка, очки, бабочка"],["smart","Умник: только очки"],["cute","Милашка: бантик"],["simple","Просто квадратик"]];
+const TCOLORS = [["#d97757","Оранжевый"],["#f08bb4","Розовый"],["#a07be0","Лавандовый"],["#5fb37e","Мятный"],["#6b8fe8","Голубой"],["#f5c542","Жёлтый"]];
 const lsPrefs = () => { try{ return JSON.parse(localStorage.getItem("dasha:prefs")||"null") }catch(e){ return null } };
-const prefs = () => Object.assign({ skin:"pink", pattern:"grid", mode:"auto" }, lsPrefs() || {}, Store.get("prefs", null) || {});
-function applyTheme(p){ p = p || prefs(); const r = document.documentElement; r.dataset.skin = p.skin; r.dataset.pattern = p.pattern; if(p.mode==="auto") delete r.dataset.theme; else r.dataset.theme = p.mode; }
+const prefs = () => Object.assign({ skin:"pink", pattern:"grid", mode:"auto", tstyle:"prof", tcolor:"#d97757" }, lsPrefs() || {}, Store.get("prefs", null) || {});
+function applyTheme(p){ p = p || prefs(); const r = document.documentElement; r.dataset.skin = p.skin; r.dataset.pattern = p.pattern; if(p.mode==="auto") delete r.dataset.theme; else r.dataset.theme = p.mode; r.dataset.tstyle = p.tstyle; r.style.setProperty("--tc", p.tcolor); }
 function setPref(k, v){ const p = prefs(); p[k] = v; Store.set("prefs", p, 0); try{ localStorage.setItem("dasha:prefs", JSON.stringify(p)) }catch(e){} applyTheme(p); }
 function themePanel(){
   const p = prefs();
@@ -20,14 +22,51 @@ function themePanel(){
     <div class="themerow"><span class="sm">Цвет</span>${SKINS.map(([id,n,c])=>`<button class="skinbtn" type="button" data-skin="${id}" aria-pressed="${p.skin===id}" style="--sw:${c}"><i></i>${n}</button>`).join("")}</div>
     <div class="themerow"><span class="sm">Фон</span>${PATTERNS.map(([id,n])=>`<button class="vbtn" type="button" data-pat="${id}" aria-pressed="${p.pattern===id}">${n}</button>`).join("")}</div>
     <div class="themerow"><span class="sm">Тема</span>${MODES.map(([id,n])=>`<button class="vbtn" type="button" data-mode="${id}" aria-pressed="${p.mode===id}">${n}</button>`).join("")}</div>
+    <h4 class="sm" style="margin:14px 0 4px">Учитель</h4>
+    <div class="themerow" id="tprev"></div>
+    <div class="themerow"><span class="sm">Вид</span>${TSTYLES.map(([id,n])=>`<button class="vbtn" type="button" data-tstyle="${id}" aria-pressed="${p.tstyle===id}">${n.split(":")[0]}</button>`).join("")}</div>
+    <div class="themerow"><span class="sm">Цвет</span>${TCOLORS.map(([c,n])=>`<button class="tpick" type="button" data-tcolor="${c}" aria-pressed="${p.tcolor===c}" style="--sw:${c}" title="${n}"><i class="tsw"></i></button>`).join("")}</div>
     <p class="hint">Настройки сохраняются в аккаунте и применяются на всех устройствах.</p></section>`;
 }
+let themeAv = null;
 function bindTheme(root){
   const re = () => { const el = $("themep"); if(el){ el.outerHTML = themePanel(); bindTheme(root); } };
   root.querySelectorAll("[data-skin]").forEach(b=>b.addEventListener("click",()=>{ setPref("skin", b.dataset.skin); re(); }));
   root.querySelectorAll("[data-pat]").forEach(b=>b.addEventListener("click",()=>{ setPref("pattern", b.dataset.pat); re(); }));
   root.querySelectorAll("[data-mode]").forEach(b=>b.addEventListener("click",()=>{ setPref("mode", b.dataset.mode); re(); }));
+  root.querySelectorAll("[data-tstyle]").forEach(b=>b.addEventListener("click",()=>{ setPref("tstyle", b.dataset.tstyle); re(); }));
+  root.querySelectorAll("[data-tcolor]").forEach(b=>b.addEventListener("click",()=>{ setPref("tcolor", b.dataset.tcolor); re(); }));
+  const tp = $("tprev"); if(tp){ if(themeAv) themeAv.destroy(); themeAv = Avatar.create(tp, {compact:true}); themeAv.start(); }
 }
+
+/* ================= ВЫДВИЖНОЙ ЧАТ С УЧИТЕЛЕМ СПРАВА ================= */
+const Dock = (()=>{
+  let kind = null, cleanup = null, claimed = false, hidden = false;
+  const wide = () => window.innerWidth >= 1280;
+  const want = () => { try{ const v = localStorage.getItem("dasha:dock"); return v===null ? wide() : v==="1"; }catch(e){ return wide(); } };
+  const remember = v => { try{ localStorage.setItem("dasha:dock", v ? "1" : "0") }catch(e){} };
+  function apply(open){
+    const el = $("dock"), btn = $("dockbtn"); if(!el) return;
+    el.hidden = hidden || !open; btn.hidden = hidden || open;
+    document.body.classList.toggle("dock-open", !hidden && open && wide());
+    document.body.classList.toggle("dock-over", !hidden && open && !wide());
+  }
+  function run(){ if(cleanup){ try{ cleanup() }catch(e){} } cleanup = null; }
+  const D = {
+    kind: () => kind,
+    open(){ hidden = false; remember(true); apply(true); const b = $("dockbtn"); if(b) b.classList.remove("ping"); },
+    close(){ remember(false); apply(false); },
+    claim(k, title, sub, onRelease){ run(); kind = k; claimed = true; cleanup = onRelease || null; $("docktitle").textContent = title || "Учитель Клод"; $("docksub").textContent = sub || ""; const body = $("dockbody"); body.innerHTML = ""; return body; },
+    release(){ run(); kind = null; const body = $("dockbody"); if(body) body.innerHTML = ""; },
+    begin(){ claimed = false; },
+    end(fallback){ hidden = false; if(!claimed && kind!=="general") fallback(); apply(want()); },
+    hide(){ hidden = true; apply(false); },
+    ping(){ const el = $("dock"), b = $("dockbtn"); if(el && el.hidden && b) b.classList.add("ping"); }
+  };
+  document.addEventListener("click", e=>{ if(e.target.closest("#dockbtn")) D.open(); else if(e.target.closest("#dockclose")) D.close(); });
+  window.addEventListener("resize", ()=>{ const el = $("dock"); if(el && !hidden) apply(!el.hidden); });
+  return D;
+})();
 
 /* ================= УЧИТЕЛЬ ПОД ЗАДАНИЕМ ================= */
 // метки в ответах ИИ: [[знание:N]] и [[баллы:N/M]]
@@ -38,10 +77,12 @@ function marks(text){
   out.text = out.text.replace(/\[\[\s*(знание|баллы)\s*:[^\]]*\]\]/gi, "").trim();
   return out;
 }
-const Teacher = { mount(host, o){
+const Teacher = { mount(nbHost, o){
   const st = { chat:[], busy:false, photo:null, alive:true };
+  const host = Dock.claim("oge", "Учитель Клод", o.title || "", null);
   host.innerHTML = `<div class="tch">
-    <div class="tch-top"><div class="tutorstage" data-av></div><div><b>Учитель Клод</b><div class="sm">Подскажет, нарисует, проверит по критериям. Решай в тетради ниже или приложи фото.</div></div></div>
+    <div class="tutorstage" data-av></div>
+    <p class="sm" style="margin:0 0 6px">Подскажет, нарисует, проверит по критериям. Решай в тетради или приложи фото.</p>
     <div class="chat" data-log aria-live="polite"></div>
     <div class="tbar">
       <button class="btn" type="button" data-a="hint">💡 Подсказка</button>
@@ -50,11 +91,10 @@ const Teacher = { mount(host, o){
       <button class="btn primary" type="button" data-a="check">Проверь решение</button>
     </div>
     <form class="chatform" data-form><textarea data-in placeholder="Вопрос или ответ учителю… Enter — отправить" aria-label="Сообщение учителю"></textarea>
-      <div class="chatrow"><button class="ibtn" type="button" data-photo title="Приложить фото" aria-label="Приложить фото">📷</button><span data-prev></span><span class="sm" data-st></span><span style="flex:1"></span><button class="ibtn" type="button" data-new title="Начать разговор заново" aria-label="Начать заново">↺</button><button class="btn primary" type="submit">Отправить</button></div></form>
-    <div data-nb style="margin-top:14px"></div></div>`;
+      <div class="chatrow"><button class="ibtn" type="button" data-photo title="Приложить фото" aria-label="Приложить фото">📷</button><span data-prev></span><span class="sm" data-st></span><span style="flex:1"></span><button class="ibtn" type="button" data-new title="Начать разговор заново" aria-label="Начать заново">↺</button><button class="btn primary" type="submit">Отправить</button></div></form></div>`;
   const q = s => host.querySelector(s);
   const av = Avatar.create(q("[data-av]"), {compact:true}); av.start();
-  const nb = Notebook.mount(q("[data-nb]"), { bookId:o.nbBook, key:o.nbKey, ruled:o.ruled, title:o.title || "Тетрадь", sub:"Черновик для этого задания." });
+  const nb = Notebook.mount(nbHost, { bookId:o.nbBook, key:o.nbKey, ruled:o.ruled, title:o.title || "Тетрадь", sub:"Черновик для этого задания." });
   const ai = Store.aiAvailable();
   if(!ai) host.querySelectorAll("[data-a],[type=submit]").forEach(b=>b.disabled = true);
   const draw = () => { const log = q("[data-log]"); if(!log) return;
@@ -77,6 +117,7 @@ const Teacher = { mount(host, o){
       const m = marks(r && r.text || "Пустой ответ."); th.content = m.text; delete th.pending;
       if(m.score){ th.score = m.score; if(o.onScore) o.onScore(m.score[0], m.score[1]); }
       if(m.know && o.onKnow) o.onKnow(m.know);
+      Dock.ping();
       if(st.alive){ av.setMood("smile"); av.say(m.score ? (m.score[0]>=m.score[1] ? "Максимум!" : "Почти, давай разберём") : "Вот!", 3000); }
     }catch(e){ th.content = "Не получилось получить ответ: " + e.message; th.err = true; delete th.pending; if(st.alive){ av.setMood("squint"); av.say("Ой, связь пропала", 3000); } }
     st.busy = false; setTimeout(()=>{ if(st.alive){ av.setMood("idle"); av.start(); } }, 3000);
@@ -97,9 +138,10 @@ const Teacher = { mount(host, o){
   q("[data-new]").addEventListener("click", ()=>{ st.chat = []; draw(); });
   draw();
   return {
-    ask: text => { host.scrollIntoView({behavior:"smooth", block:"start"}); return send(o.mode, text, "", true); },
-    check: text => { host.scrollIntoView({behavior:"smooth", block:"start"}); return send(o.mode, text, "Проверка", true); },
-    destroy(){ st.alive = false; av.destroy(); nb.destroy(); }
+    ask: text => { Dock.open(); return send(o.mode, text, "", true); },
+    check: text => { Dock.open(); return send(o.mode, text, "Проверка", true); },
+    setTask: t => nb.setTask(t),
+    destroy(){ st.alive = false; av.destroy(); nb.destroy(); if(Dock.kind()==="oge") Dock.release(); }
   };
 }};
 
@@ -120,9 +162,15 @@ function recoHome(){
     if(ci >= 0 && i > ci) return; // темы дальше класса не рекомендуем повторять
     const item = mode => `<a class="reco-i" href="#t/${b.id}/${t.idx}?${mode}"><span class="dot" style="background:${b.color}"></span><span><b>${esc(b.subject)}</b> · ${esc(t.title)}</span></a>`;
     if(v<=1) again.push(item("scratch")); else if(v===2) brief.push(item("brief")); }); });
+  // ОГЭ: ошибки последнего пробного и задания, где среди последних решений много красного
+  const oge = [], seen = new Set();
+  if(window.Oge && window.Points){ const T = (Object.assign({list:[]}, Store.get("ogeTests", {})).list||[]);
+    ["math","rus"].forEach(e=>{ const t = T.filter(x=>x.exam===e).pop(); (t && t.wrong || []).forEach(n=>seen.add(e+":"+n)); });
+    const L = Points.ogeLast(); Object.entries(L).forEach(([e,o])=>Object.entries(o).forEach(([n,a])=>{ if(a.length>=4 && a.reduce((x,y)=>x+y,0)/a.length < .7) seen.add(e+":"+n); }));
+    seen.forEach(k=>{ const [e,n] = k.split(":"); const c = Oge.CAT[e] && Oge.CAT[e][n]; if(c) oge.push(`<a class="reco-i" href="#oge/${e}/${n}"><span class="dot" style="background:${e==="math"?"#2a4fd6":"#8a6d1f"}"></span><span><b>ОГЭ ${e==="math"?"математика":"русский"}</b> · №${n} ${esc(c[0])}</span></a>`); }); }
   const col = (h, list) => `<div><h4>${h}${list.length?` · ${list.length}`:""}</h4>${list.length ? list.slice(0,8).join("") + (list.length>8?`<p class="sm">и ещё ${list.length-8}</p>`:"") : `<p class="hint">Таких тем нет.</p>`}</div>`;
   return `<section class="panel reco" id="reco"><h3>Рекомендации</h3>
-    ${again.length || brief.length ? `<div class="reco-cols">${col("Разобрать заново", again)}${col("Повторить", brief)}</div><p class="hint">Это пройденные темы, где ответы на вопросы учителя, итоговые вопросы или срез знаний показали пробелы. Нажми на тему, и учитель начнёт сразу.</p>`
+    ${again.length || brief.length || oge.length ? `<div class="reco-cols">${col("Разобрать заново", again)}${col("Повторить", brief)}${oge.length?col("ОГЭ: потренировать", oge):""}</div><p class="hint">Это пройденные темы, где ответы на вопросы учителя, итоговые вопросы или срез знаний показали пробелы. Нажми на тему, и учитель начнёт сразу.</p>`
       : rated ? `<p class="hint">Слабых пройденных тем нет. Так держать!</p>`
       : `<p class="hint">Пока пусто: знание тем заполняется только по ответам на вопросы. Пройди <a href="#account">срез знаний</a> по учебнику или поотвечай учителю в темах, и здесь появятся темы, которые стоит повторить.</p>`}</section>`;
 }
@@ -238,16 +286,17 @@ function bindOgeBooks(root, after){
 
 /* ================= БОНУСЫ ================= */
 function bonusPanel(){
-  const list = Points.bonuses().reverse(), free = list.filter(x=>!x.used);
-  return `<section class="panel" id="bonusp"><h3>Мои бонусы ${free.length?`<span class="chip ok">${free.length} можно использовать</span>`:""}</h3>
-    ${list.length ? `<div class="bonusgrid">${list.map(x=>`<div class="bonus ${x.used?"used":""}"><b>${esc(x.title)}</b><span class="sm">за ${esc(x.label)}</span>
-      ${x.used ? `<span class="sm">Использован ${x.used.date?DM.format(new Date(x.used.date+"T12:00")):""}${x.used.how?`: ${esc(x.used.how)}`:""}</span>`
-        : `<details class="plain"><summary class="btn">Использовать</summary><form class="bonusform" data-bonus="${x.id}">
+  const sq = Points.squares(), free = sq.filter(x=>x.state==="avail");
+  const group = (kind, h) => `<h4 class="sm" style="margin:14px 0 6px">${h}</h4><div class="rwgrid">${sq.filter(x=>x.kind===kind).map(x=>{
+    const u = x.used, note = { fut:"впереди", used:`использован${u && u.date ? " "+DM.format(new Date(u.date+"T12:00")) : ""}${u && u.how ? ": "+esc(u.how) : ""}`, avail:"можно использовать", miss:x.byAvg?"средний балл не выше 4,9":"не набрано", now:x.byAvg?(x.avg!==null&&x.avg!==undefined?`средний балл ${x.avg.toFixed(2).replace(".",",")}, нужно выше 4,9`:"нужен средний балл выше 4,9"):`${x.pts} из ${x.goal} очков` }[x.state];
+    return `<div class="rsq rsq-${x.state}"><b>${esc(x.label)}</b>${x.state==="now"&&!x.byAvg?`<div class="bar"><i style="width:${Math.min(100,Math.round(100*x.pts/x.goal))}%"></i></div>`:""}<span class="sm">${note}</span>
+      ${x.state==="avail" ? `<details class="more"><summary class="btn">Использовать</summary><form class="morebox bonusform" data-bonus="${x.id}">
           <label class="sm">Когда<input type="date" value="${iso(new Date())}" data-bdate></label>
           <label class="sm">Как${x.choices.length?`<input list="bl-${x.id}" data-bhow placeholder="например: ${esc(x.choices[0])}"><datalist id="bl-${x.id}">${x.choices.map(c=>`<option value="${esc(c)}">`).join("")}</datalist>`:`<input data-bhow>`}</label>
-          <button class="btn primary" type="submit">Закрыть бонус</button></form></details>`}</div>`).join("")}</div>`
-      : `<p class="hint">Бонусы появятся, когда за период наберётся нужное число очков (каждые 2 недели, каждый месяц, каждые 3 месяца). Очки при этом не тратятся.</p>`}
-    <p class="hint">Бонусы копятся: можно использовать сразу или потом. Очки не тратятся никогда.</p></section>`;
+          <button class="btn primary" type="submit">Закрыть бонус</button></form></details>` : ""}</div>`; }).join("")}</div>`;
+  return `<section class="panel" id="bonusp"><h3>Мои бонусы ${free.length?`<span class="chip ok">${free.length} можно использовать</span>`:""}</h3>
+    <p class="hint">Яркие — заработаны и ждут, зелёные — использованы, бледные — впереди. Очки не тратятся никогда, бонусы копятся.</p>
+    ${group("twoWeeks","Каждые 2 недели: вкусняшка")}${group("month","Каждый месяц: выход на выбор")}${group("quarter","Каждый триместр: абонемент (средний балл выше 4,9)")}</section>`;
 }
 function bindBonus(root){
   root.querySelectorAll("[data-bonus]").forEach(f=>f.addEventListener("submit", e=>{ e.preventDefault();
@@ -347,10 +396,125 @@ async function finishCut(me){
     me.av.stop(); await Avatar.grade({ mark, verdict, detail:`Срез знаний, ${me.b.subject}: понимание ${Math.round(pct*100)}%.` }); if(me.alive) me.av.start(); }
 }
 
-/* ================= ВСЁ ВМЕСТЕ ================= */
-function accountPanels(){ return bonusPanel() + knowPanel() + tocPanel() + `<section class="panel"><h3>Сборники ОГЭ</h3><p class="hint">Загрузи сборник ФИПИ в PDF, и его можно открыть рядом с любым заданием ОГЭ, а учитель проверит решение по критериям.</p>${ogeBooksHtml()}</section>` + themePanel(); }
-function bindAccount(root){ bindBonus(root); bindKnow(root); bindToc(root); bindOgeBooks(root, ()=>{ location.hash = "#account"; window.dispatchEvent(new HashChangeEvent("hashchange")); }); bindTheme(root); }
-function apply(){ applyTheme(); applyToc(); }
+/* ================= ПАМЯТКИ ================= */
+function renderMemos(){
+  const d = Draw.memos(), memo = d.list.filter(x=>x.kind==="memo"), task = d.list.filter(x=>x.kind!=="memo");
+  const fig = x => `<figure class="memo-card"><figcaption>${esc(x.title)}</figcaption>${Draw.svg(x.spec)}<div class="chatrow"><button class="ibtn" type="button" data-png="${encodeURIComponent(JSON.stringify(x.spec))}" title="Скачать картинкой" aria-label="Скачать">⬇</button><button class="ibtn" type="button" data-memodel="${x.id}" title="Удалить" aria-label="Удалить">✕</button></div></figure>`;
+  $("main").innerHTML = `<div class="stack"><section class="panel"><h2>Памятки</h2><p class="hint" style="margin:6px 0 0">Рисунки учителя, которые ты сохранила звёздочкой ⭐. Памятки — для запоминания правил надолго, рисунки к задачам — чтобы вернуться к разбору.</p></section>
+    ${d.list.length ? `${memo.length?`<section class="panel"><h3>Памятки к правилам · ${memo.length}</h3><div class="memogrid">${memo.map(fig).join("")}</div></section>`:""}
+      ${task.length?`<section class="panel"><h3>Рисунки к задачам · ${task.length}</h3><div class="memogrid">${task.map(fig).join("")}</div></section>`:""}`
+      : `<section class="panel"><p class="hint">Пока пусто. Когда учитель что-то нарисует, нажми ⭐ на рисунке.</p></section>`}</div>`;
+  $("main").querySelectorAll("[data-memodel]").forEach(b=>b.addEventListener("click", ()=>{ const dd = Draw.memos(); dd.list = dd.list.filter(x=>x.id!==b.dataset.memodel); Store.set("memos", dd, 0); renderMemos(); }));
+}
 
-window.Study = { apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
+/* ================= ВСЁ ВМЕСТЕ ================= */
+/* ================= ПРОФИЛЬ: фото, вход, сброс ================= */
+const profile = () => Object.assign({ photo:"", name:"" }, Store.get("profile", {}));
+function drawMe(){
+  const a = $("mebtn"); if(!a) return;
+  a.hidden = Store.mode==="cloud" && !Store.user;
+  const p = profile(), img = $("meimg"), ini = $("meinit");
+  img.hidden = !p.photo; if(p.photo) img.src = p.photo; else img.removeAttribute("src");
+  ini.hidden = !!p.photo; ini.textContent = ((p.name || (Store.user && Store.user.email) || "Даша").trim()[0] || "Д").toUpperCase();
+  a.classList.toggle("on", location.hash === "#account");
+}
+// результаты учёбы: обнуляются кнопкой «Обнулить результаты»
+const RESULT_KEYS = ["progress","grades","diary","tests","oge","ogeRes","ogeTests","quizzes","quizRes","act","bonuses","rewards","journal","know","cuts"];
+const WORK_PREFIX = /^(notes-|ink-|nb-|memos$|boards$|events$|classAt$)/;
+let isAdmin = null;
+function profilePanel(){
+  const p = profile(), cloud = Store.mode==="cloud";
+  return `<section class="panel" id="profp"><h2>Личный кабинет</h2>
+    <div class="prof">
+      <button type="button" class="profpic" id="profpic" title="Загрузить фото">${p.photo?`<img src="${p.photo}" alt="Моё фото">`:`<span>${esc(((p.name||"Д")[0]||"Д").toUpperCase())}</span>`}<i>📷</i></button>
+      <div class="profinfo">
+        <label class="sm">Как тебя зовут<input id="profname" value="${esc(p.name)}" placeholder="Даша" maxlength="40"></label>
+        <p class="sm" style="margin:6px 0 0">${cloud ? `Вход: <b>${esc(Store.user.email)}</b>` : "Сайт работает без облака: всё хранится только в этом браузере."}</p>
+        <div class="btnrow"><button class="btn" type="button" id="profphoto">${p.photo?"Сменить фото":"Загрузить фото"}</button>${p.photo?`<button class="btn" type="button" id="profnophoto">Убрать фото</button>`:""}
+          ${cloud?`<button class="btn" id="acclogout" type="button">Выйти</button>`:""}<a class="btn" href="#admin" id="adminlink" hidden>Админка</a></div>
+      </div>
+    </div>
+    ${cloud ? `<details class="more"><summary class="btn">Сменить почту или пароль</summary><div class="morebox">
+      <form id="emailform" class="chatrow"><input type="email" id="newemail" placeholder="новая почта" autocomplete="email" required><button class="btn" type="submit">Сменить почту</button></form>
+      <form id="passform" class="chatrow"><input type="password" id="newpass" placeholder="новый пароль, от 6 символов" autocomplete="new-password" minlength="6" required><input type="password" id="newpass2" placeholder="ещё раз" autocomplete="new-password" minlength="6" required><button class="btn" type="submit">Сменить пароль</button></form>
+      <p class="status" id="authst" aria-live="polite"></p></div></details>` : ""}
+    <details class="more"><summary class="btn">Обнулить или очистить</summary><div class="morebox">
+      <p class="hint" style="margin-top:0">Перед очисткой сохраняется копия. ${cloud?"Администратор может вернуть всё в течение месяца.":"Копия хранится в этом браузере."}</p>
+      <div class="btnrow"><button class="btn" type="button" data-reset="results">Обнулить результаты</button><button class="btn" type="button" data-reset="all">Очистить всё, кроме учебников и настроек</button></div>
+      <p class="sm muted">Результаты: очки, оценки, дневник, ОГЭ, знания тем, бонусы. «Всё» — ещё и тетради, памятки, доски и расписание.</p>
+      <div class="chatrow" id="resetask" hidden><span class="sm">Точно? Напиши <b>да</b>:</span><input id="resetyes" style="max-width:80px"><button class="btn primary" type="button" id="resetgo">Очистить</button></div>
+      ${!cloud && Store.get("backup", null) ? `<button class="btn" type="button" id="resetundo">Вернуть копию от ${new Date(Store.get("backup").ts).toLocaleString("ru-RU")}</button>` : ""}
+      <p class="status" id="resetst" aria-live="polite"></p></div></details>
+  </section>`;
+}
+function bindProfile(root){
+  const save = p => { Store.set("profile", p, 0); drawMe(); };
+  const pick = async()=>{ const got = await Photo.pick(false); if(!got[0]) return;
+    const f = await (await fetch(got[0].url)).blob(); const sm = await Photo.shrink(f, 256); save(Object.assign(profile(), { photo: sm.url })); rerender(); };
+  const rerender = () => { const el = $("profp"); if(el){ el.outerHTML = profilePanel(); bindProfile(root); } };
+  $("profpic").addEventListener("click", pick); $("profphoto").addEventListener("click", pick);
+  const np = $("profnophoto"); if(np) np.addEventListener("click", ()=>{ save(Object.assign(profile(), { photo:"" })); rerender(); });
+  $("profname").addEventListener("change", e=>{ save(Object.assign(profile(), { name: e.target.value.trim() })); });
+  const lo = $("acclogout"); if(lo) lo.addEventListener("click", ()=>$("logout").click());
+  const st = t => { const e = $("authst"); if(e) e.textContent = t; };
+  const ef = $("emailform"); if(ef) ef.addEventListener("submit", async e=>{ e.preventDefault(); st("Меняю…");
+    try{ await Store.updateUser({ email: $("newemail").value.trim() }); st("Готово. На новую почту придёт письмо: открой ссылку, и почта сменится."); }catch(err){ st("Не получилось: " + err.message); } });
+  const pf = $("passform"); if(pf) pf.addEventListener("submit", async e=>{ e.preventDefault();
+    if($("newpass").value !== $("newpass2").value){ st("Пароли не совпадают."); return; } st("Меняю…");
+    try{ await Store.updateUser({ password: $("newpass").value }); pf.reset(); st("Пароль сменён."); }catch(err){ st("Не получилось: " + err.message); } });
+  let what = null;
+  root.querySelectorAll("[data-reset]").forEach(b=>b.addEventListener("click", ()=>{ what = b.dataset.reset; $("resetask").hidden = false; $("resetyes").value = ""; $("resetyes").focus(); }));
+  $("resetgo").addEventListener("click", async()=>{
+    if($("resetyes").value.trim().toLowerCase() !== "да") return;
+    const rs = $("resetst"); rs.textContent = "Сохраняю копию и очищаю…";
+    const keys = Store.keys().filter(k=>RESULT_KEYS.includes(k) || (what==="all" && WORK_PREFIX.test(k)));
+    try{
+      await Store.flush();
+      if(Store.mode!=="cloud"){ const snap = {}; keys.forEach(k=>snap[k] = Store.get(k)); Store.set("backup", { ts:Date.now(), data:snap }, 0); }
+      for(const k of keys) await Store.del(k);
+      rs.textContent = "Готово."; setTimeout(()=>location.reload(), 600);
+    }catch(err){ rs.textContent = "Не получилось: " + err.message; }
+  });
+  const ud = $("resetundo"); if(ud) ud.addEventListener("click", ()=>{ const b = Store.get("backup"); Object.entries(b.data||{}).forEach(([k,v])=>{ if(v!==undefined && v!==null) Store.set(k, v, 0); }); location.reload(); });
+  if(Store.mode==="cloud" && Store.aiAvailable()){
+    const show = () => { const a = $("adminlink"); if(a) a.hidden = !isAdmin; };
+    if(isAdmin===null) Store.admin({ action:"whoami" }).then(r=>{ isAdmin = !!(r && r.admin); show(); }).catch(()=>{ isAdmin = false; }); else show();
+  }
+}
+
+/* ================= АДМИНКА ================= */
+async function renderAdmin(){
+  const main = $("main");
+  main.innerHTML = `<section class="panel"><h2>Админка</h2><p class="hint">Все пользователи и их данные. Копии изменений хранятся 30 дней.</p><div id="admbody"><p class="sm">Загружаю…</p></div></section>`;
+  const body = $("admbody");
+  if(Store.mode!=="cloud" || !Store.user){ body.innerHTML = `<p class="note">Админка работает только с облаком, после входа.</p>`; return; }
+  let users;
+  try{ const r = await Store.admin({ action:"users" }); if(!r || !r.users) throw new Error((r && r.error) || "нет доступа"); users = r.users; }
+  catch(e){ body.innerHTML = `<p class="note">Нет доступа: ${esc(e.message)}. Админ задаётся секретом ADMIN_EMAILS в Supabase.</p>`; return; }
+  body.innerHTML = `<div class="admusers">${users.map(u=>`<button class="btn" type="button" data-u="${u.id}">${esc(u.email||u.id)}<span class="sm"> · ${u.last ? new Date(u.last).toLocaleDateString("ru-RU") : "не входил"}</span></button>`).join("")}</div><div id="admuser"></div>`;
+  body.querySelectorAll("[data-u]").forEach(b=>b.addEventListener("click", ()=>openUser(users.find(u=>u.id===b.dataset.u))));
+  async function openUser(u){
+    const box = $("admuser"); box.innerHTML = `<p class="sm">Загружаю ${esc(u.email)}…</p>`;
+    const [d, h] = await Promise.all([Store.admin({ action:"docs", user:u.id }), Store.admin({ action:"history", user:u.id })]);
+    const docs = (d && d.docs) || [], hist = (h && h.history) || [];
+    const local = new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+    box.innerHTML = `<h3>${esc(u.email)}</h3>
+      <div class="morebox"><b class="sm">Вернуть данные на момент</b><div class="chatrow"><input type="datetime-local" id="admat" value="${local}"><button class="btn primary" type="button" id="admrest">Восстановить</button></div>
+        <b class="sm">Восстановить доступ: новый пароль</b><div class="chatrow"><input id="admpass" placeholder="новый пароль" minlength="6"><button class="btn" type="button" id="admsetpass">Задать</button></div>
+        <p class="status" id="admst" aria-live="polite"></p></div>
+      <h4>Данные сейчас (${docs.length})</h4>${docs.map(x=>`<details class="plain"><summary class="sm"><b>${esc(x.key)}</b> · ${new Date(x.updated_at).toLocaleString("ru-RU")}</summary><pre class="admjson">${esc(JSON.stringify(x.value, null, 1).slice(0, 20000))}</pre></details>`).join("")}
+      <h4>История изменений (${hist.length})</h4><div class="sm admhist">${hist.slice(0,200).map(x=>`<div>${new Date(x.changed_at).toLocaleString("ru-RU")} · ${esc(x.op)} · ${esc(x.key)}</div>`).join("")}</div>`;
+    const st = t => $("admst").textContent = t;
+    $("admrest").addEventListener("click", async()=>{ const at = $("admat").value; if(!at) return; st("Восстанавливаю…");
+      try{ const r = await Store.admin({ action:"restore", user:u.id, at:new Date(at).toISOString() }); st(r.error ? r.error : `Готово: восстановлено ${r.restored||0}, удалено ${r.removed||0}.`); }catch(e){ st(e.message); } });
+    $("admsetpass").addEventListener("click", async()=>{ const pw = $("admpass").value; if(pw.length < 6){ st("Пароль от 6 символов."); return; }
+      try{ const r = await Store.admin({ action:"password", user:u.id, password:pw }); st(r.error ? r.error : "Пароль задан. Передай его пользователю."); }catch(e){ st(e.message); } });
+  }
+}
+
+function accountPanels(){ return profilePanel() + bonusPanel() + knowPanel() + tocPanel() + `<section class="panel"><h3>Сборники ОГЭ</h3><p class="hint">Загрузи сборник ФИПИ в PDF, и его можно открыть рядом с любым заданием ОГЭ, а учитель проверит решение по критериям.</p>${ogeBooksHtml()}</section>` + themePanel(); }
+function bindAccount(root){ bindProfile(root); bindBonus(root); bindKnow(root); bindToc(root); bindOgeBooks(root, ()=>{ location.hash = "#account"; window.dispatchEvent(new HashChangeEvent("hashchange")); }); bindTheme(root); }
+function apply(){ applyTheme(); applyToc(); drawMe(); }
+
+window.Study = { drawMe, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
 })();
