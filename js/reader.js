@@ -78,10 +78,13 @@ async function show(n){
     const box = $("rscroll"), base = page.getViewport({scale:1}), dpr = window.devicePixelRatio || 1;
     const scale = Math.max(0.3, Math.min((box.clientWidth - 24) / base.width, 3) * R.zoom);
     const vp = page.getViewport({scale: scale * dpr});
+    if(R.task){ try{ R.task.cancel(); }catch(e){} R.task = null; }
     cv.width = vp.width; cv.height = vp.height;
     const cssW = vp.width/dpr, cssH = vp.height/dpr;
     $("rpage").style.width = cssW+"px"; $("rpage").style.height = cssH+"px";
-    await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
+    const task = R.task = page.render({canvasContext: cv.getContext("2d"), viewport: vp});
+    try{ await task.promise; }catch(e){ if(e && e.name==="RenderingCancelledException") return; throw e; }
+    if(R.task===task) R.task = null;
     if(tok !== R.token) return;
     const tl = $("rtext"); tl.innerHTML = ""; tl.style.setProperty("--scale-factor", scale); R.sel = null;
     try{ const tc = await page.getTextContent(); if(tok !== R.token) return;

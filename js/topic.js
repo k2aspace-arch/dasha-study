@@ -79,7 +79,7 @@ function render(arg){
       <button class="btn warnbtn" type="button" data-act="simpler">Непонятно</button>
       <button class="btn okbtn" type="button" data-act="got">Понятно!</button>
     </div>
-    <p class="hint" id thint" id="thint"></p>
+    <p class="hint" id="thint"></p>
     <form class="chatform" id="tform"><textarea id="tin" placeholder="Вопрос, ответ учителю или условие задачи…" aria-label="Сообщение учителю"></textarea>
       <div class="chatrow"><span class="sm" id="tselinfo"></span><span style="flex:1"></span><button class="btn" type="button" id="tnew">Начать заново</button><button class="btn primary" type="submit" id="tsend">Отправить</button></div></form>
   </section>

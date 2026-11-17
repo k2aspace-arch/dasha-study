@@ -11,6 +11,7 @@ const RULES = {
   paragraph: 4,                 // пройденный параграф
   ogeOk: 2,                     // верно решённое задание ОГЭ
   ogeTest: 10,                  // законченный пробный вариант
+  quiz: 15,                     // итоговые вопросы по главе (+5 если без ошибок)
   test:  {"5":20, "4":10, "3":0, "2":-15},               // контрольная
   term:  {"5":80, "4":30, "3":-30, "2":-60},             // итоговая за триместр (2-й и 3-й)
   year:  {"5":120, "4":40, "3":-40, "2":-80},            // годовая
@@ -60,6 +61,7 @@ function compute(){
   O.forEach(([ts,, , ok])=>{ const d = iso(new Date(ts)); if(ok){ ogeByDay[d] = (ogeByDay[d]||0)+1; } });
   Object.entries(ogeByDay).forEach(([d,n])=>{ add(d, n*RULES.ogeOk, `ОГЭ: ${pl(n,"задание","задания","заданий")}`); if(n>=3) act(d); });
   (Store.get("ogeTests",{list:[]}).list||[]).forEach(t=>{ add(iso(new Date(t.ts)), RULES.ogeTest, "Пробный вариант ОГЭ"); act(iso(new Date(t.ts))); });
+  (Store.get("quizzes",{list:[]}).list||[]).forEach(q=>{ const d = iso(new Date(q.ts)); add(d, RULES.quiz + (q.ok===q.n ? 5 : 0), "Итоговые вопросы по главе"); act(d); });
   T.forEach(t=>{ const p = RULES.test[t.mark]; if(p!==undefined) add(t.date, p, `Контрольная (${t.subjName}): ${t.mark}`); });
   const termEnd = { t2: CAL.terms[1][1], t3: CAL.terms[2][1], y: CAL.end };
   GRADE_SUBJECTS.forEach(([id,name])=>{ const r = g[id]||{};
@@ -191,9 +193,9 @@ function renderRewards(){
   <section class="panel"><h3>Каждые 3 месяца: абонемент</h3><div class="rwgrid">${by("quarter").length ? by("quarter").map(card).join("") : `<p class="hint">Первый период: декабрь – февраль.</p>`}</div></section>
   <section class="panel"><h3>Как начисляются очки</h3><div class="rules">
     <p>Была в школе: +${RULES.school}. Пропуск без причины: ${RULES.absent}. Болезнь не снимает очки и не ломает серию.</p>
-    <p>Домашка: +${RULES.hw} за каждый предмет. Пройденный параграф: +${RULES.paragraph}. Верное задание ОГЭ: +${RULES.ogeOk}. Пробный вариант ОГЭ: +${RULES.ogeTest}.</p>
+    <p>Домашка: +${RULES.hw} за каждый предмет. Пройденный параграф: +${RULES.paragraph}. Верное задание ОГЭ: +${RULES.ogeOk}. Пробный вариант ОГЭ: +${RULES.ogeTest}. Итоговые вопросы по главе: +${RULES.quiz}, без ошибок ещё +5.</p>
     <p>Контрольная: 5 → +20, 4 → +10, 3 → 0, 2 → −15. Итоговая за триместр: 5 → +80, 4 → +30, 3 → −30. Годовая: 5 → +120, 4 → +40, 3 → −40.</p>
-    <p>Серия: день засчитывается, если сделана домашка, параграф или 3 задания ОГЭ. Каждый день серии даёт бонус +1, +2 … до +${RULES.streakMax}. Выходные и каникулы серию не ломают.</p>
+    <p>Серия: день засчитывается, если сделана домашка, параграф, итоговые вопросы по главе или 3 задания ОГЭ. Каждый день серии даёт бонус +1, +2 … до +${RULES.streakMax}. Выходные и каникулы серию не ломают.</p>
     <p>Если в учебный день не было занятий, серия <b>остывает</b>. На второй день простоя она <b>гаснет</b>, и начиная с этого дня за каждый пустой учебный день снимается ${-RULES.idlePenalty} очков.</p>
   </div></section></div>`;
   $("main").querySelectorAll("[data-claim]").forEach(b=>b.addEventListener("click",()=>{ const id = b.dataset.claim, v = $("main").querySelector(`[data-choice="${id}"]`).value;

@@ -317,7 +317,8 @@ function drawTrain(){
   $("ogeform").addEventListener("submit", e=>{ e.preventDefault();
     if(!s.answered){ if(!inp.value.trim()){ inp.focus(); return; }
       const ok = check(t, inp.value); s.answered = true; s.n++; if(ok) s.ok++; Points.logOge(s.exam, s.num, ok);
-      $("ogefb").innerHTML = ok ? `<p class="fb ok">Верно!</p>` : `<p class="fb bad">Неверно. Правильный ответ: <b>${esc(shown(t))}</b></p>`;
+      $("ogefb").innerHTML = (ok ? `<p class="fb ok">Верно!</p>` : `<p class="fb bad">Неверно. Правильный ответ: <b>${esc(shown(t))}</b></p>`) + `<button class="btn" type="button" id="ogeteach">Разобрать с учителем</button>`;
+      $("ogeteach").addEventListener("click", ()=>askTeacher(t, inp.value, ok));
       inp.readOnly = true; $("ogego").textContent = s.n >= s.total ? "Получить оценку" : "Следующее задание"; $("ogego").focus();
     } else if(s.n >= s.total) endTrain();
     else { s.task = make(s.exam, s.num); s.answered = false; drawTrain(); }
@@ -370,5 +371,11 @@ async function submitTest(timeout){
   await finish(`test:${s.exam}`, ok, res.length, `Пробный вариант, ${EXAMS[s.exam].name.toLowerCase()}`);
 }
 
+function askTeacher(t, given, ok){
+  const plain = h => { const d = document.createElement("div"); d.innerHTML = h.replace(/<span class="fr"><i>(.*?)<\/i><i>(.*?)<\/i><\/span>/g,"($1)/($2)").replace(/<sup>(.*?)<\/sup>/g,"^$1").replace(/<svg[\s\S]*?<\/svg>/g," [рисунок на клетчатой бумаге] "); return d.textContent.replace(/\s+/g," ").trim(); };
+  const txt = `Задание ${t.num} ОГЭ (${t.exam==="math"?"математика":"русский язык"}): ${plain(t.q)}${t.opts?" Варианты: "+t.opts.map((o,i)=>`${i+1}) ${plain(o)}`).join(" "):""}\nМой ответ: ${given||"—"}. ${ok?"Ответ верный, но я хочу понять, как решать такие задания.":"Ответ неверный. Помоги понять, где ошибка, но не решай за меня: сначала задай наводящий вопрос."}`;
+  try{ sessionStorage.setItem("dasha:tutorq", txt); sessionStorage.setItem("dasha:tutorsubj", t.exam==="math" ? "algebra" : "rus"); }catch(e){}
+  location.hash = "#tutor";
+}
 window.Oge = { render: renderMenu, make, check, EXAMS, leave(){ clearInterval(timer); session = null; } };
 })();

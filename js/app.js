@@ -107,7 +107,6 @@ function renderBook(b){
     <div class="chips"><span class="chip">${pl(b.groups.reduce((a,g)=>a+g.chapters.length,0),"глава","главы","глав")} · ${pl(total,"параграф","параграфа","параграфов")}</span>
       ${b.approx?'<span class="chip warn">Оглавление приблизительно</span>':'<span class="chip ok">Оглавление по учебнику</span>'}</div>
     <div class="progress"><div class="bar"><i id="bar"></i></div><span id="pcnt"></span></div>
-    ${b.note?`<p class="note"><b>Приблизительно.</b> ${esc(b.note)}</p>`:""}
     ${file?`<div class="btnrow"><button class="btn primary" id="openbook" type="button">Открыть учебник</button></div>`
       :`<p class="fileline">PDF учебника пока не загружен. Загрузить его и указать страницы можно в <a href="#account">личном кабинете</a>.</p>`}
   </div><div class="chapters">`;
@@ -120,8 +119,8 @@ function renderBook(b){
         c.p.map((p,pi)=>{
           const k=`${b.id}.${gi}.${ci}.${pi}`, id=k.replace(/\./g,'-'), pg = m.pages[k];
           const right = pg && file ? `<button class="pg" type="button" data-page="${pg}">стр. ${pg}</button>` : "";
-          return `<li><label><input type="checkbox" id="cb-${id}" data-k="${k}" ${done[k]?"checked":""}><span class="box"></span><span class="pn">${ci+1}.${pi+1}</span><span class="pt">${esc(p)}</span></label>${right}</li>`;
-        }).join("") + `</ol></details>`;
+          return `<li><label><input type="checkbox" id="cb-${id}" data-k="${k}" ${done[k]?"checked":""}><span class="box"></span><span class="pn">${ci+1}.${pi+1}</span></label><a class="pt tlink" href="#t/${b.id}/${gi}.${ci}.${pi}">${esc(p)}</a>${right}</li>`;
+        }).join("") + `</ol><div class="chacts"><a class="btn" href="#t/${b.id}/${gi}.${ci}.0">Начать главу с учителем</a><a class="btn" href="#q/${b.id}/${gi}.${ci}">Итоговые вопросы по главе</a></div></details>`;
     });
   });
   return html + `</div></article>`;
@@ -157,13 +156,15 @@ function renderAccount(openId){
   $("main").innerHTML = `<div class="stack">
   <section class="panel"><h2>Личный кабинет</h2><p class="hint" style="margin:6px 0 0">${who} Здесь загружаются PDF учебников и указываются страницы параграфов. После этого параграфы открываются на своей странице прямо из учебника.</p>
     ${Store.mode==="cloud"?`<div class="btnrow"><button class="btn" id="acclogout" type="button">Выйти из аккаунта</button></div>`:""}</section>
+  ${recoPanel()}
   ${BOOKS.map(b=>{ const m = S.book(b.id), file = hasFile(b), set = Object.keys(m.pages||{}).length, total = keysOf(b).length;
     return `<section class="panel acc-book" style="border-left:5px solid ${b.color}" data-book="${b.id}">
       <h2>${esc(b.subject)}</h2><p class="meta" style="margin:0">${esc(b.title)}</p>
+      ${b.note && b.approx ? `<p class="note"><b>Приблизительно.</b> ${esc(b.note)}</p>` : ""}
       <p class="fileline">${file?`Файл: <b>${esc(m.fileName||"учебник.pdf")}</b>, ${pl(m.totalPages||0,"страница","страницы","страниц")}. Страницы указаны у ${set} из ${total} параграфов и у ${Object.keys(m.chapterPages||{}).length} глав.`:"PDF ещё не загружен."}</p>
       <div class="btnrow">
         <button class="btn ${file?"":"primary"}" data-up="${b.id}" type="button">${file?"Заменить PDF":"Загрузить PDF"}</button>
-        ${file?`<button class="btn" data-open="${b.id}" type="button">Открыть учебник</button>`:""}
+        ${file?`<button class="btn" data-open="${b.id}" type="button">Открыть учебник</button><button class="btn" data-auto="${b.id}" type="button">Найти страницы тем автоматически</button>`:""}
         <input type="file" id="file-${b.id}" accept="application/pdf,.pdf" hidden>
       </div>
       <p class="status" id="status-${b.id}" aria-live="polite"></p>
@@ -171,6 +172,10 @@ function renderAccount(openId){
         <div class="editbar"><label for="offset-${b.id}">Страниц в файле до первой страницы учебника:</label><input type="number" id="offset-${b.id}" data-off="${b.id}" min="-50" max="300" value="${Number(m.offset)||0}"><span>Если в PDF есть обложка и титульные листы, впиши, сколько их. Тогда номера ниже совпадут с номерами в книге.</span></div>
         ${b.groups.map((g,gi)=>g.chapters.map((c,ci)=>`<div class="grade chrow" style="padding-left:0"><span style="flex:1;min-width:0">${esc(c.n)} ${esc(c.t)}</span><input class="pgin" type="number" min="1" max="999" data-cpk="${gi}.${ci}" value="${(m.chapterPages||{})[gi+"."+ci]||""}" placeholder="стр." aria-label="Страница главы: ${esc(c.t)}"></div><ol class="paras" style="padding:0 0 6px">${
           c.p.map((p,pi)=>{ const k=`${b.id}.${gi}.${ci}.${pi}`; return `<li><span class="pn">${ci+1}.${pi+1}</span><span class="pt" style="flex:1;min-width:0">${esc(p)}</span><input class="pgin" type="number" min="1" max="999" id="pg-${k.replace(/\./g,'-')}" data-pk="${k}" value="${m.pages[k]||""}" placeholder="стр." aria-label="Страница: ${esc(p)}"></li>`; }).join("")}</ol>`).join("")).join("")}
+      </details>
+      <details class="pages-ed know-ed"><summary class="btn" style="display:inline-block;margin-top:6px">Насколько хорошо знаю темы</summary>
+        ${b.groups.map((g,gi)=>g.chapters.map((c,ci)=>`<div class="grade chrow" style="padding-left:0">${esc(c.n)} ${esc(c.t)}</div><ol class="paras" style="padding:0 0 6px">${
+          c.p.map((p,pi)=>{ const k=`${b.id}.${gi}.${ci}.${pi}`, v = Topic.know().k[k]; return `<li><span class="pn">${ci+1}.${pi+1}</span><a class="pt tlink" href="#t/${b.id}/${gi}.${ci}.${pi}" style="flex:1;min-width:0">${esc(p)}</a><select data-know="${k}" class="kn${v===undefined?"":v}" aria-label="Как знаю: ${esc(p)}"><option value="">—</option>${Topic.KNOW.map((n,i)=>`<option value="${i}" ${v===i?"selected":""}>${n}</option>`).join("")}</select></li>`; }).join("")}</ol>`).join("")).join("")}
       </details></section>`; }).join("")}
   </div>`;
   const main = $("main");
@@ -180,6 +185,8 @@ function renderAccount(openId){
     fi.addEventListener("change",()=>{ const f = fi.files && fi.files[0]; fi.value = ""; sayTarget = "status-"+id;
       handleFile(b, f).catch(e=>{ console.error(e); say("Не получилось загрузить файл. Проверь интернет и попробуй ещё раз.", true); }); });
   });
+  main.querySelectorAll("[data-know]").forEach(sel=>sel.addEventListener("change",()=>{ Topic.setKnow(sel.dataset.know, sel.value); sel.className = "kn"+sel.value; const r = $("reco"); if(r) r.outerHTML = recoPanel(); }));
+  main.querySelectorAll("[data-auto]").forEach(btn=>btn.addEventListener("click",()=>{ const b = BOOKS.find(x=>x.id===btn.dataset.auto); sayTarget = "status-"+b.id; btn.disabled = true; autoPages(b).catch(e=>{ console.error(e); say("Не получилось прочитать учебник: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
   main.querySelectorAll("[data-open]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(BOOKS.find(x=>x.id===btn.dataset.open), 0, "")));
   main.querySelectorAll("section[data-book]").forEach(sec=>{ const id = sec.dataset.book;
     const save = () => { const m = S.book(id); m.pages = Object.assign({}, m.pages);
@@ -190,6 +197,38 @@ function renderAccount(openId){
   });
 }
 let sayTarget = "status";
+function recoPanel(){
+  const kd = Topic.know().k, scratch = [], brief = [];
+  BOOKS.forEach(b=>b.groups.forEach((g,gi)=>g.chapters.forEach((c,ci)=>c.p.forEach((p,pi)=>{ const k = `${b.id}.${gi}.${ci}.${pi}`, v = kd[k];
+    const item = `<a class="reco-i" href="#t/${b.id}/${gi}.${ci}.${pi}?__"><span class="dot" style="background:${b.color}"></span><span><b>${esc(b.subject)}</b> · ${esc(p)}</span></a>`;
+    if(v===0 || v===1) scratch.push(item.replace("?__","?scratch")); else if(v===2) brief.push(item.replace("?__","?brief")); }))));
+  const rated = Object.keys(kd).length;
+  return `<section class="panel reco" id="reco"><h3>Рекомендации учителя</h3>
+    ${rated ? `<div class="reco-cols">
+      <div><h4>Изучить с нуля${scratch.length?` · ${scratch.length}`:""}</h4>${scratch.length ? scratch.slice(0,10).join("") + (scratch.length>10?`<p class="sm">и ещё ${scratch.length-10}</p>`:"") : `<p class="hint">Таких тем нет.</p>`}</div>
+      <div><h4>Повторить кратко${brief.length?` · ${brief.length}`:""}</h4>${brief.length ? brief.slice(0,10).join("") + (brief.length>10?`<p class="sm">и ещё ${brief.length-10}</p>`:"") : `<p class="hint">Таких тем нет.</p>`}</div></div>
+      <p class="hint">Нажми на тему: учитель сразу начнёт объяснять с нуля или проведёт краткое повторение по учебнику. Итоговые вопросы по главе сами отмечают темы, которые стоит повторить.</p>`
+    : `<p class="hint">Оцени ниже, насколько хорошо знаешь темы каждого учебника («Насколько хорошо знаю темы»), и здесь появится список: что изучить с нуля, а что достаточно кратко повторить.</p>`}</section>`;
+}
+// Поиск страниц тем по тексту PDF: ищем заголовок каждой темы по порядку, пропуская оглавление.
+async function autoPages(b){
+  const m = S.book(b.id), total = m.totalPages || 0, norm = t => t.toLowerCase().replace(/ё/g,"е").replace(/[^a-zа-я0-9]+/g," ").trim();
+  const texts = [];
+  for(let n=1; n<=total; n++){ if(n%10===1) say(`Читаю учебник: страница ${n} из ${total}…`); try{ texts[n] = norm(await Reader.pageText(b, n)); }catch(e){ texts[n] = ""; } }
+  const withText = texts.filter(t=>t && t.length > 100).length;
+  if(withText < total*0.3){ say("В этом PDF нет текстового слоя (учебник отсканирован картинками), поэтому найти страницы автоматически не получится. Впиши их вручную в «Номера страниц параграфов».", true); return; }
+  const topics = []; b.groups.forEach((g,gi)=>g.chapters.forEach((c,ci)=>c.p.forEach((p,pi)=>topics.push({ k:`${b.id}.${gi}.${ci}.${pi}`, ck:`${gi}.${ci}`, pi, q: norm(p).split(" ").slice(0,6).join(" ") }))));
+  const isToc = n => topics.filter(t=>t.q.length>6 && texts[n].includes(t.q)).length >= 3;
+  const off = Number(m.offset)||0; m.pages = Object.assign({}, m.pages); m.chapterPages = Object.assign({}, m.chapterPages);
+  let from = 1, found = 0;
+  for(const t of topics){
+    if(t.q.length < 6) continue;
+    for(let n=from; n<=total; n++){ if(texts[n] && texts[n].includes(t.q) && !isToc(n)){ m.pages[t.k] = n - off; if(t.pi===0 && !m.chapterPages[t.ck]) m.chapterPages[t.ck] = n - off; from = n; found++; break; } }
+  }
+  S.setBook(b.id, m);
+  say(found ? `Нашёл страницы у ${found} из ${topics.length} тем. Проверь их в «Номера страниц параграфов»: если темы в учебнике называются иначе, часть страниц придётся вписать вручную.` : "Не нашёл ни одной темы: похоже, в этом издании темы называются иначе. Впиши страницы вручную.", !found);
+  const keep = sayTarget, msg = $(keep) ? $(keep).textContent : ""; renderAccount(b.id); sayTarget = keep; say(msg, !found);
+}
 function say(t, err){ const st = $(sayTarget); if(st){ st.textContent = t; st.classList.toggle("err", !!err); } }
 function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("script "+src)); document.head.appendChild(s); }); }
 
@@ -379,6 +418,7 @@ function renderTutor(){
   tutorAv = Avatar.create($("tutorstage"), {compact:true}); tutorAv.start();
   tutorAv.say(ok ? "Привет, Даша! Спрашивай, разберёмся вместе" : "Я пока не подключён, но скоро буду помогать", 5000);
   if(pendingBoard){ $("chatin").value = "Проверь моё решение на доске. Найди ошибки, но не решай за меня."; }
+  try{ const q = sessionStorage.getItem("dasha:tutorq"); if(q){ sessionStorage.removeItem("dasha:tutorq"); $("chatin").value = q; const sj = sessionStorage.getItem("dasha:tutorsubj"); if(sj && $("chatsubj").querySelector(`option[value="${sj}"]`)) $("chatsubj").value = sj; $("chatin").focus(); } }catch(e){}
   $("main").querySelectorAll("[data-q]").forEach(b=>b.addEventListener("click",()=>{ $("chatin").value = b.dataset.q; if(b.dataset.q.includes("доске")) $("chatboard").checked = true; $("chatin").focus(); }));
   $("chatsubj").addEventListener("change",e=>{ try{ localStorage.setItem("dasha:subj", e.target.value) }catch(_){} });
   $("chatnew").addEventListener("click",()=>{ chat = []; saveChat(); drawChat(); });
@@ -477,6 +517,8 @@ function renderLogin(){
 }
 
 /* ================= МАРШРУТЫ ================= */
+let eNb = null;
+function emptyNb(e){ if(eNb) eNb.destroy(); eNb = Notebook.mount($("enb"), { bookId:e.id, key:"all", ruled: e.id==="rus", title:`Тетрадь · ${e.subject}`, sub: e.id==="rus" ? "В линейку, как школьная тетрадь по русскому." : "В клетку." }); }
 async function route(){
   if(Store.mode==="cloud" && !Store.user){ $("authbar").hidden = true; $("streakbar").hidden = true; renderLogin(); return; }
   $("authbar").hidden = false;
@@ -485,13 +527,17 @@ async function route(){
   const id = (location.hash||"").slice(1) || "home";
   if(id !== "board") await flushBoard();
   if(id !== "oge" && window.Oge) Oge.leave();
+  if(window.Topic) Topic.leave();
+  if(eNb){ eNb.destroy(); eNb = null; }
+  if(id.startsWith("t/")){ renderShelf(id.split("/")[1]); return Topic.render(id.slice(2)); }
+  if(id.startsWith("q/")){ renderShelf(id.split("/")[1]); return Topic.renderQuiz(id.slice(2)); }
   if(window.Points) Points.renderBar();
   if(id !== "tutor" && tutorAv){ tutorAv.destroy(); tutorAv = null; }
   renderShelf(id);
   const b = BOOKS.find(x=>x.id===id), e = EMPTY.find(x=>x.id===id);
   if(b) return mountBook(b);
   curBook = null;
-  if(e) return $("main").innerHTML = `<article class="book" style="--c:${e.color}"><div class="book-head"><div class="subject">${esc(e.subject)}</div><h2>${esc(e.subject)}. 9 класс</h2><p class="meta">Учебник ещё не добавлен</p></div><div class="placeholder"><p>Здесь появятся главы, как только будет фото обложки и оглавления.</p><ul><li>фото обложки (видны авторы)</li><li>фото страниц с оглавлением</li></ul></div></article>`;
+  if(e) return $("main").innerHTML = `<article class="book" style="--c:${e.color}"><div class="book-head"><div class="subject">${esc(e.subject)}</div><h2>${esc(e.subject)}. 9 класс</h2><p class="meta">Учебник ещё не добавлен</p></div><div class="placeholder"><p>Здесь появятся главы, как только будет фото обложки и оглавления.</p><ul><li>фото обложки (видны авторы)</li><li>фото страниц с оглавлением</li></ul></div></article><section class="panel" id="enb" style="margin-top:16px"></section>`, emptyNb(e);
   if(id==="board") return renderBoard();
   if(id==="tutor") return renderTutor();
   if(id==="stats") return renderStats();
