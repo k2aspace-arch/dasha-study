@@ -31,14 +31,36 @@ function applyDock(){
 function open(b, bookPage, label){
   if(R.dirty) saveInk();
   R.book = b; R.label = label || ""; R.zoom = 1;
-  $("reader").hidden = false; applyDock();
-  $("rtitle").textContent = b.title;
+  $("reader").hidden = false; $("rtab").hidden = true; applyDock(); fire();
+  $("rtitle").textContent = b.title; $("rtabname").textContent = b.subject;
   const last = Number(lsGet("last-"+b.id, 1)) || 1;
   show(bookPage ? toFile(b, bookPage) : last);
   renderNoteList();
 }
-function close(){ if(R.dirty) saveInk(); $("reader").hidden = true; $("reader").classList.remove("full"); applyDock(); }
+function close(){ if(R.dirty) saveInk(); $("reader").hidden = true; $("reader").classList.remove("full"); $("rtab").hidden = true; R.sel = null; applyDock(); fire(); }
+function minimize(){ if(R.dirty) saveInk(); $("reader").hidden = true; $("reader").classList.remove("full"); $("rtab").hidden = false; applyDock(); fire(); }
+function restore(){ if(!R.book) return; $("rtab").hidden = true; $("reader").hidden = false; applyDock(); show(R.n); fire(); }
+const fire = () => window.dispatchEvent(new CustomEvent("reader:change"));
 
+async function pageObj(b, n){
+  const m = S.book(b.id); if(!m.chunks || !m.chunks.length) throw new Error("Файл учебника не загружен");
+  const ch = m.chunks.find(c=>n>=c.from && n<=c.to) || m.chunks[m.chunks.length-1];
+  const doc = await pdfFor(ch.path);
+  return doc.getPage(Math.max(1, Math.min(doc.numPages, n - ch.from + 1)));
+}
+// текст страницы (пусто, если учебник отсканирован без текстового слоя)
+async function pageText(b, n){
+  const page = await pageObj(b, n), tc = await page.getTextContent();
+  return tc.items.map(i=>i.str + (i.hasEOL ? "\n" : "")).join("").replace(/[ \t]+/g," ").replace(/\n{3,}/g,"\n\n").trim();
+}
+// картинка страницы для учителя (JPEG base64 без префикса)
+async function pageImage(b, n, width){
+  const page = await pageObj(b, n), base = page.getViewport({scale:1}), vp = page.getViewport({scale:(width||1000)/base.width});
+  const c = document.createElement("canvas"); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+  const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0,0,c.width,c.height);
+  await page.render({canvasContext:x, viewport:vp}).promise;
+  return c.toDataURL("image/jpeg", 0.72).split(",")[1];
+}
 async function show(n){
   if(R.dirty) await saveInk();
   const b = R.book, m = S.book(b.id), tok = ++R.token, total = m.totalPages || 1;
@@ -61,6 +83,9 @@ async function show(n){
     $("rpage").style.width = cssW+"px"; $("rpage").style.height = cssH+"px";
     await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
     if(tok !== R.token) return;
+    const tl = $("rtext"); tl.innerHTML = ""; tl.style.setProperty("--scale-factor", scale); R.sel = null;
+    try{ const tc = await page.getTextContent(); if(tok !== R.token) return;
+      if(tc.items.length){ await pdfjsLib.renderTextLayer({ textContentSource: tc, container: tl, viewport: page.getViewport({scale}), textDivs: [] }).promise; } }catch(e){ console.warn("text layer", e); }
     R.inkH = Math.round(INK_W * base.height / base.width);
     ink.width = INK_W; ink.height = R.inkH; R.inkPage = n;
     await loadInk(b.id, n); if(tok !== R.token) return;
@@ -140,6 +165,11 @@ function bindResize(){
 /* ---------- кнопки ---------- */
 function init(){
   $("rclose").addEventListener("click", close);
+  $("rmin").addEventListener("click", minimize);
+  $("rtab").addEventListener("click", restore);
+  document.addEventListener("selectionchange", ()=>{ const s = document.getSelection(); if(!s || s.isCollapsed){ return; }
+    const node = s.anchorNode && (s.anchorNode.nodeType===1 ? s.anchorNode : s.anchorNode.parentElement);
+    if(node && node.closest && node.closest("#rtext")){ const t = s.toString().replace(/\s+/g," ").trim(); if(t){ R.sel = { text:t.slice(0,2000), page:R.n }; fire(); } } });
   $("rprev").addEventListener("click", ()=>show(R.n-1));
   $("rnext").addEventListener("click", ()=>show(R.n+1));
   $("rzin").addEventListener("click", ()=>{ R.zoom = Math.min(3, R.zoom*1.25); show(R.n); });
@@ -164,5 +194,8 @@ function init(){
   bindInk(); bindResize(); setTool("view");
 }
 init();
-window.Reader = { open, close, clearCache(){ Object.keys(docCache).forEach(k=>delete docCache[k]); } };
+window.Reader = { open, close, minimize, restore, pageText, pageImage, toFile, toBook,
+  state(){ return { book:R.book, n:R.n, open:!$("reader").hidden, min:!$("rtab").hidden, sel:R.sel } },
+  clearSel(){ R.sel = null; fire(); },
+  clearCache(){ Object.keys(docCache).forEach(k=>delete docCache[k]); } };
 })();

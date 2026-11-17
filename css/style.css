@@ -388,3 +388,12 @@ body.reading-right .shelf a,body.reading-left .shelf a{flex:none}
 .fb{margin:8px 0 0;font-weight:600}
 .fb.ok{color:var(--done)} .fb.bad{color:var(--warn)}
 .ogeres td:nth-child(3),.ogeres td:nth-child(4){font-family:var(--f-mono)}
+
+/* ---------- текстовый слой учебника (для выделения) ---------- */
+#rtext{position:absolute;inset:0;overflow:hidden;line-height:1;text-align:initial;opacity:1;forced-color-adjust:none;transform-origin:0 0;z-index:1}
+#rtext span,#rtext br{color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0% 0%}
+#rtext ::selection{background:rgba(42,79,214,.3)}
+#rtext .endOfContent{display:block;position:absolute;inset:100% 0 0;z-index:-1;cursor:default;user-select:none}
+#rink{z-index:2}
+.rtab{position:fixed;bottom:18px;right:18px;z-index:45;font:inherit;font-weight:600;padding:10px 16px;border-radius:999px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);box-shadow:0 4px 16px rgba(0,0,0,.18);cursor:pointer}
+.rtab[hidden]{display:none}

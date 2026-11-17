@@ -25,6 +25,7 @@
   </div>
 </div>
 
+<button id="rtab" class="rtab" type="button" hidden aria-label="Развернуть учебник">📖 <span id="rtabname">Учебник</span></button>
 <aside id="reader" hidden aria-label="Учебник">
   <div id="rhandle" role="separator" aria-orientation="vertical" aria-label="Изменить ширину учебника" tabindex="0"></div>
   <div class="rbar">
@@ -40,6 +41,7 @@
       <button class="vbtn" id="rzin" type="button" aria-label="Увеличить">+</button>
       <button class="vbtn" id="rdock" type="button">⇤ Влево</button>
       <button class="vbtn" id="rfull" type="button" aria-label="Во весь экран">⛶</button>
+      <button class="vbtn" id="rmin" type="button" aria-label="Свернуть учебник">▁</button>
       <button class="vbtn" id="rclose" type="button" aria-label="Закрыть учебник">✕</button>
     </div>
     <div class="rgroup" role="toolbar" aria-label="Пометки">
@@ -59,7 +61,7 @@
     <textarea id="rnote" placeholder="Что важно запомнить на этой странице…"></textarea>
     <div id="rnotelist"></div>
   </div>
-  <div id="rscroll"><p id="rmsg"></p><div id="rpage" hidden><canvas id="rcanvas"></canvas><canvas id="rink"></canvas></div></div>
+  <div id="rscroll"><p id="rmsg"></p><div id="rpage" hidden><canvas id="rcanvas"></canvas><div id="rtext" class="textLayer"></div><canvas id="rink"></canvas></div></div>
 </aside>
 
 <script src="js/vendor/supabase.js"></script>

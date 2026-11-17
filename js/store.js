@@ -92,7 +92,7 @@
     /* ИИ-учитель */
     aiAvailable(){ return cloud && !!cfg.AI_ENABLED && !!user },
     async ask(payload){
-      const { data, error } = await sb.functions.invoke("tutor", { body: payload });
+      const { data, error } = await sb.functions.invoke(cfg.TUTOR_FUNCTION || "tutor", { body: payload });
       if(error){
         let msg = "";
         try{ const j = await error.context.json(); msg = j.error || ""; }catch(e){}

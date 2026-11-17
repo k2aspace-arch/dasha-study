@@ -21,7 +21,7 @@ const S = {
   }
 };
 let done = {};
-window.App = { $, esc, pl, S, keysOf, get done(){ return done } };
+window.App = { $, esc, pl, S, keysOf, get done(){ return done }, setDone(k, on){ if(on) done[k] = Date.now(); else delete done[k]; saveDone(); } };
 function loadDone(){ done = Object.assign({}, S.progress().done || {}); }
 function saveDone(){ Store.set("progress", {done}); }
 const pct = b => { const k=keysOf(b); return k.length ? Math.round(100*k.filter(x=>done[x]).length/k.length) : 0 };
