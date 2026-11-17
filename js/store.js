@@ -1,0 +1,105 @@
+// Хранилище: Supabase (облако, вход по почте) или, если оно не настроено, этот браузер.
+// Документы: таблица docs (key -> JSON). Файлы: бакет "files", папка = id пользователя.
+(function(){
+  const cfg = window.APP_CONFIG || {};
+  const cloud = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && window.supabase);
+  const sb = cloud ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY) : null;
+  const LS = "dasha:";
+  let user = null;
+  const cache = {};
+  const timers = {}, chains = {};
+
+  /* ---------- IndexedDB: локальные файлы и кэш скачанных ---------- */
+  let dbp = null;
+  function idb(){
+    if(!dbp) dbp = new Promise((res,rej)=>{ try{
+      const r = indexedDB.open("dasha-study", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("files");
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }catch(e){ rej(e) } });
+    return dbp;
+  }
+  async function idbPut(k, v){ const d = await idb(); return new Promise((res,rej)=>{ const t=d.transaction("files","readwrite"); t.objectStore("files").put(v,k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+  async function idbGet(k){ try{ const d = await idb(); return await new Promise(res=>{ const q=d.transaction("files","readonly").objectStore("files").get(k); q.onsuccess=()=>res(q.result||null); q.onerror=()=>res(null); }); }catch(e){ return null } }
+  async function idbDel(k){ try{ const d = await idb(); await new Promise(res=>{ const t=d.transaction("files","readwrite"); t.objectStore("files").delete(k); t.oncomplete=res; t.onerror=res; }); }catch(e){} }
+
+  const lsGet = k => { try{ return JSON.parse(localStorage.getItem(LS+k)||"null") }catch(e){ return null } };
+  const lsSet = (k,v) => { try{ localStorage.setItem(LS+k, JSON.stringify(v)) }catch(e){} };
+
+  const Store = {
+    mode: cloud ? "cloud" : "local",
+    get user(){ return user },
+
+    async init(){
+      if(!cloud) return;
+      const { data } = await sb.auth.getSession();
+      user = data.session ? data.session.user : null;
+      sb.auth.onAuthStateChange((_e, s)=>{ const was = user && user.id; user = s ? s.user : null; if((user&&user.id)!==was && Store.onAuth) Store.onAuth(user); });
+      if(user) await Store.loadAll();
+    },
+    async signIn(email, password){ const { error } = await sb.auth.signInWithPassword({email, password}); if(error) throw error; },
+    async signUp(email, password){ const { data, error } = await sb.auth.signUp({email, password}); if(error) throw error; return !!data.session; },
+    async signOut(){ await sb.auth.signOut(); Object.keys(cache).forEach(k=>delete cache[k]); },
+
+    async loadAll(){
+      const { data, error } = await sb.from("docs").select("key,value");
+      if(error) throw error;
+      (data||[]).forEach(r=>{ cache[r.key] = r.value; lsSet(r.key, r.value); });
+    },
+    get(key, fallback){
+      if(key in cache) return cache[key];
+      const v = lsGet(key);
+      if(v !== null && !cloud){ cache[key] = v; return v; }
+      return fallback;
+    },
+    // запись с задержкой: частые изменения сливаются в одну
+    set(key, value, delay){
+      cache[key] = value; lsSet(key, value);
+      if(!cloud || !user) return Promise.resolve();
+      clearTimeout(timers[key]);
+      return new Promise(res=>{
+        timers[key] = setTimeout(()=>{
+          chains[key] = (chains[key]||Promise.resolve()).then(async()=>{
+            const { error } = await sb.from("docs").upsert({ user_id:user.id, key, value: cache[key], updated_at: new Date().toISOString() });
+            if(error){ console.warn("save", key, error.message); if(Store.onSaveError) Store.onSaveError(error); }
+          }).finally(res);
+        }, delay ?? 500);
+      });
+    },
+
+    /* файлы */
+    async putFile(path, blob){
+      await idbPut("f:"+path, blob).catch(()=>{});
+      if(!cloud) return;
+      const { error } = await sb.storage.from("files").upload(user.id+"/"+path, blob, { upsert:true, contentType: blob.type || "application/octet-stream" });
+      if(error) throw error;
+    },
+    async getFile(path){
+      const local = await idbGet("f:"+path);
+      if(local) return local;
+      if(!cloud || !user) return null;
+      const { data, error } = await sb.storage.from("files").download(user.id+"/"+path);
+      if(error) throw error;
+      idbPut("f:"+path, data).catch(()=>{});
+      return data;
+    },
+    async removeFile(path){
+      await idbDel("f:"+path);
+      if(cloud && user) await sb.storage.from("files").remove([user.id+"/"+path]);
+    },
+    maxPart: cloud ? 45*1024*1024 : Infinity,
+
+    /* ИИ-учитель */
+    aiAvailable(){ return cloud && !!cfg.AI_ENABLED && !!user },
+    async ask(payload){
+      const { data, error } = await sb.functions.invoke("tutor", { body: payload });
+      if(error){
+        let msg = "";
+        try{ const j = await error.context.json(); msg = j.error || ""; }catch(e){}
+        throw new Error(msg || error.message || "Ошибка ИИ");
+      }
+      return data;
+    }
+  };
+  window.Store = Store;
+})();
