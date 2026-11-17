@@ -37,13 +37,13 @@ function mount(host, opts){
   // условие задания вверху листа, «от руки» синей ручкой
   let task = opts.task || "";
   function paintBg(){ const b = bg.getContext("2d"); drawPaper(b, ruled); if(!task) return;
-    b.save(); b.fillStyle = "#1d3fbf"; b.font = `40px "Caveat", "Golos Text", cursive`; b.textBaseline = "alphabetic";
+    b.save(); b.fillStyle = "#1d3fbf"; b.font = `700 40px "Caveat", "Segoe Print", cursive`; b.textBaseline = "alphabetic";
     const maxW = W - 160, lh = ruled ? 56 : 48, words = String(task).replace(/\s+/g," ").trim().split(" "), lines = []; let line = "";
     words.forEach(w=>{ const t = line ? line+" "+w : w; if(b.measureText(t).width > maxW && line){ lines.push(line); line = w; } else line = t; }); if(line) lines.push(line);
     const show = lines.slice(0, 8); if(lines.length > 8) show[7] += " …";
     show.forEach((l,i)=>b.fillText(l, 40, (ruled ? 150 - 10 : 40) + (ruled ? i*lh : (i+1)*lh - 8)));
     b.restore(); }
-  paintBg(); if(document.fonts && document.fonts.load) document.fonts.load('40px "Caveat"').then(paintBg).catch(()=>{});
+  paintBg(); if(document.fonts && document.fonts.load) Promise.all([document.fonts.load('700 40px "Caveat"', "Задание решите"), document.fonts.load('700 40px "Caveat"', "Abc 0123456789 +-=()?!.,:")]).then(paintBg).catch(()=>{});
   const info = host.querySelector("[data-nb-info]");
 
   async function load(){
@@ -79,7 +79,7 @@ function mount(host, opts){
     const ta = document.createElement("textarea"); ta.className = "nb-text"; ta.style.left = (p.x*k)+"px"; ta.style.top = (p.y*k - 22*k)+"px"; ta.style.fontSize = Math.max(14, 44*k)+"px"; ta.style.color = st.color;
     ta.setAttribute("aria-label","Текст в тетради"); sheetEl.appendChild(ta); setTimeout(()=>ta.focus(), 0);
     const commit = () => { const t = ta.value; ta.remove(); if(!t.trim()) return; snap();
-      ctx.save(); ctx.fillStyle = st.color; ctx.font = `44px "Caveat", "Golos Text", cursive`; ctx.textBaseline = "middle";
+      ctx.save(); ctx.fillStyle = st.color; ctx.font = `700 44px "Caveat", "Segoe Print", cursive`; ctx.textBaseline = "middle";
       t.split("\n").forEach((line,i)=>ctx.fillText(line, p.x, p.y + i*(ruled?56:48))); ctx.restore(); changed(); };
     ta.addEventListener("blur", commit); ta.addEventListener("keydown", e=>{ if(e.key==="Escape"){ ta.value = ""; ta.blur(); } if(e.key==="Enter" && (e.ctrlKey||e.metaKey)) ta.blur(); });
   }
