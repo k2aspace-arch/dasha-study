@@ -773,3 +773,14 @@ body.dock-wide #dockbody .tutorstage{height:160px}
 .goalart svg{width:100%;height:auto;display:block}
 .goaltxt h3{margin-top:0}
 @media (max-width:560px){ .goalp{grid-template-columns:90px minmax(0,1fr);gap:12px} .goalart{padding:6px} }
+.dweek{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px}
+.dwcol{display:flex;flex-direction:column;gap:14px;min-width:0}
+.dwday{border:1.5px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card)}
+.dwh{font-weight:700;padding:6px 10px;background:var(--accent-soft);color:var(--accent);border-bottom:1.5px solid var(--line)}
+.dwrow{display:flex;align-items:center;border-bottom:1px solid var(--line)}
+.dwrow:last-child{border-bottom:0}
+.dwn{width:28px;flex:none;text-align:center;font-family:var(--f-mono);color:var(--muted);font-size:13px;border-right:1px solid var(--line);align-self:stretch;display:grid;place-items:center}
+.dwrow select{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:14px;padding:6px 8px;color:var(--ink)}
+.evaddd{margin-top:8px}
+.ccol .evform{grid-template-columns:1fr 1fr}
+.dayed{margin-top:8px} .dayed .dwday{max-width:320px}
