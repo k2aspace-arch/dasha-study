@@ -11,16 +11,16 @@
 3. Authentication → Sign In / Providers → Email: можно выключить «Confirm email», тогда вход сразу после регистрации.
 4. **GitHub Pages.** Settings → Pages → Deploy from a branch → `main` / `(root)`.
 
-## ИИ-учитель (по желанию)
+## ИИ-учитель
 
-Нужен ключ Anthropic API (console.anthropic.com). Ключ хранится только в секретах Supabase:
+Ключ Anthropic API хранится только в секретах Supabase, на сайте его нет.
 
-```
-supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
-supabase functions deploy tutor
-```
+1. console.anthropic.com → Settings → Billing: пополнить баланс. Потом API Keys → Create Key.
+2. Supabase → Edge Functions → Secrets → Add new secret: имя `ANTHROPIC_API_KEY`, значение ключа.
+3. Supabase → Edge Functions → Deploy a new function → Via Editor: имя `tutor`, вставить код из `supabase/functions/tutor/index.ts`, Deploy.
+4. В `js/config.js` поставить `AI_ENABLED: true`.
 
-Потом в `js/config.js` поставить `AI_ENABLED: true`. Модель по умолчанию `claude-opus-5-5`. Чтобы тратить меньше, задать секрет `TUTOR_MODEL=claude-haiku-5-5`.
+Модель по умолчанию `claude-opus-5-5`. Чтобы тратить меньше, добавить секрет `TUTOR_MODEL` со значением `claude-haiku-5-5`.
 
 ## Где что
 
