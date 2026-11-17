@@ -373,7 +373,7 @@ async function renderBoard(host){
     try{ await Store.removeFile(`boards/${B.cur}.png`) }catch(_){}
     renderBoard();
   });
-  $("bask").addEventListener("click",async()=>{ await flushBoard(); pendingBoard = B.cur; if(Study.Dock.kind()!=="general") renderGeneralChat(); Study.Dock.open(); const cb = $("chatboard"); if(cb){ cb.checked = true; const ci = $("chatin"); if(!ci.value.trim()) ci.value = "Проверь моё решение на доске. Найди ошибки, но не решай за меня."; ci.focus(); ci.scrollIntoView({block:"center", behavior:"smooth"}); } });
+  $("bask").addEventListener("click",async()=>{ await flushBoard(); pendingBoard = B.cur; if(!$("tutorchat")){ if(Study.Dock.kind()!=="general") renderGeneralChat(); Study.Dock.open(); } const cb = $("chatboard"); if(cb){ cb.checked = true; const ci = $("chatin"); if(!ci.value.trim()) ci.value = "Проверь моё решение на доске. Найди ошибки, но не решай за меня."; ci.focus(); ci.scrollIntoView({block:"center", behavior:"smooth"}); } });
   // рисование
   let drawing = false, last = null;
   const pos = ev => { const r = cv.getBoundingClientRect(); return { x:(ev.clientX-r.left)*B.W/r.width, y:(ev.clientY-r.top)*B.H/r.height, cx: ev.clientX-r.left, cy: ev.clientY-r.top }; };
@@ -434,17 +434,17 @@ const SUBJ_ALL = GRADE_SUBJECTS.map(([id,n])=>[id,n]);
 let tutorAv = null, tutorPhoto = null;
 let drawMode = false;
 function renderTutor(){
-  $("main").innerHTML = `<section class="panel"><h2>ИИ-учитель и доска</h2>
-    <p class="hint" style="margin:0">Чат с учителем открывается справа в любом разделе. Здесь большая доска: реши на ней и нажми «Учителю».</p></section>
+  $("main").innerHTML = `<section class="panel tutormain"><h2>ИИ-учитель</h2><div id="tutorchat"></div></section>
     <div id="tutorboard"></div>`;
+  Study.Dock.away(()=>{ if(tutorAv){ tutorAv.destroy(); tutorAv = null; } });
+  renderGeneralChat($("tutorchat"));
   renderBoard($("tutorboard"));
-  Study.Dock.open();
 }
 // общий чат с учителем: живёт в выдвижной панели справа, когда страница не дала свой (тема, ОГЭ)
-function renderGeneralChat(){
+function renderGeneralChat(host){
   const ok = Store.aiAvailable();
   let subj = "algebra"; try{ subj = localStorage.getItem("dasha:subj") || "algebra" }catch(e){}
-  const body = Study.Dock.claim("general", "Учитель Клод", "Спрашивай что угодно по учёбе", ()=>{ if(tutorAv){ tutorAv.destroy(); tutorAv = null; } });
+  const body = host || Study.Dock.claim("general", "Учитель Клод", "Спрашивай что угодно по учёбе", ()=>{ if(tutorAv){ tutorAv.destroy(); tutorAv = null; } });
   body.innerHTML = `
     ${ok ? "" : `<p class="note"><b>Пока не подключён.</b> ${Store.mode==="cloud" ? "Для ИИ-учителя нужен ключ на сервере. Остальные разделы работают." : "Сайт ещё не подключён к облаку, поэтому ИИ-учитель недоступен."}</p>`}
     <div class="tutorstage" id="tutorstage"></div>

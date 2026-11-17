@@ -41,7 +41,9 @@ function bindTheme(root){
 
 /* ================= ВЫДВИЖНОЙ ЧАТ С УЧИТЕЛЕМ СПРАВА ================= */
 const Dock = (()=>{
-  let kind = null, cleanup = null, claimed = false, hidden = false;
+  let kind = null, cleanup = null, claimed = false, hidden = false, away = false, awayClean = null;
+  const isWide = () => { try{ return localStorage.getItem("dasha:dockwide")==="1" }catch(e){ return false } };
+  const setWide = v => { try{ localStorage.setItem("dasha:dockwide", v ? "1" : "0") }catch(e){} document.body.classList.toggle("dock-wide", v); const b = $("dockwide"); if(b){ b.textContent = v ? "⤡" : "⤢"; b.title = v ? "Сделать уже" : "Сделать шире"; } };
   const wide = () => window.innerWidth >= 1280;
   const want = () => { try{ const v = localStorage.getItem("dasha:dock"); return v===null ? wide() : v==="1"; }catch(e){ return wide(); } };
   const remember = v => { try{ localStorage.setItem("dasha:dock", v ? "1" : "0") }catch(e){} };
@@ -58,12 +60,15 @@ const Dock = (()=>{
     close(){ remember(false); apply(false); },
     claim(k, title, sub, onRelease){ run(); kind = k; claimed = true; cleanup = onRelease || null; $("docktitle").textContent = title || "Учитель Клод"; $("docksub").textContent = sub || ""; const body = $("dockbody"); body.innerHTML = ""; return body; },
     release(){ run(); kind = null; const body = $("dockbody"); if(body) body.innerHTML = ""; },
-    begin(){ claimed = false; },
-    end(fallback){ hidden = false; if(!claimed && kind!=="general") fallback(); apply(want()); },
+    begin(){ claimed = false; away = false; if(awayClean){ try{ awayClean() }catch(e){} awayClean = null; } },
+    // страница сама показывает учителя (раздел «ИИ-учитель»): панель справа прячется
+    away(onLeave){ D.release(); away = true; claimed = true; awayClean = onLeave || null; },
+    end(fallback){ if(away){ hidden = true; apply(false); return; } hidden = false; if(!claimed && kind!=="general") fallback(); apply(want()); },
     hide(){ hidden = true; apply(false); },
     ping(){ const el = $("dock"), b = $("dockbtn"); if(el && el.hidden && b) b.classList.add("ping"); }
   };
-  document.addEventListener("click", e=>{ if(e.target.closest("#dockbtn")) D.open(); else if(e.target.closest("#dockclose")) D.close(); });
+  document.addEventListener("click", e=>{ if(e.target.closest("#dockbtn")) D.open(); else if(e.target.closest("#dockclose")) D.close(); else if(e.target.closest("#dockwide")) setWide(!isWide()); });
+  setTimeout(()=>setWide(isWide()), 0);
   window.addEventListener("resize", ()=>{ const el = $("dock"); if(el && !hidden) apply(!el.hidden); });
   return D;
 })();

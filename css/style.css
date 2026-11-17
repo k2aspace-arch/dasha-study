@@ -763,3 +763,13 @@ table.grades th:nth-child(n+6){white-space:nowrap}
 #profp details.more>summary{white-space:nowrap}
 #profp details.more .morebox{position:static;margin-top:8px;box-shadow:none;max-width:560px}
 .wcol select{font-size:13px;padding:4px 6px}
+body.dock-wide{--dockw:min(760px,52vw)}
+@media (max-width:1279px){ body.dock-wide .dock{width:min(760px,100vw)} }
+body.dock-wide #dockbody .tutorstage{height:160px}
+@media (max-width:600px){ #dockwide{display:none} }
+.tutormain .chat{min-height:220px;max-height:60vh}
+.goalp{display:grid;grid-template-columns:150px minmax(0,1fr);gap:20px;align-items:center}
+.goalart{color:var(--ink);background:var(--paper);border:1.5px dashed var(--line);border-radius:16px;padding:12px;display:grid;place-items:center}
+.goalart svg{width:100%;height:auto;display:block}
+.goaltxt h3{margin-top:0}
+@media (max-width:560px){ .goalp{grid-template-columns:90px minmax(0,1fr);gap:12px} .goalart{padding:6px} }

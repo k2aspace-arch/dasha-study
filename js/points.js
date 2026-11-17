@@ -167,7 +167,7 @@ function renderRewards(){
       <div class="count"><div class="big">${c.total}</div><div class="lbl">очков всего</div><div class="sm">считаются с ${DM.format(day(RULES.start))}</div></div>
       <div class="count"><div class="big">${c.state==="out"?0:c.streak}</div><div class="lbl">дней серия</div><div class="sm">лучшая: ${c.best}</div></div>
     </div></section>
-  <section class="panel"><h3>Главная цель: ноутбук</h3>
+  <section class="panel goalp"><div class="goalart"><svg viewBox="0 0 160 120" aria-hidden="true"><rect x="28" y="14" width="104" height="70" rx="6" fill="var(--card)" stroke="currentColor" stroke-width="4"/><rect x="36" y="22" width="88" height="54" rx="2" fill="var(--accent-soft)"/><path d="M50 60 l14-14 10 10 18-20 14 14" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="56" cy="36" r="5" fill="var(--accent)"/><path d="M12 88 h136 l-8 14 a6 6 0 0 1-5 3 H25 a6 6 0 0 1-5-3 Z" fill="var(--card)" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="66" y="92" width="28" height="5" rx="2.5" fill="currentColor"/></svg></div><div class="goaltxt"><h3>Главная цель: ноутбук</h3>
     <div class="subjrows">
       ${goalRow("Очки", c.total, RULES.goals.final)}
       ${goalRow("Пройдено программы", Math.round(prog*100), 90, Math.round(prog*100)+"%")}
@@ -178,11 +178,11 @@ function renderRewards(){
       ${[["math","Математика"],["rus","Русский"]].map(([e,n])=>`<div class="ogecnt"><b class="sm">${n}</b>${Object.entries(oc[e]).map(([k,v])=>`<span class="ogec ${v>=RULES.goals.ogeTask?"ok":""}" title="Задание ${k}: верно ${v} из последних 33"><i>${k}</i>${v}</span>`).join("")}</div>`).join("")}
     </details>
     <p class="hint">Ноутбук: аттестат с отличием (все пятёрки), ${RULES.goals.final} очков, 90% программы и у КАЖДОГО задания ОГЭ не меньше ${RULES.goals.ogeTask} верных из 33 последних решений (тренировки и пробные считаются вместе).</p>
-  </section>
-  <section class="panel"><h3>Цель: платье на выпускной</h3>
+  </div></section>
+  <section class="panel goalp"><div class="goalart"><svg viewBox="0 0 160 140" aria-hidden="true"><path d="M80 8 v10" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M80 18 c-10 0-14 8-14 8 h28 s-4-8-14-8z" fill="currentColor"/><path d="M62 26 l-6 4 6 30 h36 l6-30 -6-4 c-4 8-12 12-18 12 s-14-4-18-12z" fill="var(--accent-soft)" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M60 60 h40" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"/><circle cx="80" cy="60" r="5" fill="var(--accent)"/><path d="M62 64 C50 90 34 112 24 128 h112 C126 112 110 90 98 64 z" fill="var(--accent-soft)" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M70 70 C64 92 56 110 50 126 M90 70 C96 92 104 110 110 126 M80 68 v58" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" opacity=".7"/><path d="M118 30 l3 7 7 3 -7 3 -3 7 -3-7 -7-3 7-3z M36 40 l2 5 5 2 -5 2 -2 5 -2-5 -5-2 5-2z" fill="var(--accent)"/></svg></div><div class="goaltxt"><h3>Цель: платье на выпускной</h3>
     <div class="subjrows">${goalRow("Средний балл аттестата", avg ? Math.round(avg*100) : 0, 491, avg ? avg.toFixed(2).replace(".",",") + (avg>4.9?" · есть!":" из 4,91+") : "—")}</div>
     <p class="hint">Платье на выпускной: средний балл аттестата выше 4,9. Считается по годовым оценкам из таблицы на главной.</p>
-  </section>
+  </div></section>
   <section class="panel"><h3>Каждые 2 недели: подписка на фильмы и сериалы</h3><div class="rwgrid">${by("twoWeeks").map(card).join("")}</div></section>
   <section class="panel"><h3>Каждый месяц: выход на выбор</h3><div class="rwgrid">${by("month").map(card).join("")}</div></section>
   <section class="panel"><h3>Каждый триместр: абонемент</h3><p class="hint" style="margin-top:0">Если средний балл за триместр выше 4,9. Считается по итоговым оценкам за триместр из таблицы на главной.</p><div class="rwgrid">${by("quarter").map(card).join("")}</div></section>
