@@ -6,7 +6,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",
 const pl = (n,a,b,c) => { const m=Math.abs(n)%100, d=m%10; return `${n} ${m>10&&m<20?c:d===1?a:d>=2&&d<=4?b:c}` };
 const keysOf = b => b.groups.flatMap((g,gi)=>g.chapters.flatMap((c,ci)=>c.p.map((_,pi)=>`${b.id}.${gi}.${ci}.${pi}`)));
 const PDFLIB_URL = "js/vendor/pdf-lib.min.js";
-const NAV = [["home","Главная","⌂"],["board","Доска","✎"],["tutor","ИИ-учитель","?"],["stats","Статистика","▤"],["account","Личный кабинет","◉"]];
+const NAV = [["home","Главная","⌂"],["diary","Дневник","✓"],["oge","ОГЭ","★"],["rewards","Награды","♛"],["board","Доска","✎"],["tutor","ИИ-учитель","?"],["stats","Статистика","▤"],["account","Личный кабинет","◉"]];
 const LONG_DATE = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long"});
 
 /* ---------- данные ---------- */
@@ -74,6 +74,7 @@ function renderHome(){
   const fa = t => { const a = avg(g,t); return a ? a.toFixed(2).replace(".",",") : "—"; };
   $("main").innerHTML = `<div class="stack">
   <section class="panel"><div class="quoterow"><p class="quote" id="quote">${esc(q)}</p><button class="btn" id="nextq" type="button">Ещё фраза</button></div></section>
+  <section class="panel dadrow"><div><h3>Похвастаться успехами</h3><p class="hint">Учитель Клод напишет папе, чего ты добилась и над чем стоит ещё немного поработать.</p></div><button class="btn primary" type="button" data-dad>Рассказать папе о моих успехах</button></section>
   <section class="panel"><h3>Сколько осталось</h3>
     <div class="counts">${cnt.map(([n,l,s])=>`<div class="count"><div class="big">${Math.max(0,n)}</div><div class="lbl">${esc(l)}</div><div class="sm">${esc(s)}</div></div>`).join("")}</div>
     <p class="nowline">${esc(nowLine())}</p>
@@ -87,6 +88,7 @@ function renderHome(){
   </section>
   <section class="panel"><h3>Учебники</h3><div class="booklinks">${BOOKS.map(b=>`<a class="booklink" href="#${b.id}" style="--c:${b.color}"><b>${esc(b.subject)}</b><div class="bar"><i style="width:${pct(b)}%"></i></div><span class="sm">${pct(b)}% параграфов пройдено</span></a>`).join("")}</div></section>
   </div>`;
+  $("main").querySelector("[data-dad]").addEventListener("click", ()=>Points.openReport());
   $("nextq").addEventListener("click",()=>{ let n; do{ n = QUOTES[Math.floor(Math.random()*QUOTES.length)] }while(n===$("quote").textContent && QUOTES.length>1); $("quote").textContent = n; });
   $("main").querySelectorAll("select[data-g]").forEach(s=>s.addEventListener("change",()=>{
     const gg = S.grades(); gg.g[s.dataset.g] = Object.assign({}, gg.g[s.dataset.g]||{}, {[s.dataset.t]: s.value});
@@ -347,12 +349,14 @@ let pendingBoard = null;
 let chat = []; try{ chat = JSON.parse(localStorage.getItem("dasha:chat")||"[]") }catch(e){ chat = [] }
 const saveChat = () => { try{ localStorage.setItem("dasha:chat", JSON.stringify(chat.slice(-40).map(m=>({role:m.role, content:m.content, board:!!m.board})))) }catch(e){} };
 const SUBJ_ALL = GRADE_SUBJECTS.map(([id,n])=>[id,n]);
+let tutorAv = null;
 function renderTutor(){
   const ok = Store.aiAvailable();
   let subj = "algebra"; try{ subj = localStorage.getItem("dasha:subj") || "algebra" }catch(e){}
   $("main").innerHTML = `<section class="panel"><h2>ИИ-учитель</h2>
     <p class="hint" style="margin:0 0 14px">Объясняет темы, проверяет решения с доски и даёт задачи как в ОГЭ. Сначала подсказывает, а готовый ответ даёт, только если попросить.</p>
     ${ok ? "" : `<p class="note"><b>Пока не подключён.</b> ${Store.mode==="cloud" ? "Для ИИ-учителя нужен ключ Anthropic API на сервере. Остальные разделы работают." : "Сайт ещё не подключён к облаку, поэтому ИИ-учитель недоступен."}</p>`}
+    <div class="tutorstage" id="tutorstage"></div>
     <div class="chat" id="chatlog" aria-live="polite"></div>
     <form class="chatform" id="chatform">
       <div class="quick">
@@ -371,6 +375,9 @@ function renderTutor(){
       </div>
     </form></section>`;
   drawChat();
+  if(tutorAv) tutorAv.destroy();
+  tutorAv = Avatar.create($("tutorstage"), {compact:true}); tutorAv.start();
+  tutorAv.say(ok ? "Привет, Даша! Спрашивай, разберёмся вместе" : "Я пока не подключён, но скоро буду помогать", 5000);
   if(pendingBoard){ $("chatin").value = "Проверь моё решение на доске. Найди ошибки, но не решай за меня."; }
   $("main").querySelectorAll("[data-q]").forEach(b=>b.addEventListener("click",()=>{ $("chatin").value = b.dataset.q; if(b.dataset.q.includes("доске")) $("chatboard").checked = true; $("chatin").focus(); }));
   $("chatsubj").addEventListener("change",e=>{ try{ localStorage.setItem("dasha:subj", e.target.value) }catch(_){} });
@@ -388,6 +395,7 @@ function renderTutor(){
     pendingBoard = null;
     chat.push({role:"user", content:text, board:!!image, img:boardUrl}); $("chatin").value = ""; $("chatboard").checked = false;
     const thinking = {role:"assistant", content:"Думаю…", pending:true}; chat.push(thinking); drawChat();
+    if(tutorAv){ tutorAv.stop(); tutorAv.setMood("think"); tutorAv.say("Хм, сейчас подумаю…"); }
     $("chatsend").disabled = true;
     try{
       const msgs = chat.filter(m=>!m.pending && !m.err).slice(-16).map(m=>({role:m.role, content:m.content}));
@@ -395,6 +403,7 @@ function renderTutor(){
       const r = await Store.ask({ subject: subjName, messages: msgs, image });
       thinking.content = r.text || "Пустой ответ."; delete thinking.pending;
     }catch(err){ thinking.content = "Не получилось получить ответ: " + err.message; thinking.err = true; delete thinking.pending; }
+    if(tutorAv && tutorAv.el.isConnected){ tutorAv.setMood(thinking.err ? "squint" : "smile"); tutorAv.say(thinking.err ? "Ой, что-то пошло не так" : "Вот что я думаю!", 3000); setTimeout(()=>{ if(tutorAv){ tutorAv.setMood("idle"); tutorAv.start(); } }, 3000); }
     $("chatsend").disabled = false; saveChat(); drawChat();
   });
 }
@@ -434,7 +443,7 @@ function renderStats(){
   </svg>`;
   const a1 = avg(g,"t1"), aLast = avg(g,"t3") || avg(g,"t2") || a1;
   $("main").innerHTML = `<div class="stack">
-  <section class="panel"><h2>Статистика</h2>
+  <section class="panel"><div class="dadrow"><h2>Статистика</h2><button class="btn primary" type="button" data-dad>Рассказать папе о моих успехах</button></div>
     <div class="statnums" style="margin-top:14px">
       <div class="count"><div class="big">${doneKeys.length}</div><div class="lbl">параграфов пройдено</div><div class="sm">из ${all.length} во всех учебниках</div></div>
       <div class="count"><div class="big">${thisWeek}</div><div class="lbl">на этой неделе</div><div class="sm">отмечено галочкой</div></div>
@@ -444,6 +453,7 @@ function renderStats(){
   <section class="panel"><h3>Параграфы по неделям</h3><div class="chartbox">${svg}</div><p class="hint">Синий столбик показывает текущую неделю. Считаются галочки, поставленные на этом сайте.</p></section>
   <section class="panel"><h3>Прогресс по учебникам</h3><div class="subjrows">${BOOKS.map(b=>`<div class="subjrow" style="--c:${b.color}"><span>${esc(b.subject)}</span><div class="bar"><i style="width:${pct(b)}%"></i></div><span>${pct(b)}%</span></div>`).join("")}</div></section>
   </div>`;
+  $("main").querySelector("[data-dad]").addEventListener("click", ()=>Points.openReport());
 }
 
 /* ================= ВХОД ================= */
@@ -468,12 +478,15 @@ function renderLogin(){
 
 /* ================= МАРШРУТЫ ================= */
 async function route(){
-  if(Store.mode==="cloud" && !Store.user){ $("authbar").hidden = true; renderLogin(); return; }
+  if(Store.mode==="cloud" && !Store.user){ $("authbar").hidden = true; $("streakbar").hidden = true; renderLogin(); return; }
   $("authbar").hidden = false;
   $("whoami").textContent = Store.mode==="cloud" ? Store.user.email : "Данные хранятся только в этом браузере";
   $("logout").hidden = Store.mode!=="cloud";
   const id = (location.hash||"").slice(1) || "home";
   if(id !== "board") await flushBoard();
+  if(id !== "oge" && window.Oge) Oge.leave();
+  if(window.Points) Points.renderBar();
+  if(id !== "tutor" && tutorAv){ tutorAv.destroy(); tutorAv = null; }
   renderShelf(id);
   const b = BOOKS.find(x=>x.id===id), e = EMPTY.find(x=>x.id===id);
   if(b) return mountBook(b);
@@ -483,17 +496,21 @@ async function route(){
   if(id==="tutor") return renderTutor();
   if(id==="stats") return renderStats();
   if(id==="account") return renderAccount();
+  if(id==="diary") return Points.renderDiary();
+  if(id==="rewards") return Points.renderRewards();
+  if(id==="oge") return Oge.render();
   return renderHome();
 }
 
 $("logout").addEventListener("click", async()=>{ await flushBoard(); await Store.signOut(); route(); });
 window.addEventListener("hashchange", route);
 
-/* старт */
-(async()=>{
+/* старт: после загрузки всех скриптов (reader, avatar, points, oge) */
+const boot = async()=>{
   try{ await Store.init(); }catch(e){ console.error(e); }
   Store.onAuth = async u => { if(u){ try{ await Store.loadAll() }catch(e){} } loadDone(); route(); };
   Store.onSaveError = () => { const n = $("savewarn"); if(n){ n.hidden = false; setTimeout(()=>n.hidden = true, 6000); } };
   loadDone(); route();
-})();
+};
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();

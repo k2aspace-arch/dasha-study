@@ -25,11 +25,18 @@ const SYSTEM = `Ты терпеливый школьный учитель-реп
 - Если не уверена в факте или задаче, скажи об этом честно.
 - Отвечай только на учебные вопросы; на остальное мягко возвращай к учёбе.`;
 
+const REPORT = `Ты учитель Клод. Тебе дают данные об успехах ученицы 9 класса Даши (оценки по триместрам, контрольные, очки, серию занятий, прогресс по учебникам и подготовку к ОГЭ) в формате JSON.
+Напиши короткое тёплое сообщение её папе от имени учителя (6–10 предложений, обычный текст без Markdown).
+- Сначала искренне и конкретно похвали все достижения: пятёрки, рост оценок, серию занятий, решённые задания ОГЭ.
+- Потом очень деликатно назови 1–2 вещи, которые можно улучшить, и предложи, как папа может мягко поддержать. Никакой критики и давления.
+- Не выдумывай фактов, которых нет в данных. Если данных мало, так и скажи по-доброму.
+- Закончи благодарностью за поддержку.`;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Нужен POST" }, 405);
   try {
-    const { subject, messages, image } = await req.json();
+    const { subject, messages, image, mode } = await req.json();
     if (!Array.isArray(messages) || !messages.length) return json({ error: "Пустой вопрос" }, 400);
     const history: Anthropic.MessageParam[] = messages.slice(-16).map((m: { role: string; content: string }) => ({
       role: m.role === "assistant" ? "assistant" : "user",
@@ -46,7 +53,7 @@ Deno.serve(async (req) => {
     const response = await client.beta.messages.create({
       model: MODEL,
       max_tokens: 16000,
-      system: SYSTEM + (subject ? `\nСейчас она спрашивает по предмету: ${subject}.` : ""),
+      system: mode === "report" ? REPORT : SYSTEM + (subject ? `\nСейчас она спрашивает по предмету: ${subject}.` : ""),
       messages: history,
       output_config: { effort: "medium" },
       betas: ["server-side-fallback-2026-07-01"],
