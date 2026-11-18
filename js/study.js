@@ -185,7 +185,7 @@ function recoHome(){
   return `<section class="panel reco" id="reco"><h3>Рекомендации</h3>
     ${again.length || brief.length || oge.length ? `<div class="reco-cols">${col("Разобрать заново", again)}${col("Повторить", brief)}${oge.length?col("ОГЭ: потренировать", oge):""}</div><p class="hint">Это пройденные темы, где ответы на вопросы учителя, итоговые вопросы или срез знаний показали пробелы. Нажми на тему, и учитель начнёт сразу.</p>`
       : rated ? `<p class="hint">Слабых пройденных тем нет. Так держать!</p>`
-      : `<p class="hint">Пока пусто: знание тем заполняется только по ответам на вопросы. Пройди <a href="#account">срез знаний</a> по учебнику или поотвечай учителю в темах, и здесь появятся темы, которые стоит повторить.</p>`}</section>`;
+      : `<p class="hint">Пока пусто: знание тем заполняется только по ответам на вопросы. Пройди <a href="#account/books">срез знаний</a> по учебнику или поотвечай учителю в темах, и здесь появятся темы, которые стоит повторить.</p>`}</section>`;
 }
 
 /* ================= КАРТОЧКИ ПАРАГРАФОВ (индекс учебника) ================= */
@@ -290,23 +290,77 @@ const OGE_BOOKS = [
 // сборники ОГЭ по другим предметам: список предметов в Store "ogeExtra"
 const OGE_SKIP = ["rus","algebra","geometry","prob","pe","trud","nat"], OGE_COLORS = ["#0f766e","#7c3aed","#b45309","#be185d","#15803d","#1d4ed8","#9a3412","#4d7c0f","#6d28d9"];
 const ogeSubjects = () => GRADE_SUBJECTS.filter(([id])=>!OGE_SKIP.includes(id));
+// элемент списка: id предмета из GRADE_SUBJECTS или { id, name } для «другого» предмета
+const ogeItems = () => (Store.get("ogeExtra", {list:[]}).list || []).map(x=>typeof x==="string" ? { id:x, name:(ogeSubjects().find(y=>y[0]===x)||[])[1] } : x).filter(x=>x && x.id && x.name);
 function syncOge(){
-  const want = (Store.get("ogeExtra", {list:[]}).list || []).filter(id=>ogeSubjects().some(x=>x[0]===id));
+  const items = ogeItems(), want = items.map(x=>x.id);
   for(let i = OGE_BOOKS.length-1; i >= 2; i--) if(!want.includes(OGE_BOOKS[i].exam)) OGE_BOOKS.splice(i, 1);
-  want.forEach((id,i)=>{ if(OGE_BOOKS.some(b=>b.exam===id)) return; const n = ogeSubjects().find(x=>x[0]===id)[1];
+  want.forEach((id,i)=>{ if(OGE_BOOKS.some(b=>b.exam===id)) return; const n = items[i].name;
     OGE_BOOKS.push({ id:"oge-"+id, exam:id, extra:true, subject:`Сборник ОГЭ: ${n.toLowerCase()}`, name:n, title:`Сборник ОГЭ по предмету «${n}»`, color:OGE_COLORS[i % OGE_COLORS.length], groups:[] }); });
+}
+/* ---------- свои учебники и рабочие тетради: Store "myBooks" ---------- */
+const KINDS = [["book","Учебник"],["wb","Рабочая тетрадь"],["oge","Сборник ОГЭ"]];
+const EMPTY0 = (window.EMPTY || []).slice();
+const myBooks = () => (Store.get("myBooks", {list:[]}).list || []).filter(x=>x && x.id);
+function syncMyBooks(){
+  const list = myBooks(), ids = list.map(x=>x.id);
+  for(let i = BOOKS.length-1; i >= 0; i--) if(BOOKS[i].user && !ids.includes(BOOKS[i].id)){ const gone = BOOKS.splice(i, 1)[0], e = EMPTY0.find(x=>x.id===gone.id); if(e && !EMPTY.some(x=>x.id===e.id)) EMPTY.push(e); }
+  list.forEach(x=>{ const ei = EMPTY.findIndex(e=>e.id===x.id); if(ei >= 0) EMPTY.splice(ei, 1);
+    let b = BOOKS.find(y=>y.id===x.id);
+    if(!b){ b = { id:x.id, groups:[], approx:false }; BOOKS.push(b); }
+    Object.assign(b, { user:true, kind:x.kind, subject:x.subject, title:x.title || `${x.subject}. 9 класс`, authors:(KINDS.find(k=>k[0]===x.kind)||[,""])[1], color:x.color || b.color || "#5a5f73" }); });
+}
+// цвета учебников из настроек: Store "bookColors" { id: "#rrggbb" }
+function applyColors(){
+  const c = Store.get("bookColors", {}) || {};
+  BOOKS.concat(OGE_BOOKS).concat(EMPTY).forEach(b=>{ if(b._color === undefined) b._color = b.color; b.color = c[b.id] || b._color; });
+}
+const BCOLORS = ["#2a4fd6","#1d7fa8","#0f766e","#1f8a5a","#4d7c0f","#8a6d1f","#b45309","#c2410c","#be185d","#d23c3c","#7c3aed","#5a5f73"];
+function colorsPanel(){
+  const rows = BOOKS.concat(OGE_BOOKS).concat(EMPTY);
+  return `<section class="panel" id="colp"><h3>Цвета учебников</h3><p class="hint" style="margin-top:0">Цвет корешка на полке и полоски на страницах учебника.</p>
+    ${rows.map(b=>`<div class="colrow" style="--c:${b.color}"><span class="colname"><i></i>${esc(b.subject)}${b.user || b.title && b.subject!==b.title ? ` <span class="sm muted">${esc(b.title)}</span>` : ""}</span>
+      <span class="colsw">${BCOLORS.map(c=>`<button type="button" class="tpick" data-bcol="${b.id}" data-c="${c}" style="--sw:${c}" aria-pressed="${b.color===c}" title="${c}"><i class="tsw"></i></button>`).join("")}<input type="color" data-bcolin="${b.id}" value="${/^#[0-9a-f]{6}$/i.test(b.color)?b.color:"#5a5f73"}" aria-label="Свой цвет: ${esc(b.subject)}"></span></div>`).join("")}</section>`;
+}
+function bindColors(root, after){
+  const set = (id, c) => { const d = Object.assign({}, Store.get("bookColors", {}) || {}); d[id] = c; Store.set("bookColors", d, 0); applyColors(); after && after(); };
+  root.querySelectorAll("[data-bcol]").forEach(b=>b.addEventListener("click", ()=>set(b.dataset.bcol, b.dataset.c)));
+  root.querySelectorAll("[data-bcolin]").forEach(i=>i.addEventListener("change", ()=>set(i.dataset.bcolin, i.value)));
 }
 function ogeAddHtml(){
   const have = OGE_BOOKS.map(b=>b.exam), free = ogeSubjects().filter(([id])=>!have.includes(id));
-  if(!free.length) return "";
-  return `<section class="panel"><h3>Сборник ОГЭ по другому предмету</h3><p class="hint" style="margin-top:0">Появится в списке выше и на полке слева, с пробными вариантами из сборника.</p>
-    <div class="chatrow"><select id="ogeaddsel">${free.map(([id,n])=>`<option value="${id}">${esc(n)}</option>`).join("")}</select><button class="btn primary" type="button" id="ogeadd">Добавить сборник</button></div></section>`;
+  return `<section class="panel" id="adddoc"><h3>Добавить документ</h3><p class="hint" style="margin-top:0">Учебник, рабочая тетрадь или сборник ОГЭ. По одному предмету можно добавить несколько учебников. Документ появится в списке выше и на полке слева, PDF загружается в его строке.</p>
+    <div class="adddoc">
+      <label class="sm">Что это<select id="addkind">${KINDS.map(([id,n])=>`<option value="${id}">${n}</option>`).join("")}</select></label>
+      <label class="sm">Предмет<select id="addsubj"></select></label>
+      <label class="sm" id="addotherl" hidden>Название предмета<input id="addother" maxlength="40" placeholder="например, Астрономия"></label>
+      <label class="sm" id="addtitlel">Название (необязательно)<input id="addtitle" maxlength="80" placeholder="например, Русский язык. 9 класс, Бархударов"></label>
+      <button class="btn primary" type="button" id="ogeadd">Добавить</button>
+    </div><p class="status" id="addst" aria-live="polite"></p>
+    <template id="addsubjs-book">${GRADE_SUBJECTS.map(([id,n])=>`<option value="${id}">${esc(n)}</option>`).join("")}<option value="other">Другое…</option></template>
+    <template id="addsubjs-oge">${free.map(([id,n])=>`<option value="${id}">${esc(n)}</option>`).join("")}<option value="other">Другое…</option></template></section>`;
 }
 function bindOgeAdd(root, after){
-  const btn = root.querySelector("#ogeadd"); if(btn) btn.addEventListener("click", async()=>{ const id = root.querySelector("#ogeaddsel").value, d = Object.assign({list:[]}, Store.get("ogeExtra", {}));
-    if(!d.list.includes(id)) d.list = d.list.concat([id]); await Store.set("ogeExtra", d, 0); syncOge(); applyToc(); after && after("oge-"+id); });
+  const kind = root.querySelector("#addkind"); if(kind){
+    const subj = root.querySelector("#addsubj"), fill = () => { subj.innerHTML = root.querySelector(kind.value==="oge" ? "#addsubjs-oge" : "#addsubjs-book").innerHTML; root.querySelector("#addtitlel").hidden = kind.value==="oge"; other(); };
+    const other = () => { root.querySelector("#addotherl").hidden = subj.value!=="other"; };
+    kind.addEventListener("change", fill); subj.addEventListener("change", other); fill();
+    root.querySelector("#ogeadd").addEventListener("click", async()=>{ const st = root.querySelector("#addst"), k = kind.value, sid = subj.value, oname = root.querySelector("#addother").value.trim();
+      const name = sid==="other" ? oname : (GRADE_SUBJECTS.find(x=>x[0]===sid)||[])[1];
+      if(!name){ st.textContent = "Впиши название предмета."; return; }
+      if(k==="oge"){ const d = Object.assign({list:[]}, Store.get("ogeExtra", {})), id = sid==="other" ? "x" + Date.now().toString(36) : sid;
+        if(!d.list.some(x=>(x.id||x)===id)) d.list = d.list.concat([sid==="other" ? { id, name } : id]); await Store.set("ogeExtra", d, 0); syncOge(); applyColors(); applyToc(); after && after("oge-"+id); return; }
+      const title = root.querySelector("#addtitle").value.trim(), list = myBooks();
+      const id = sid!=="other" && EMPTY.some(e=>e.id===sid) && !BOOKS.some(b=>b.id===sid) ? sid : "u" + Date.now().toString(36);
+      const color = (EMPTY.find(e=>e.id===sid)||{}).color || BCOLORS[list.length % BCOLORS.length];
+      const kn = k==="wb" ? "Рабочая тетрадь" : "";
+      await Store.set("myBooks", { list: list.concat([{ id, kind:k, subj: sid==="other" ? "" : sid, subject:name, title: title || (kn ? `${name}. ${kn}` : `${name}. 9 класс`), color }]) }, 0);
+      syncMyBooks(); applyColors(); applyToc(); after && after(id); });
+  }
+  root.querySelectorAll("[data-mydrop]").forEach(b=>b.addEventListener("click", async()=>{ if(b.dataset.armed!=="1"){ b.dataset.armed = "1"; b.textContent = "Точно убрать? Нажми ещё раз"; return; }
+    const id = b.dataset.mydrop; await Store.set("myBooks", { list: myBooks().filter(x=>x.id!==id) }, 0); syncMyBooks(); applyColors(); after && after(); }));
   root.querySelectorAll("[data-ogedrop]").forEach(b=>b.addEventListener("click", async()=>{ const id = b.dataset.ogedrop, d = Object.assign({list:[]}, Store.get("ogeExtra", {}));
-    d.list = d.list.filter(x=>x!==id); await Store.set("ogeExtra", d, 0); syncOge(); after && after(); }));
+    d.list = d.list.filter(x=>(x.id||x)!==id); await Store.set("ogeExtra", d, 0); syncOge(); after && after(); }));
 }
 // где в сборнике ответы, инструкция и справочные материалы: по оглавлению (номера страниц как в книге)
 function ogeSections(b){
@@ -579,7 +633,7 @@ function drawMe(){
   const p = profile(), img = $("meimg"), ini = $("meinit");
   img.hidden = !p.photo; if(p.photo) img.src = p.photo; else img.removeAttribute("src");
   ini.hidden = !!p.photo; ini.textContent = ((p.name || (Store.user && Store.user.email) || "Даша").trim()[0] || "Д").toUpperCase();
-  a.classList.toggle("on", location.hash === "#account");
+  a.classList.toggle("on", location.hash.startsWith("#account"));
 }
 // результаты учёбы: обнуляются кнопкой «Обнулить результаты»
 const RESULT_KEYS = ["progress","grades","diary","tests","oge","ogeRes","ogeTests","quizzes","quizRes","act","bonuses","rewards","journal","know","cuts"];
@@ -677,7 +731,7 @@ async function renderAdmin(){
 
 function accountPanels(){ return profilePanel() + themePanel(); }
 function bindAccount(root){ bindProfile(root); bindTheme(root); }
-function apply(){ applyTheme(); syncOge(); applyToc(); drawMe(); }
+function apply(){ applyTheme(); syncOge(); syncMyBooks(); applyToc(); applyColors(); drawMe(); }
 
-window.Study = { ogeAutoPrep, ogeSections, ogeInfoRows, bindOgeInfo, ogeInfoFor, ogePage, syncOge, ogeAddHtml, bindOgeAdd, ogeKey, ogeVariants, ogeKeyRow, bindOgeKey, ogeSubjects, tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, idxButton, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
+window.Study = { syncMyBooks, applyColors, colorsPanel, bindColors, profilePanel, bindProfile, themePanel, bindTheme, ogeAutoPrep, ogeSections, ogeInfoRows, bindOgeInfo, ogeInfoFor, ogePage, syncOge, ogeAddHtml, bindOgeAdd, ogeKey, ogeVariants, ogeKeyRow, bindOgeKey, ogeSubjects, tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, idxButton, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
 })();

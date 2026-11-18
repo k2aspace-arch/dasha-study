@@ -82,7 +82,7 @@ function render(arg){
     <div class="crumbs"><a href="#${b.id}">${esc(b.subject)}</a> · ${esc(t.c.n)} ${esc(t.c.t)}</div>
     <h2>${t.ci+1}.${t.pi+1}. ${esc(t.title)}</h2>
     <div class="topic-row">
-      ${rg && file ? `<button class="btn primary" type="button" id="topen">Открыть учебник на стр. ${rg[0]}</button>` : file ? `<button class="btn primary" type="button" id="tbook">Открыть учебник</button><span class="sm">Страница темы не указана, <a href="#account">указать</a></span>` : `<a class="btn" href="#account">Загрузить учебник</a>`}
+      ${rg && file ? `<button class="btn primary" type="button" id="topen">Открыть учебник на стр. ${rg[0]}</button>` : file ? `<button class="btn primary" type="button" id="tbook">Открыть учебник</button><span class="sm">Страница темы не указана, <a href="#account/books">указать</a></span>` : `<a class="btn" href="#account/books">Загрузить учебник</a>`}
       ${testHtml(t)}
       <span class="knchip kn${k===undefined?"":k}" id="tknow" title="Заполняется по твоим ответам учителю, итоговым вопросам и срезу знаний">${k===undefined?"Знание: пока не проверено":"Знание: "+KNOW[k].toLowerCase()}</span>
     </div>
@@ -230,7 +230,7 @@ async function renderQuiz(arg){
     const topics = me.tp.map(pi=>t.c.p[pi]), pages = [], rg = one ? range(t) : null;
     if(hasFile(b)){ if(one){ if(rg) (await pagesFor(b, rg[0], rg[1], 4)).forEach(p=>pages.push(p)); }
       else for(let pi=0; pi<topics.length; pi++){ const st = pageOf(b, t.gi, t.ci, pi); if(st){ const got = await pagesFor(b, st, st+1, 2); got.forEach(p=>{ if(!pages.some(x=>x.n===p.n)) pages.push(p); }); } } }
-    if(!pages.length){ $("qbody").innerHTML = `<p class="note">Чтобы вопросы были строго по учебнику, укажи страницы ${one?"этой темы":"тем этой главы"} в <a href="#account">личном кабинете</a>.</p>`; me.av.setMood("squint"); me.av.say("Мне нужен учебник", 4000); return; }
+    if(!pages.length){ $("qbody").innerHTML = `<p class="note">Чтобы вопросы были строго по учебнику, укажи страницы ${one?"этой темы":"тем этой главы"} в <a href="#account/books">личном кабинете</a>.</p>`; me.av.setMood("squint"); me.av.say("Мне нужен учебник", 4000); return; }
     const r = await Store.ask({ mode:"quiz", subject:b.subject, topic:{ book:b.title, chapter:`${t.c.n} ${t.c.t}`, title: one ? t.title : t.c.t, topics }, pages: pages.slice(0, 10) });
     if(cur!==me) return;
     const qs = (parseJson(r.text).questions || []).filter(q=>q && q.q);

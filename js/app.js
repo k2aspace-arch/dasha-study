@@ -56,7 +56,7 @@ function renderShelf(cur){
     [["math","ОГЭ: математика","#2a4fd6"],["rus","ОГЭ: русский язык","#c2410c"]].concat(((window.Study && Study.OGE_BOOKS) || []).filter(b=>b.extra).map(b=>[b.exam, "ОГЭ: " + b.name.toLowerCase(), b.color])).map(([e,n,col])=>{ let p = 0; try{ if(e==="math"||e==="rus"){ const oc = Points.ogeCounts()[e]||{}, k = Object.keys(oc); p = k.length ? Math.round(100*k.reduce((a,x)=>a+Math.min(oc[x],30),0)/(30*k.length)) : 0; } else { const L = (Store.get("ogeTests",{list:[]}).list||[]).filter(t=>t.exam===e); p = L.length ? Math.round(100*Math.max(...L.map(t=>t.ptsMax ? t.pts/t.ptsMax : t.ok/t.n))) : 0; } }catch(_){}
       return `<a href="#oge/${e}" style="--c:${col}" ${cur==="oge-"+e?'aria-current="page"':''} title="Прогресс к цели 30 верных из 33 по каждому заданию"><span class="spine"></span><span class="nm">${n}</span><span class="pc">${p}%</span></a>`; }).join("") +
     `<div class="shelf-label">Учебники</div>` +
-    BOOKS.map(b=>`<a href="#${b.id}" style="--c:${b.color}" ${cur===b.id?'aria-current="page"':''}><span class="spine"></span><span class="nm">${esc(b.subject)}</span><span class="pc" data-pc="${b.id}">${pct(b)}%</span></a>`).join("") +
+    BOOKS.map(b=>`<a href="#${b.id}" style="--c:${b.color}" ${cur===b.id?'aria-current="page"':''}><span class="spine"></span><span class="nm">${esc(b.subject)}${b.kind==="wb" ? " · р/т" : ""}</span><span class="pc" data-pc="${b.id}">${pct(b)}%</span></a>`).join("") +
     `<div class="shelf-label">Ждут фото учебника</div>` +
     EMPTY.map(b=>`<a class="empty" href="#${b.id}" style="--c:${b.color}" ${cur===b.id?'aria-current="page"':''}><span class="spine"></span><span class="nm">${esc(b.subject)}</span></a>`).join("");
 }
@@ -158,7 +158,7 @@ function renderBook(b){
     <div class="progress"><div class="bar"><i id="bar"></i></div><span id="pcnt"></span></div>
     ${Study.bookKnowHtml(b)}
     ${file?`<div class="btnrow"><button class="btn primary" id="openbook" type="button">Открыть учебник</button></div>`
-      :`<p class="fileline">PDF учебника пока не загружен. Загрузить его и указать страницы можно в <a href="#account">личном кабинете</a>.</p>`}
+      :`<p class="fileline">PDF учебника пока не загружен. Загрузить его и указать страницы можно в <a href="#account/books">личном кабинете</a>.</p>`}
   </div><div class="chapters">`;
   b.groups.forEach((g,gi)=>{
     if(g.grade) html += `<div class="grade">${g.now?'<span class="tag">сейчас</span>':''}${esc(g.grade)}</div>`;
@@ -190,6 +190,8 @@ function mountBook(b){
   const openState = {}; main.querySelectorAll("details.ch").forEach(d=>openState[d.dataset.ch]=d.open);
   const same = curBook === b.id; curBook = b.id;
   main.innerHTML = renderBook(b); updateCounts(b);
+  if(!b.groups.length){ main.querySelector(".chapters").innerHTML = `<div class="placeholder"><p>Глав пока нет. Загрузи PDF в <a href="#account/books">личном кабинете</a> и нажми там «Взять главы и страницы из оглавления». Или сфотографируй оглавление ниже.</p></div>`;
+    main.insertAdjacentHTML("beforeend", Study.tocPanel(b.id)); Study.bindToc(main); }
   if(same) main.querySelectorAll("details.ch").forEach(d=>{ if(d.dataset.ch in openState) d.open = openState[d.dataset.ch]; });
   main.querySelectorAll("input[data-k]").forEach(cb=>cb.addEventListener("change",()=>{
     if(cb.checked) done[cb.dataset.k] = Date.now(); else delete done[cb.dataset.k];
@@ -205,18 +207,50 @@ function mountBook(b){
 function shareLine(b){
   if(Store.mode!=="cloud" || !Store.getShared) return "";
   const k = "book-"+b.id, sh = Store.getShared(k), own = Store.hasOwn(k), mine = Store.sharedMine(k);
-  if(!sh) return own ? `<p class="hint sm">Ты первая загрузила этот учебник: он станет доступен всем пользователям сайта.</p>` : "";
-  if(!own || mine) return `<p class="hint sm"><span class="chip">общий учебник</span> Им пользуются все. Можно загрузить свой PDF: тогда у тебя будет своя версия.</p>`;
+  if(!sh || !own || mine) return "";
   return `<p class="hint sm"><span class="chip warn">своя версия</span> У остальных общий учебник.
     <button class="btn" type="button" data-useshared="${b.id}">Вернуть общий</button> <button class="btn" type="button" data-pubshared="${b.id}">Сделать мою версию общей</button></p>`;
 }
 // учебники и сборники ОГЭ в одном списке кабинета
 const ACCB = () => BOOKS.concat(window.Study && Study.OGE_BOOKS ? Study.OGE_BOOKS : []);
+/* ---------- личный кабинет: профиль, «Учебники», «Настройки» ---------- */
+const ICON_BOOK = `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M8 9c5-2 11-2 16 2v29c-5-4-11-4-16-2z" fill="currentColor" opacity=".18"/><path d="M40 9c-5-2-11-2-16 2v29c5-4 11-4 16-2z" fill="currentColor" opacity=".32"/><path d="M8 9c5-2 11-2 16 2 5-4 11-4 16-2v29c-5-2-11-2-16 2-5-4-11-4-16-2zM24 11v29" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M12 16c3-1 6-1 8 .5M12 22c3-1 6-1 8 .5M28 16.5c2-1.5 5-1.5 8-.5M28 22.5c2-1.5 5-1.5 8-.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>`;
+const ICON_GEAR = `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M20.5 5h7l1.2 5.2a15 15 0 0 1 4 2.3l5.1-1.6 3.5 6-3.9 3.7a15 15 0 0 1 0 4.8l3.9 3.7-3.5 6-5.1-1.6a15 15 0 0 1-4 2.3L27.5 43h-7l-1.2-5.2a15 15 0 0 1-4-2.3l-5.1 1.6-3.5-6 3.9-3.7a15 15 0 0 1 0-4.8l-3.9-3.7 3.5-6 5.1 1.6a15 15 0 0 1 4-2.3z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="24" r="6.5" fill="none" stroke="currentColor" stroke-width="2.6"/></svg>`;
+const accBack = t => `<div class="accback"><a class="btn" href="#account">← Личный кабинет</a><h2>${esc(t)}</h2></div>`;
+function renderAccountHome(){
+  curBook = null;
+  const p = Store.get("profile", {}) || {}, cloud = Store.mode==="cloud";
+  $("main").innerHTML = `<div class="stack">
+  <section class="panel acchome"><div class="prof">
+    <a class="profpic" href="#account/profile" title="Настроить профиль">${p.photo?`<img src="${p.photo}" alt="Моё фото">`:`<span>${esc(((p.name||"Д")[0]||"Д").toUpperCase())}</span>`}</a>
+    <div class="profinfo"><h2 style="margin:0">${esc(p.name || "Личный кабинет")}</h2>
+      <p class="sm" style="margin:4px 0 0">${cloud ? esc(Store.user.email) : "Сайт работает без облака: всё хранится только в этом браузере."}</p>
+      <div class="accbtns"><a class="btn" href="#account/profile">Настроить профиль</a>${cloud?`<button class="btn" id="acclogout" type="button">Выйти</button>`:""}<a class="btn" href="#admin" id="adminlink" hidden>Админка</a></div>
+    </div></div></section>
+  <div class="acctiles">
+    <a class="acctile" href="#account/books" style="--c:#2a4fd6">${ICON_BOOK}<b>Учебники</b><span class="sm">PDF, оглавления, страницы, сборники ОГЭ, добавить документ</span></a>
+    <a class="acctile" href="#account/settings" style="--c:#5a5f73">${ICON_GEAR}<b>Настройки</b><span class="sm">Оформление, учитель, цвета учебников</span></a>
+  </div></div>`;
+  const lo = $("acclogout"); if(lo) lo.addEventListener("click", ()=>$("logout").click());
+  Study.drawMe();
+}
+function renderAccountProfile(){
+  curBook = null;
+  $("main").innerHTML = `<div class="stack">${accBack("Профиль")}${Study.profilePanel()}</div>`;
+  Study.bindProfile($("main")); Study.drawMe();
+}
+function renderAccountSettings(){
+  curBook = null;
+  $("main").innerHTML = `<div class="stack">${accBack("Настройки")}${Study.themePanel()}${Study.colorsPanel()}</div>`;
+  Study.bindTheme($("main"));
+  const again = () => { const y = window.scrollY; renderShelf("account"); const el = $("colp"); if(el){ el.outerHTML = Study.colorsPanel(); Study.bindColors($("main"), again); } window.scrollTo(0, y); };
+  Study.bindColors($("main"), again);
+}
 function renderAccount(openId){
   curBook = null;
-  const who = Store.mode==="cloud" ? `Ты вошла как <b>${esc(Store.user.email)}</b>.` : "Сайт работает без облака: всё хранится только в этом браузере.";
+  if(!/^#account\/books/.test(location.hash)) history.replaceState(null, "", "#account/books");
   $("main").innerHTML = `<div class="stack">
-  ${Study.accountPanels()}
+  ${accBack("Учебники")}
   <section class="panel"><h3>Учебники: PDF и страницы</h3><p class="hint" style="margin:0">Загрузи PDF каждого учебника и сборников ОГЭ и проверь страницы параграфов.</p></section>
   ${ACCB().map(b=>{ const m = S.book(b.id), file = hasFile(b), set = Object.keys(m.pages||{}).length, total = keysOf(b).length;
     return `<section class="panel acc-book" style="border-left:5px solid ${b.color}" data-book="${b.id}">
@@ -228,7 +262,7 @@ function renderAccount(openId){
         ${file?`<button class="btn" data-open="${b.id}" type="button">Открыть учебник</button><button class="btn" data-auto="${b.id}" type="button">Найти страницы тем автоматически</button>${b.exam?"":Study.idxButton(b)}`:""}
         <input type="file" id="file-${b.id}" accept="application/pdf,.pdf" hidden>
       </div>
-      ${shareLine(b)}
+      ${shareLine(b)}${b.user ? `<div class="btnrow"><button class="btn" type="button" data-mydrop="${b.id}">Убрать ${b.kind==="wb"?"рабочую тетрадь":"учебник"}</button></div>` : ""}
       ${b.exam ? Study.ogeKeyRow(b) + (hasFile(b) ? Study.ogeInfoRows(b) : "") : ""}
       <p class="status" id="status-${b.id}" aria-live="polite"></p>
       <details class="pages-ed" ${openId===b.id?"open":""}><summary class="btn ${file && total && keysOf(b).every(k=>(m.pages||{})[k]) ? "pgok" : ""}" style="display:inline-block;margin-top:6px" title="${file && total && keysOf(b).every(k=>(m.pages||{})[k]) ? "Страницы указаны у всех параграфов" : `Страницы указаны у ${set} из ${total}`}">${file && total && keysOf(b).every(k=>(m.pages||{})[k]) ? "✓ " : ""}Номера страниц параграфов</summary>
@@ -239,6 +273,7 @@ function renderAccount(openId){
       </details>
 </section>`; }).join("")}
   ${Study.ogeAddHtml()}
+  ${Store.mode==="cloud" ? `<p class="hint sm accfoot">Общие учебники: первый загруженный PDF учебника становится общим, им пользуются все. Можно загрузить свой PDF, тогда у тебя будет своя версия, а у остальных останется общий.</p>` : ""}
   </div>`;
   const main = $("main");
   main.querySelectorAll("[data-useshared]").forEach(btn=>btn.addEventListener("click", async()=>{ const id = btn.dataset.useshared;
@@ -252,8 +287,7 @@ function renderAccount(openId){
     fi.addEventListener("change",()=>{ const f = fi.files && fi.files[0]; fi.value = ""; sayTarget = "status-"+id;
       handleFile(b, f).catch(e=>{ console.error(e); say("Не получилось загрузить файл: " + upErr(e), true); }); });
   });
-  Study.bindAccount(main);
-  Study.bindOgeAdd(main, id=>{ renderShelf("account"); renderAccount(id); });
+  Study.bindOgeAdd(main, id=>{ renderShelf("account"); renderAccount(id); if(id){ const el = main.querySelector(`[data-book="${id}"]`); if(el) el.scrollIntoView({ block:"center" }); } });
   Study.bindOgeKey(main, id=>renderAccount(id));
   Study.bindOgeInfo(main, id=>renderAccount(id));
   main.querySelectorAll("[data-detoff]").forEach(btn=>btn.addEventListener("click", async()=>{ const b = ACCB().find(x=>x.id===btn.dataset.detoff); sayTarget = "status-"+b.id; btn.disabled = true; say("Сравниваю номера страниц в середине файла…");
@@ -688,6 +722,8 @@ async function routeInner(){
   if(eNb){ eNb.destroy(); eNb = null; }
   if(id.startsWith("t/")){ renderShelf(id.split("/")[1]); return Topic.render(id.slice(2)); }
   if(id.startsWith("oge/")){ const [, e, n] = id.split("/"); renderShelf("oge-"+e); return n ? Oge.openTask(e, Number(n)) : Oge.render(e); }
+  if(id.startsWith("account/")){ renderShelf("account"); const sub = id.slice(8); if(window.Points) Points.renderBar();
+    return sub==="books" ? renderAccount() : sub==="settings" ? renderAccountSettings() : sub==="profile" ? renderAccountProfile() : renderAccountHome(); }
   if(id.startsWith("cut/")){ renderShelf("account"); return Study.renderCut(id.slice(4)); }
   if(id.startsWith("q/")){ renderShelf(id.split("/")[1]); return Topic.renderQuiz(id.slice(2)); }
   if(window.Points) Points.renderBar();
@@ -701,7 +737,7 @@ async function routeInner(){
   if(id==="tutor") return renderTutor();
   if(id==="stats") return renderStats();
   if(id==="memos") return Study.renderMemos();
-  if(id==="account") return renderAccount();
+  if(id==="account") return renderAccountHome();
   if(id==="admin") return Study.renderAdmin();
   if(id==="diary") return Journal.renderDiary();
   if(id==="calendar") return Calendar.render();

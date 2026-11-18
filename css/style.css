@@ -908,3 +908,24 @@ body.is-login #main .panel{margin:6vh auto 0}
 .tpassed.big{font-size:1.1em;margin:0 0 10px}
 .tchk{display:inline-grid;place-items:center;flex:none;width:22px;height:22px;border-radius:50%;background:#1f8a5a;color:#fff;font-size:13px;font-weight:700;margin-left:6px}
 .chpass{flex:none;padding:2px 8px;border-radius:999px;background:#1f8a5a;color:#fff;font-size:.78em;font-weight:600;margin-left:6px}
+/* личный кабинет */
+.acchome .prof{align-items:center}
+.acchome a.profpic{text-decoration:none}
+.accbtns{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:12px}
+.accbtns .btn{min-width:210px;text-align:center}
+.acctiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.acctile{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:20px;border-radius:18px;border:1.5px solid var(--line);background:var(--card,var(--paper));color:var(--ink);text-decoration:none;transition:transform .15s,border-color .15s}
+.acctile:hover{transform:translateY(-2px);border-color:var(--c)}
+.acctile svg{width:56px;height:56px;color:var(--c)}
+.acctile b{font-size:1.25em}
+.accback{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.accback h2{margin:0}
+.accfoot{margin:4px 4px 0}
+.adddoc{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.adddoc label{display:flex;flex-direction:column;gap:4px;min-width:180px}
+.adddoc select,.adddoc input{font:inherit;padding:7px 9px;border-radius:9px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink)}
+.colrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:8px 0;border-top:1px solid var(--line)}
+.colname{flex:1;min-width:180px;display:flex;align-items:center;gap:8px}
+.colname i{width:10px;height:26px;border-radius:4px;background:var(--c);flex:none}
+.colsw{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.colsw input[type=color]{width:34px;height:30px;padding:0;border:1.5px solid var(--line);border-radius:8px;background:none}
