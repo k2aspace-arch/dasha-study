@@ -350,6 +350,7 @@ function renderMenu(only){
     return `<section class="panel oge-ex"><h3>${E.name} <span class="sm">· ${Object.keys(C).length} заданий, максимум ${total} баллов${id==="rus"?" + грамотность за изложение и сочинение":""}</span></h3>
       ${E.scale ? `<div class="ogescale"><span class="chip ok">«5» от ${E.scale[2][1]} баллов</span></div>` : ""}
       ${bookBlock(id)}
+      ${selfHtml(id)}
       ${hasBook(id) ? "" : `<button class="btn primary" type="button" data-test="${id}">${E.test.title}, ${E.test.min} минут</button>`}
       ${budgetHtml(id)}
       <div class="oge-types">${Object.entries(C).map(([n,[t,max]])=>{ const auto = !!E.tasks[n], c = (oc[id]||{})[n] || 0;
@@ -365,7 +366,7 @@ function renderMenu(only){
     </details></div>`;
   $("main").querySelectorAll("[data-train]").forEach(b=>b.addEventListener("click",()=>{ const [e,n] = b.dataset.train.split(":"); EXAMS[e].tasks[n] ? startTrain(e, Number(n)) : startPractice(e, Number(n)); }));
   $("main").querySelectorAll("[data-test]").forEach(b=>b.addEventListener("click",()=>startTest(b.dataset.test)));
-  bindBookBlock();
+  bindBookBlock(); bindSelf();
   $("main").querySelectorAll("[data-hdraft]").forEach(b=>b.addEventListener("click",()=>{ const ts = b.dataset.hdraft, row = $("main").querySelector(`[data-hrow="${ts}"]`); row.hidden = !row.hidden;
     if(!row.hidden){ const t = (Store.get("ogeTests",{list:[]}).list||[]).find(x=>String(x.ts)===ts); if(t) draftsInto($("main").querySelector(`[data-hbox="${ts}"]`), t); } }));
   purgeDrafts().catch(()=>{});
@@ -476,6 +477,11 @@ const exName = e => EXAMS[e] ? EXAMS[e].name : ((Study.OGE_BOOKS.find(b=>b.exam=
 const bookOf = e => Study.OGE_BOOKS.find(b=>b.exam===e);
 const hasBookTrial = e => { const b = bookOf(e); return !!(b && Study.ogeBook(e) && Study.ogeVariants(b).length); };
 const hasBook = e => !!Study.ogeBook(e);
+// «учиться самой по сборнику»: сборник открывается как учебник, задачу выделяешь рамкой и решаешь
+const selfHtml = exam => { const b = bookOf(exam); if(!b || !Study.ogeBook(exam)) return "";
+  return `<div class="selfbook"><button class="btn" type="button" data-selfbook="${exam}">✍ Учиться самой по сборнику</button><span class="sm">Листай сборник как учебник. Выбрала задачу — нажми в нём «✍ Выделить и решить» и обведи её рамкой.</span></div>${window.Solve ? Solve.listHtml(b.id, 10) : ""}`; };
+function bindSelf(){ $("main").querySelectorAll("[data-selfbook]").forEach(x=>x.addEventListener("click", ()=>{ const b = bookOf(x.dataset.selfbook); Reader.open(b, 0, "Сборник");
+  Study.Dock.tip(`Сборник открыт как учебник. Нашла задачу — нажми в нём <b>«✍ Выделить и решить»</b> и обведи её рамкой: задача встанет над черновиком, а учитель поможет и проверит. Решённые задачи запишутся со страницей и номером.`); })); }
 function bookBlock(exam){
   const b = bookOf(exam); if(!b) return "";
   if(!Study.ogeBook(exam)) return `<p class="hint">Загрузи сборник ОГЭ в <a href="#account/books">профиле</a>: пробные варианты будут из него, а учитель будет сверять ответы с ответами сборника.</p>`;
@@ -493,8 +499,8 @@ function bindBookBlock(){
 function renderOther(exam){
   if(session && session.audio) session.audio.pause(); clearInterval(timer); session = null; dropTeacher();
   $("main").innerHTML = `<div class="stack"><section class="panel"><h2>ОГЭ: ${esc(exName(exam).toLowerCase())}</h2><p class="hint" style="margin:6px 0 0">Пробные варианты из загруженного сборника. Условия читаешь в сборнике, ответы вписываешь здесь, и они сразу сверяются с ответами сборника. Развёрнутые задания можно показать учителю.</p></section>
-    <section class="panel oge-ex">${bookBlock(exam)}</section>${achMap(exam)}${historyHtml(exam)}</div>`;
-  bindBookBlock();
+    <section class="panel oge-ex">${bookBlock(exam)}${selfHtml(exam)}</section>${achMap(exam)}${historyHtml(exam)}</div>`;
+  bindBookBlock(); bindSelf();
   $("main").querySelectorAll("[data-hdraft]").forEach(b=>b.addEventListener("click",()=>{ const ts = b.dataset.hdraft, row = $("main").querySelector(`[data-hrow="${ts}"]`); row.hidden = !row.hidden;
     if(!row.hidden){ const t = (Store.get("ogeTests",{list:[]}).list||[]).find(x=>String(x.ts)===ts); if(t) draftsInto($("main").querySelector(`[data-hbox="${ts}"]`), t); } }));
 }
@@ -813,11 +819,10 @@ function review(exam, ts){
 function startPractice(exam, num){
   clearInterval(timer); session = { mode:"practice", exam, num, task:"" };
   const [t, max] = CAT[exam][num], long = exam==="rus" && (num===1 || num===13);
-  const book = Study.ogeBook(exam);
   $("main").innerHTML = `<div class="stack"><section class="panel oge-run"><div class="oge-top"><a href="#oge/${exam}" class="btn">← Все задания</a><b>${EXAMS[exam].name}, задание ${num}: ${esc(t)}</b><span class="chip ${max>1?"warn":""}">максимум ${pl(max,"балл","балла","баллов")}</span><span class="timer sw" id="ogesw" role="timer" title="Секундомер / целевое время с запасом"></span></div>
     <div class="swdyn" id="swdyn">${timeDyn(exam, num)}</div>
     ${critHtml(exam, num)}
-    <div class="btnrow">${Store.aiAvailable()?`<button class="btn primary" type="button" id="pgen">${exam==="rus"&&num===1?"Дай текст для изложения":"Дай задание"}</button>`:""}${book?`<button class="btn" type="button" id="pbook">Открыть сборник</button>`:""}</div>
+    <div class="btnrow">${Store.aiAvailable()?`<button class="btn primary" type="button" id="pgen">${exam==="rus"&&num===1?"Дай текст для изложения":"Дай задание"}</button>`:""}</div>
     <div id="ptask" class="oge-text"></div>
     <label class="oge-ans" style="display:block"><span class="sm">${long ? (num===1 ? "Текст для изложения (если взят из сборника) и твоё изложение" : "Условие и твоё сочинение") : "Условие (вставь или опиши) и твой ответ"}</span>
       <textarea id="pans" class="filltext" placeholder="${num===1 ? "Нажми «Дай текст для изложения»: его прочитает голос, два раза. Или вставь текст из сборника. Изложение пиши здесь или в тетради ниже." : "Можно писать здесь, а решение — в тетради ниже или на фото."}"></textarea></label>
@@ -825,7 +830,6 @@ function startPractice(exam, num){
     </section><section class="panel" id="ogeteach"></section></div>`;
   addInfo(exam); session.t0 = startSw(exam, num);
   mountTeacher(exam, num, () => `Условие: ${session && session.task ? session.task : "(ученица взяла задание из сборника, условие в её сообщении или на фото)"}`);
-  if($("pbook")) $("pbook").addEventListener("click", ()=>Reader.open(book, Study.ogePage(exam, num) || 0, `Сборник: ${EXAMS[exam].name}`));
   // изложение: текст не показываем, его читает голос (ElevenLabs), два раза, как на экзамене
   const listen = exam==="rus" && num===1;
   function listenPanel(){
@@ -891,5 +895,5 @@ function recheck(exam){
     n++; return Object.assign({}, t, { unchecked:false, per, ok, okAll:ok, pts:ok, ptsMax:all + longMax, n:all }); });
   if(n) Store.set("ogeTests", tl, 0); return n;
 }
-window.Oge = { recheck, review, render: renderMenu, openTask(e, n){ if(!CAT[e] || !CAT[e][n]) return renderMenu(e); EXAMS[e].tasks[n] ? startTrain(e, n) : startPractice(e, n); }, make, check, EXAMS, CAT, leave(){ if(session && session.audio) session.audio.pause(); clearInterval(timer); stopSw(); closeSide(); session = null; dropTeacher(); } };
+window.Oge = { recheck, review, TARGET, logTime, render: renderMenu, openTask(e, n){ if(!CAT[e] || !CAT[e][n]) return renderMenu(e); EXAMS[e].tasks[n] ? startTrain(e, n) : startPractice(e, n); }, make, check, EXAMS, CAT, leave(){ if(session && session.audio) session.audio.pause(); clearInterval(timer); stopSw(); closeSide(); session = null; dropTeacher(); } };
 })();

@@ -125,7 +125,7 @@
       if(error){
         let msg = "";
         try{ const j = await error.context.json(); msg = j.error || ""; }catch(e){}
-        if(msg === "Пустой вопрос" && ["tts","tocpages","anskey","transcribe","pagenum","ogecheck"].includes(payload.mode)) msg = "на сервере старая версия функции ИИ-учителя (tutor-for-dasha-study). Замени её код на новый (во второй строке openrouter-11) и нажми Deploy";
+        if(msg === "Пустой вопрос" && ["tts","tocpages","anskey","transcribe","pagenum","ogecheck"].includes(payload.mode)) msg = "на сервере старая версия функции ИИ-учителя (tutor-for-dasha-study). Замени её код на новый (во второй строке openrouter-12) и нажми Deploy";
         throw new Error(msg || error.message || "Ошибка ИИ");
       }
       return data;

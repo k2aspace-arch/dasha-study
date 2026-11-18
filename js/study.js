@@ -97,6 +97,14 @@ function marks(text){
   out.text = out.text.replace(/\[\[\s*(знание|баллы)\s*:[^\]]*\]\]/gi, "").trim();
   return out;
 }
+// две картинки (JPEG base64) одна под другой — в одну, потому что учителю уходит одна картинка
+async function stackImgs(a, b){
+  const load = s => new Promise((ok, no)=>{ const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = "data:image/jpeg;base64," + s; });
+  const [x, y] = await Promise.all([load(a), load(b)]), w = Math.min(1200, Math.max(x.naturalWidth, y.naturalWidth));
+  const hx = Math.round(x.naturalHeight * w / x.naturalWidth), hy = Math.round(y.naturalHeight * w / y.naturalWidth), c = document.createElement("canvas"); c.width = w; c.height = hx + 16 + hy;
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0,0,c.width,c.height); g.drawImage(x,0,0,w,hx); g.fillStyle = "#888"; g.fillRect(0,hx+7,w,2); g.drawImage(y,0,hx+16,w,hy);
+  return c.toDataURL("image/jpeg", 0.82).split(",")[1];
+}
 const Teacher = { mount(nbHost, o){
   const st = { chat:[], busy:false, photo:null, alive:true };
   const host = Dock.claim("oge", "Учитель Клод", o.title || "", null);
@@ -114,7 +122,7 @@ const Teacher = { mount(nbHost, o){
       <div class="chatrow"><button class="ibtn" type="button" data-photo title="Приложить фото" aria-label="Приложить фото">📷</button><span data-prev></span><span class="sm" data-st></span><span style="flex:1"></span><button class="ibtn" type="button" data-new title="Начать разговор заново" aria-label="Начать заново">↺</button><button class="btn primary" type="submit">Отправить</button></div></form></div>`;
   const q = s => host.querySelector(s);
   const av = Avatar.create(q("[data-av]"), {compact:true}); av.start();
-  const nb = Notebook.mount(nbHost, { bookId:o.nbBook, key:o.nbKey, ruled:o.ruled, title:o.title || "Тетрадь", sub:"Черновик для этого задания." });
+  const nb = Notebook.mount(nbHost, { bookId:o.nbBook, key:o.nbKey, ruled:o.ruled, title:o.title || "Тетрадь", sub:o.sub || "Черновик для этого задания." });
   const ai = Store.aiAvailable();
   if(!ai) host.querySelectorAll("[data-a],[type=submit]").forEach(b=>b.disabled = true);
   const draw = () => { const log = q("[data-log]"); if(!log) return;
@@ -129,6 +137,8 @@ const Teacher = { mount(nbHost, o){
     let image = null;
     if(st.photo){ image = st.photo.b64; st.photo = null; drawPhoto(); tag = (tag ? tag+" · " : "") + "📷 фото"; }
     else if(withWork && nb.hasInk()){ await nb.save(); image = nb.image(); tag = (tag ? tag+" · " : "") + "лист тетради"; }
+    // выделенная задача из книги: учитель видит её только вместе с вопросом или проверкой (картинка сверху, лист под ней)
+    if(o.fragment){ const f = o.fragment(); if(f){ image = image ? await stackImgs(f, image) : f; tag = (tag ? tag+" · " : "") + "задача из книги"; } }
     if(window.Points) Points.logAct();
     st.chat.push({ role:"user", content, tag }); const th = { role:"assistant", content:"Думаю…", pending:true }; st.chat.push(th); draw();
     st.busy = true; av.stop(); av.setMood("think"); av.say(mode==="draw" ? "Рисую…" : "Хм…");
@@ -138,6 +148,7 @@ const Teacher = { mount(nbHost, o){
       const m = marks(r && r.text || "Пустой ответ."); th.content = m.text; delete th.pending;
       if(m.score){ th.score = m.score; if(o.onScore) o.onScore(m.score[0], m.score[1]); }
       if(m.know && o.onKnow) o.onKnow(m.know);
+      if(o.onReply) o.onReply(tag || "", m.score || null);
       Dock.ping();
       if(st.alive){ av.setMood("smile"); av.say(m.score ? (m.score[0]>=m.score[1] ? "Максимум!" : "Почти, давай разберём") : "Вот!", 3000); }
     }catch(e){ th.content = "Не получилось получить ответ: " + e.message; th.err = true; delete th.pending; if(st.alive){ av.setMood("squint"); av.say("Ой, связь пропала", 3000); } }

@@ -720,6 +720,7 @@ async function routeInner(){
   if(id !== "tutor") await flushBoard();
   if(window.Oge) Oge.leave();
   if(window.Topic) Topic.leave();
+  if(window.Solve) Solve.leave();
   if(window.Study) Study.leaveCut();
   if(eNb){ eNb.destroy(); eNb = null; }
   if(id.startsWith("t/")){ renderShelf(id.split("/")[1]); return Topic.render(id.slice(2)); }
@@ -747,6 +748,7 @@ async function routeInner(){
   if(id==="schedule"){ location.replace("#diary"); return; }
   if(id==="rewards") return Points.renderRewards();
   if(id==="oge") return Oge.render();
+  if(id==="solve") return Solve.render();
   return renderHome();
 }
 

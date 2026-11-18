@@ -129,12 +129,13 @@ function setTool(t){
   R.tool = t;
   document.querySelectorAll("#reader [data-rtool]").forEach(x=>x.setAttribute("aria-pressed", x.dataset.rtool===t));
   $("rink").classList.toggle("drawing", t!=="view");
-  $("rink").classList.toggle("asking", t==="ask");
-  $("raskhint").hidden = t!=="ask";
+  $("rink").classList.toggle("asking", t==="ask" || t==="solve");
+  $("raskhint").hidden = t!=="ask" && t!=="solve";
+  $("raskhint").textContent = t==="solve" ? "Обведи рамкой задачу, которую хочешь решить: условие, рисунок и номер. Она встанет над черновиком, а учитель увидит её, только когда спросишь или попросишь проверить." : "Обведи рамкой непонятное место на странице: текст, формулу или рисунок. Учитель сразу возьмёт его в работу.";
 }
 // «❓ Непонятно»: рамка на странице → картинка фрагмента и текст из него уходят учителю
 async function askRect(a, b){
-  const page = $("rpage"), W = page.clientWidth, H = page.clientHeight;
+  const page = $("rpage"), W = page.clientWidth, H = page.clientHeight, kind = R.tool==="solve" ? "solve" : "ask";
   const x0 = Math.max(0, Math.min(a.x, b.x)), y0 = Math.max(0, Math.min(a.y, b.y)), x1 = Math.min(W, Math.max(a.x, b.x)), y1 = Math.min(H, Math.max(a.y, b.y));
   setTool("view");
   if(x1 - x0 < 14 || y1 - y0 < 14) return;
@@ -144,7 +145,7 @@ async function askRect(a, b){
   const c = out.getContext("2d"); c.fillStyle = "#fff"; c.fillRect(0, 0, out.width, out.height); c.drawImage(cv, sx, sy, sw, sh, 0, 0, out.width, out.height);
   const pr = page.getBoundingClientRect(), text = [...$("rtext").querySelectorAll("span")].filter(sp=>{ const r = sp.getBoundingClientRect(), cx = r.left - pr.left + r.width/2, cy = r.top - pr.top + r.height/2; return cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1; }).map(sp=>sp.textContent).join(" ").replace(/\s+/g, " ").trim().slice(0, 2000);
   const detail = { book: R.book, page: R.n, bookPage: toBook(R.book, R.n), image: out.toDataURL("image/jpeg", 0.85).split(",")[1], text };
-  window.dispatchEvent(new CustomEvent("reader:ask", { detail }));
+  window.dispatchEvent(new CustomEvent("reader:" + kind, { detail }));
 }
 function bindInk(){
   const cv = $("rink"); let drawing = false, last = null;
@@ -157,9 +158,9 @@ function bindInk(){
   const rect = $("rrect"); let askFrom = null;
   const ppos = ev => { const r = $("rpage").getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
   const drawRect = (a, b) => { rect.hidden = false; Object.assign(rect.style, { left: Math.min(a.x,b.x)+"px", top: Math.min(a.y,b.y)+"px", width: Math.abs(b.x-a.x)+"px", height: Math.abs(b.y-a.y)+"px" }); };
-  cv.addEventListener("pointerdown", ev=>{ if(R.tool!=="ask") return; ev.preventDefault(); ev.stopImmediatePropagation(); askFrom = ppos(ev); cv.setPointerCapture(ev.pointerId); drawRect(askFrom, askFrom); });
-  cv.addEventListener("pointermove", ev=>{ if(R.tool!=="ask" || !askFrom) return; ev.stopImmediatePropagation(); drawRect(askFrom, ppos(ev)); });
-  const askEnd = ev => { if(R.tool!=="ask" || !askFrom) return; ev.stopImmediatePropagation(); const a = askFrom; askFrom = null; const b = ppos(ev);
+  cv.addEventListener("pointerdown", ev=>{ if(R.tool!=="ask" && R.tool!=="solve") return; ev.preventDefault(); ev.stopImmediatePropagation(); askFrom = ppos(ev); cv.setPointerCapture(ev.pointerId); drawRect(askFrom, askFrom); });
+  cv.addEventListener("pointermove", ev=>{ if((R.tool!=="ask" && R.tool!=="solve") || !askFrom) return; ev.stopImmediatePropagation(); drawRect(askFrom, ppos(ev)); });
+  const askEnd = ev => { if((R.tool!=="ask" && R.tool!=="solve") || !askFrom) return; ev.stopImmediatePropagation(); const a = askFrom; askFrom = null; const b = ppos(ev);
     setTimeout(()=>{ rect.hidden = true; }, ev.type==="pointercancel" ? 0 : 1200); if(ev.type!=="pointercancel") askRect(a, b); };
   cv.addEventListener("pointerup", askEnd); cv.addEventListener("pointercancel", askEnd);
   cv.addEventListener("pointerdown", ev=>{ if(R.tool==="view") return; ev.preventDefault(); drawing = true; last = pos(ev);
@@ -229,7 +230,7 @@ function init(){
   bindInk(); bindResize(); setTool("view");
 }
 init();
-window.Reader = { open, close, minimize, restore, pageText, pageImage, toFile, toBook,
+window.Reader = { open, close, minimize, restore, pageText, pageImage, toFile, toBook, tool: setTool,
   state(){ return { book:R.book, n:R.n, open:!$("reader").hidden, min:!$("rtab").hidden, sel:R.sel } },
   clearSel(){ R.sel = null; fire(); },
   clearCache(){ Object.keys(docCache).forEach(k=>delete docCache[k]); } };
