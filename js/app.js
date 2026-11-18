@@ -343,7 +343,9 @@ async function tocPagesAi(b, from, to){
   say("Учитель читает оглавление…");
   const r = await Store.ask({ mode:"toc", images, text:`Учебник: ${b.subject}, ${b.title}, 9 класс.` });
   const t = String(r.text||""), a = t.indexOf("{"), z = t.lastIndexOf("}"); if(a<0 || z<a) throw new Error("учитель ответил не в том формате");
-  const chapters = (JSON.parse(t.slice(a, z+1)).chapters||[]).map(c=>({ title:String(c.title||"").trim(), topics:(c.topics||[]).filter(x=>x && String(x.title||"").trim()).map(x=>({ title:String(x.title).trim(), page:x.page })) })).filter(c=>c.title && c.topics.length);
+  // строка оглавления без подпунктов («Ответы … 239») становится главой с одной темой того же названия
+  const chapters = (JSON.parse(t.slice(a, z+1)).chapters||[]).map(c=>{ const title = String(c.title||"").trim(), topics = (c.topics||[]).filter(x=>x && String(x.title||"").trim()).map(x=>({ title:String(x.title).trim(), page:x.page }));
+    return { title, topics: topics.length ? topics : parseInt(c.page,10) > 0 ? [{ title, page:c.page }] : [] }; }).filter(c=>c.title && c.topics.length);
   if(!chapters.length) throw new Error("на этих страницах не нашлось оглавления. Проверь номера страниц");
   // главы строго как в книге: вся структура учебника заменяется оглавлением
   const gi = 0;

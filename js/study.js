@@ -370,7 +370,9 @@ function ogeSections(b){
   ents.sort((a,c)=>a.p-c.p);
   const last = (m.totalPages||0) - (Number(m.offset)||0), find = re => { const i = ents.findIndex(e=>re.test(e.t)); if(i<0) return null;
     const from = ents[i].p, nx = ents.slice(i+1).find(e=>e.p > from && !re.test(e.t)); return [from, Math.max(from, nx ? nx.p - 1 : last || from)]; };
-  return { key: find(/ответ/i), instr: find(/инструкци/i), ref: find(/справочн/i) };
+  // инструкция к работе = раздел «Инструкция…» и раздел «Система оценивания…» (оба, если есть)
+  const ins = find(/инструкци/i), score = find(/систем\S* оценивани|критери\S* оценивани/i);
+  return { key: find(/ответ/i), instr: ins || score, instr2: ins && score ? score : null, ref: find(/справочн/i) };
 }
 // инструкция по выполнению работы и справочные материалы сборника: ИИ переписывает их один раз в текст
 const INFO_KINDS = { instr:"Инструкция по выполнению работы", ref:"Справочные материалы" };
@@ -384,7 +386,7 @@ function bindOgeInfo(root, after){
       after && after(b.id); }
     catch(e){ say("Не получилось: " + e.message); btn.disabled = false; } }));
 }
-async function readInfo(b, k, from, to, say){
+async function readInfo(b, k, from, to, say, append){
   if(!(from > 0)) throw new Error("укажи страницы"); if(!(to >= from)) to = from; if(to - from > 11) to = from + 11;
   const m = S.book(b.id), total = m.totalPages || 999, off = Number(m.offset)||0, parts = [];
   for(let a = from; a <= to; a += 4){ const z = Math.min(to, a+3), images = [];
@@ -392,7 +394,8 @@ async function readInfo(b, k, from, to, say){
     for(let n = a; n <= z; n++) images.push(await Reader.pageImage(b, Math.max(1, Math.min(total, n + off)), 1400));
     const r = await Store.ask({ mode:"transcribe", images, text:`${INFO_KINDS[k]} из сборника «${b.title}». Страницы ${a}–${z}.` });
     parts.push(String(r.text||"").trim()); }
-  const inf = ogeInfo(b); inf[k] = { text: parts.join("\n\n"), pages:[from, to], ts:Date.now() }; await Store.set("oinfo-"+b.id, inf, 0);
+  const inf = ogeInfo(b), was = append && inf[k] && inf[k].text ? inf[k].text + "\n\n" : "";
+  inf[k] = { text: was + parts.join("\n\n"), pages:[from, to], ts:Date.now() }; await Store.set("oinfo-"+b.id, inf, 0);
 }
 // после оглавления сборника: ответы, инструкция и справочные материалы читаются сами, если они есть в оглавлении
 // если в оглавлении нет строк «Вариант N», ищем заголовки вариантов в тексте самого PDF
@@ -409,7 +412,7 @@ async function ogeAutoPrep(b, say){
   const sec = ogeSections(b), done = [];
   if(!ogeVariants(b).some(x=>x.page)){ const n = await findVariantPages(b, say).catch(()=>0); if(n) done.push(`страницы ${pl(n,"варианта","вариантов","вариантов")} по тексту сборника`); }
   if(sec.key){ try{ const n = await readKey(b, sec.key[0], Math.min(sec.key[1], sec.key[0]+39), say); if(n) done.push(`ответы к ${pl(n,"варианту","вариантам","вариантам")}`); }catch(e){ console.warn(e); } }
-  for(const k of ["instr","ref"]) if(sec[k]){ try{ await readInfo(b, k, sec[k][0], sec[k][1], say); done.push(INFO_KINDS[k].toLowerCase()); }catch(e){ console.warn(e); } }
+  for(const k of ["instr","ref"]) if(sec[k]){ try{ await readInfo(b, k, sec[k][0], sec[k][1], say); if(k==="instr" && sec.instr2) await readInfo(b, k, sec.instr2[0], sec.instr2[1], say, true); done.push(k==="instr" && (sec.instr2 || /оценив/i.test(String(sec.instrT||""))) ? "инструкция и система оценивания" : INFO_KINDS[k].toLowerCase()); }catch(e){ console.warn(e); } }
   return done;
 }
 // для заданий: текст инструкции/справки по экзамену
@@ -435,7 +438,7 @@ function ogeVariants(b){
 function ogeKeyRow(b){
   if(!(S.book(b.id).chunks && S.book(b.id).chunks.length)) return b.extra ? `<div class="btnrow"><button class="btn" type="button" data-ogedrop="${b.exam}">Убрать сборник</button></div>` : "";
   const vs = Object.keys(ogeKey(b).v), inf = ogeInfo(b), chip = (ok, t) => `<span class="chip ${ok?"ok":""}">${ok?"✓ ":""}${t}</span>`;
-  return `<div class="chatrow okeyrow"><span class="sm">Из оглавления:</span>${chip(vs.length, vs.length ? `ответы к ${pl(vs.length,"варианту","вариантам","вариантам")}` : "ответы")}${chip(inf.instr && inf.instr.text, "инструкция")}${chip(inf.ref && inf.ref.text, "справочные материалы")}
+  return `<div class="chatrow okeyrow"><span class="sm">Из оглавления:</span>${chip(vs.length, vs.length ? `ответы к ${pl(vs.length,"варианту","вариантам","вариантам")}` : "ответы")}${chip(inf.instr && inf.instr.text, "инструкция")}${inf.ref && inf.ref.text || ogeSections(b).ref ? chip(inf.ref && inf.ref.text, "справочные материалы") : ""}
     ${!vs.length ? `<span class="sm">Читаются сами, когда нажмёшь «Взять главы и страницы из оглавления».</span>` : ""}${b.extra ? `<button class="btn" type="button" data-ogedrop="${b.exam}">Убрать сборник</button>` : ""}</div>`;
 }
 async function readKey(b, from, to, say){
