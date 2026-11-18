@@ -270,7 +270,7 @@ async function reportCanvas(text){
   for(let y = top - LH + 14; y < H - 20; y += LH){ x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke(); }
   x.strokeStyle = "#e7a3a3"; x.lineWidth = 3; x.beginPath(); x.moveTo(ML - 24, 0); x.lineTo(ML - 24, H); x.stroke();
   // шапка, как в дневнике
-  x.fillStyle = "#6a6a7a"; x.font = `600 26px "Golos Text", sans-serif`; x.fillText("ДНЕВНИК  ·  Dasha’s study", ML, 60);
+  x.fillStyle = "#6a6a7a"; x.font = `600 26px "Golos Text", sans-serif`; x.fillText("ДНЕВНИК  ·  " + (window.Study && Study.siteTitle ? Study.siteTitle() : "Dasha’s study"), ML, 60);
   x.fillStyle = ink; x.font = `700 40px ${HAND}`;
   const date = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long"}).format(new Date());
   x.textAlign = "right"; x.fillText(date, W - PR, 120); x.textAlign = "left";

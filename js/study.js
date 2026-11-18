@@ -422,7 +422,16 @@ function renderMemos(){
 /* ================= ВСЁ ВМЕСТЕ ================= */
 /* ================= ПРОФИЛЬ: фото, вход, сброс ================= */
 const profile = () => Object.assign({ photo:"", name:"" }, Store.get("profile", {}));
+// название сайта по имени: Даша → Dasha’s study, Дима → Dima’s study
+const TR = {а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"yo",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"kh",ц:"ts",ч:"ch",ш:"sh",щ:"shch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya"};
+function siteTitle(){
+  const n = (profile().name || "").trim().split(/\s+/)[0] || "Даша";
+  const lat = [...n.toLowerCase()].map(ch=>TR[ch] ?? ch).join("").replace(/[^a-z'-]/g,"");
+  const nm = lat ? lat[0].toUpperCase() + lat.slice(1) : "Dasha";
+  return `${nm}’s study`;
+}
 function drawMe(){
+  const t = siteTitle(), h = $("sitetitle"); if(h && h.textContent !== t) h.textContent = t; if(document.title !== t) document.title = t;
   const a = $("mebtn"); if(!a) return;
   a.hidden = Store.mode==="cloud" && !Store.user;
   const p = profile(), img = $("meimg"), ini = $("meinit");
@@ -528,5 +537,5 @@ function accountPanels(){ return profilePanel() + bonusPanel() + knowPanel() + t
 function bindAccount(root){ bindProfile(root); bindBonus(root); bindKnow(root); bindToc(root); bindOgeBooks(root, ()=>{ location.hash = "#account"; window.dispatchEvent(new HashChangeEvent("hashchange")); }); bindTheme(root); }
 function apply(){ applyTheme(); applyToc(); drawMe(); }
 
-window.Study = { drawMe, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
+window.Study = { drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
 })();
