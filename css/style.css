@@ -933,3 +933,20 @@ body.is-login #main .panel{margin:6vh auto 0}
 .draftclose{margin-left:auto}
 .ogecomm td{font-size:.9em;color:var(--muted,#777);padding-top:0;border-top:0}
 .draftcap{margin:6px 2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* админка: активность */
+.admrep{margin:18px 0}
+.admrep h4{margin:18px 0 6px}
+.admstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.admstats>div{border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.admstats b{font-size:1.5em}
+.admstats span{font-size:.82em;color:var(--muted,#777)}
+.admchart{width:100%;height:auto;max-height:220px;display:block}
+.admchart .axis{stroke:var(--line);stroke-width:1}
+.admchart .bp{fill:#1f8a5a;opacity:.8}
+.admchart .bm{fill:#d23c3c;opacity:.8}
+.admchart .od{fill:#2a4fd6;stroke:#fff;stroke-width:1.5}
+.admchart text{font-size:10px;fill:currentColor;opacity:.6}
+.pplus{color:#1f8a5a}
+.pminus{color:#d23c3c}
+.admtbl td.pm{font-family:var(--f-mono,monospace);letter-spacing:1px;white-space:nowrap}
+.admtbl tr.am-idle td{opacity:.6}

@@ -65,9 +65,11 @@ const ogeLog = () => Object.assign({a:[]}, Store.get("oge", {}));   // a: [ts, e
 const claims = () => Object.assign({c:{}}, Store.get("rewards", {}));
 
 /* ---------- расчёт очков по дням ---------- */
-function compute(){
-  const D = diary().days, O = ogeLog().a, done = App.done, g = S.grades().g;
-  const J = Object.assign({grades:[], abs:[], imports:[], hw:[]}, Store.get("journal", {})), A = Object.assign({d:{}}, Store.get("act", {})).d;
+// src (необязательно): данные другого пользователя для админки { get(key, def) }
+function compute(src){
+  const G = src ? src.get : (k, d) => Store.get(k, d);
+  const O = Object.assign({a:[]}, G("oge", {})).a, done = src ? (G("progress", {}) || {}).done || {} : App.done, g = src ? (G("grades", null) || {g:{}}).g : S.grades().g;
+  const J = Object.assign({grades:[], abs:[], imports:[], hw:[]}, G("journal", {})), A = Object.assign({d:{}}, G("act", {})).d;
   const today = todayIso(), byDay = {};
   const add = (d, pts, why, early) => { if(d < (early ? RULES.journalStart : RULES.start)) return; (byDay[d] = byDay[d] || {pts:0, items:[], active:false}).pts += pts; byDay[d].items.push([why, pts]); };
   const act = d => { (byDay[d] = byDay[d] || {pts:0, items:[], active:false}).active = true; };
@@ -76,8 +78,8 @@ function compute(){
   const ogeByDay = {};
   O.forEach(([ts,, , ok])=>{ const d = iso(new Date(ts)); if(ok){ ogeByDay[d] = (ogeByDay[d]||0)+1; } });
   Object.entries(ogeByDay).forEach(([d,n])=>{ add(d, n*RULES.ogeOk, `ОГЭ: ${pl(n,"задание","задания","заданий")}`); if(n>=3) act(d); });
-  (Store.get("ogeTests",{list:[]}).list||[]).forEach(t=>{ add(iso(new Date(t.ts)), RULES.ogeTest, "Пробный вариант ОГЭ"); act(iso(new Date(t.ts))); });
-  (Store.get("quizzes",{list:[]}).list||[]).forEach(q=>{ const d = iso(new Date(q.ts)); add(d, RULES.quiz + (q.ok===q.n ? 5 : 0), "Итоговые вопросы по главе"); act(d); });
+  (G("ogeTests",{list:[]}).list||[]).filter(t=>!t.pending).forEach(t=>{ add(iso(new Date(t.ts)), RULES.ogeTest, "Пробный вариант ОГЭ"); act(iso(new Date(t.ts))); });
+  (G("quizzes",{list:[]}).list||[]).forEach(q=>{ const d = iso(new Date(q.ts)); add(d, RULES.quiz + (q.ok===q.n ? 5 : 0), "Итоговые вопросы по главе"); act(d); });
   const sn = id => (GRADE_SUBJECTS.find(x=>x[0]===id)||[,id])[1];
   (J.grades||[]).forEach(x=>{ const tbl = x.kind==="test" ? RULES.test : x.kind==="current" ? RULES.cur : null; if(!tbl) return; const p = tbl[x.mark]; if(p!==undefined) add(x.date, p, `${x.kind==="test"?"Контрольная":"Оценка"} (${sn(x.subj)}): ${x.mark}`, true); });
   [...new Set((J.abs||[]).filter(a=>a.reason==="absent").map(a=>a.date))].forEach(d=>add(d, RULES.absent, "Пропуск без причины (Н)", true));

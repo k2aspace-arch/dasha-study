@@ -723,8 +723,10 @@ async function renderAdmin(){
       <div class="morebox"><b class="sm">Вернуть данные на момент</b><div class="chatrow"><input type="datetime-local" id="admat" value="${local}"><button class="btn primary" type="button" id="admrest">Восстановить</button></div>
         <b class="sm">Восстановить доступ: новый пароль</b><div class="chatrow"><input id="admpass" placeholder="новый пароль" minlength="6"><button class="btn" type="button" id="admsetpass">Задать</button></div>
         <p class="status" id="admst" aria-live="polite"></p></div>
+      ${activityReport(Object.fromEntries(docs.map(x=>[x.key, x.value])), hist)}
+      <details class="plain"><summary class="btn">Технические данные и журнал изменений</summary>
       <h4>Данные сейчас (${docs.length})</h4>${docs.map(x=>`<details class="plain"><summary class="sm"><b>${esc(x.key)}</b> · ${new Date(x.updated_at).toLocaleString("ru-RU")}</summary><pre class="admjson">${esc(JSON.stringify(x.value, null, 1).slice(0, 20000))}</pre></details>`).join("")}
-      <h4>История изменений (${hist.length})</h4><div class="sm admhist">${hist.slice(0,200).map(x=>`<div>${new Date(x.changed_at).toLocaleString("ru-RU")} · ${esc(x.op)} · ${esc(x.key)}</div>`).join("")}</div>`;
+      <h4>История изменений (${hist.length})</h4><div class="sm admhist">${hist.slice(0,200).map(x=>`<div>${new Date(x.changed_at).toLocaleString("ru-RU")} · ${esc(x.op)} · ${esc(x.key)}</div>`).join("")}</div></details>`;
     const st = t => $("admst").textContent = t;
     $("admrest").addEventListener("click", async()=>{ const at = $("admat").value; if(!at) return; st("Восстанавливаю…");
       try{ const r = await Store.admin({ action:"restore", user:u.id, at:new Date(at).toISOString() }); st(r.error ? r.error : `Готово: восстановлено ${r.restored||0}, удалено ${r.removed||0}.`); }catch(e){ st(e.message); } });
@@ -733,9 +735,69 @@ async function renderAdmin(){
   }
 }
 
+/* ---------- админка: активность и польза занятий, по-человечески ---------- */
+function activityReport(V, hist){
+  const get = (k, d) => V[k] !== undefined && V[k] !== null ? V[k] : d;
+  let P = { byDay:{}, total:0, streak:0, best:0 }; try{ P = Points.compute({ get }); }catch(e){ console.warn(e); }
+  const iso = d => { const x = new Date(d); return new Date(x.getTime() - x.getTimezoneOffset()*60000).toISOString().slice(0,10); };
+  const today = iso(Date.now()), dayList = []; for(let i = 29; i >= 0; i--) dayList.push(iso(Date.now() - i*864e5));
+  const O = (get("oge", {a:[]}).a || []), T = (get("ogeTests", {list:[]}).list || []).filter(t=>!t.pending), Q = get("quizzes", {list:[]}).list || [], TT = get("topicTests", {}) || {};
+  const done = (get("progress", {}).done) || {}, know = (get("know", {k:{}}).k) || {}, J = Object.assign({hw:[], grades:[]}, get("journal", {})), A = (get("act", {d:{}}).d) || {};
+  const edits = {}; (hist||[]).forEach(h=>{ const d = iso(h.changed_at); edits[d] = (edits[d]||0) + 1; });
+  const ogeDay = {}; O.forEach(([ts,,,ok])=>{ const d = iso(ts), r = ogeDay[d] = ogeDay[d] || [0,0]; r[1]++; if(ok) r[0]++; });
+  const DM = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short",weekday:"short"});
+  // что сделано за день: группируем начисления
+  const what = d => { const r = P.byDay[d]; const g = {}; (r ? r.items : []).forEach(([w,p])=>{ const k = w.replace(/\d+ (день|дня|дней) подряд/,"серия").replace(/^ОГЭ: .*/,"ОГЭ"); (g[k] = g[k] || {n:0,p:0,w}).n++; g[k].p += p; });
+    return Object.values(g).map(x=>`${esc(x.w)}${x.n>1?` ×${x.n}`:""} <span class="${x.p>=0?"pplus":"pminus"}">${x.p>0?"+":""}${x.p}</span>`).join(", "); };
+  const active = d => (P.byDay[d] && P.byDay[d].active) || (A[d]||0) > 0 || ogeDay[d];
+  const last14 = dayList.slice(-14), act14 = last14.filter(active).length, pts14 = last14.reduce((a,d)=>a+((P.byDay[d]||{}).pts||0),0);
+  const o14 = last14.reduce((a,d)=>{ const r = ogeDay[d]; return r ? [a[0]+r[0], a[1]+r[1]] : a; }, [0,0]);
+  // график: очки за день (столбики) и доля верных заданий ОГЭ (точки)
+  const W = 600, H = 150, bw = W / dayList.length, vals = dayList.map(d=>(P.byDay[d]||{}).pts||0), mx = Math.max(10, ...vals.map(Math.abs)), zero = H*0.62, sc = (H*0.55)/mx;
+  const chart = `<svg class="admchart" viewBox="0 0 ${W} ${H+18}" role="img" aria-label="Очки по дням за 30 дней">
+    <line x1="0" x2="${W}" y1="${zero}" y2="${zero}" class="axis"/>
+    ${dayList.map((d,i)=>{ const v = vals[i], h = Math.abs(v)*sc, y = v>=0 ? zero-h : zero; return `<rect x="${i*bw+2}" y="${y}" width="${bw-4}" height="${Math.max(h, v?1:0)}" class="${v>=0?"bp":"bm"}"><title>${d}: ${v>0?"+":""}${v} очков</title></rect>`; }).join("")}
+    ${dayList.map((d,i)=>{ const r = ogeDay[d]; if(!r) return ""; const y = 6 + (1 - r[0]/r[1]) * (zero - 12); return `<circle cx="${i*bw+bw/2}" cy="${y}" r="4" class="od"><title>${d}: ОГЭ верно ${r[0]} из ${r[1]}</title></circle>`; }).join("")}
+    ${dayList.map((d,i)=>i%5===0||i===dayList.length-1 ? `<text x="${i*bw+bw/2}" y="${H+14}" text-anchor="middle">${d.slice(8)}.${d.slice(5,7)}</text>` : "").join("")}
+  </svg><p class="sm muted" style="margin:2px 0 0">Столбики — очки за день (зелёные плюс, красные минус). Точки — доля верных заданий ОГЭ в этот день: чем выше, тем лучше.</p>`;
+  const dayRows = dayList.slice().reverse().filter(d=>active(d) || (P.byDay[d] && P.byDay[d].items.length) || edits[d]).map(d=>{ const r = P.byDay[d] || {pts:0}, og = ogeDay[d];
+    return `<tr class="${active(d)?"":"am-idle"}"><td>${DM.format(new Date(d+"T12:00"))}</td><td><b class="${r.pts>=0?"pplus":"pminus"}">${r.pts>0?"+":""}${r.pts}</b></td><td>${og ? `${og[0]} из ${og[1]}` : "—"}</td><td>${A[d] ? A[d] : "—"}</td><td class="sm">${what(d) || (edits[d] ? `изменений в данных: ${edits[d]}` : "—")}</td></tr>`; }).join("");
+  // ОГЭ по заданиям: последние 10 решений плюсом и минусом
+  const CATS = (window.Oge && Oge.CAT) || {}, byTask = {};
+  O.forEach(([ts, e, n, ok])=>{ const k = e+":"+n; (byTask[k] = byTask[k] || []).push(ok ? 1 : 0); });
+  const taskRows = Object.entries(byTask).sort((a,b)=>a[0].localeCompare(b[0], "ru", {numeric:true})).map(([k, a])=>{ const [e, n] = k.split(":"), ok = a.reduce((x,y)=>x+y,0), l10 = a.slice(-10), p5 = a.slice(-5), b5 = a.slice(-10,-5);
+    const tr = b5.length ? (p5.reduce((x,y)=>x+y,0)/p5.length) - (b5.reduce((x,y)=>x+y,0)/b5.length) : 0;
+    return `<tr><td>${e==="math"?"Математика":e==="rus"?"Русский":esc(e)}</td><td>№${n} ${esc(((CATS[e]||{})[n]||[""])[0])}</td><td>${a.length}</td><td><b>${Math.round(100*ok/a.length)}%</b></td><td class="pm">${l10.map(x=>x?`<span class="pplus">+</span>`:`<span class="pminus">−</span>`).join("")}</td><td>${tr>0.05?`<span class="pplus">↑ лучше</span>`:tr<-0.05?`<span class="pminus">↓ хуже</span>`:"—"}</td></tr>`; }).join("");
+  const trialRows = T.slice().reverse().slice(0, 20).map(t=>`<tr><td>${new Date(t.ts).toLocaleDateString("ru-RU")}</td><td>${esc(t.exam==="math"?"Математика":t.exam==="rus"?"Русский":t.exam)}${t.variant?`, вариант ${esc(t.variant)}`:""}</td><td><b>${t.pts ?? t.ok}/${t.ptsMax ?? t.n}</b></td><td>${(t.ptsMax||t.n) ? Math.round(100*(t.pts ?? t.ok)/(t.ptsMax||t.n)) + "%" : "—"}</td><td>${(t.empty||[]).length || "—"}</td><td>${t.spent!==undefined?`${t.spent} мин`:"—"}</td></tr>`).join("");
+  // по предметам
+  const books = BOOKS.concat(OGE_BOOKS.filter(b=>!b.exam)), subjRows = BOOKS.map(b=>{ const keys = []; (b.groups||[]).forEach((g,gi)=>g.chapters.forEach((c,ci)=>c.p.forEach((_,pi)=>keys.push(`${b.id}.${gi}.${ci}.${pi}`))));
+    const d = keys.filter(k=>done[k]).length, tt = keys.filter(k=>TT[k]), tp = tt.filter(k=>TT[k].pass).length, kn = keys.map(k=>know[k]).filter(x=>x!==undefined), weak = kn.filter(x=>x<=1).length;
+    const qz = Q.filter(q=>String(q.key).startsWith(b.id+".")), qa = qz.length ? Math.round(100*qz.reduce((a,q)=>a+q.ok/q.n,0)/qz.length) : null;
+    const hw = (J.hw||[]).filter(h=>h.subj===b.id), hwd = hw.filter(h=>h.done).length, gr = (J.grades||[]).filter(x=>x.subj===b.id).map(x=>Number(x.mark)).filter(x=>x>=2), ga = gr.length ? (gr.reduce((a,x)=>a+x,0)/gr.length).toFixed(1).replace(".",",") : "—";
+    if(!d && !tt.length && !kn.length && !qz.length && !hw.length && !gr.length) return "";
+    return `<tr><td>${esc(b.subject)}</td><td>${d} из ${keys.length}</td><td>${tt.length ? `${tp} из ${tt.length}` : "—"}</td><td>${qa===null?"—":qa+"%"}</td><td>${kn.length ? `${kn.length} тем${weak?`, <span class="pminus">слабых ${weak}</span>`:""}` : "—"}</td><td>${hw.length ? `${hwd} из ${hw.length}` : "—"}</td><td>${ga}</td></tr>`; }).join("");
+  void books;
+  return `<section class="admrep"><h3>Активность и результаты</h3>
+    <div class="admstats">
+      <div><b>${act14}</b><span>активных дней из 14</span></div>
+      <div><b class="${pts14>=0?"pplus":"pminus"}">${pts14>0?"+":""}${pts14}</b><span>очков за 14 дней</span></div>
+      <div><b>${P.total}</b><span>очков всего</span></div>
+      <div><b>${P.streak}</b><span>дней серии, рекорд ${P.best}</span></div>
+      <div><b>${o14[1] ? Math.round(100*o14[0]/o14[1])+"%" : "—"}</b><span>ОГЭ верно за 14 дней (${o14[0]} из ${o14[1]})</span></div>
+      <div><b>${T.length}</b><span>пробных ОГЭ</span></div>
+      <div><b>${Object.values(TT).filter(x=>x.pass).length}</b><span>тем освоено по тесту</span></div>
+      <div><b>${Object.values(done).filter(x=>Number(x)>1e12).length}</b><span>параграфов пройдено</span></div>
+    </div>
+    <h4>Динамика за 30 дней</h4>${chart}
+    <h4>По дням</h4>${dayRows ? `<div class="tablewrap"><table class="grades admtbl"><thead><tr><th>День</th><th>Очки</th><th>ОГЭ верно</th><th>Учитель</th><th>Что сделано</th></tr></thead><tbody>${dayRows}</tbody></table></div>` : `<p class="hint">За 30 дней занятий нет.</p>`}
+    <h4>По предметам</h4>${subjRows ? `<div class="tablewrap"><table class="grades admtbl"><thead><tr><th>Предмет</th><th>Параграфы</th><th>Тесты по темам</th><th>Итоговые по главам</th><th>Знание тем</th><th>Домашка</th><th>Ср. оценка</th></tr></thead><tbody>${subjRows}</tbody></table></div>` : `<p class="hint">Пока пусто.</p>`}
+    <h4>ОГЭ по заданиям</h4>${taskRows ? `<div class="tablewrap"><table class="grades admtbl"><thead><tr><th>Экзамен</th><th>Задание</th><th>Решено</th><th>Верно</th><th>Последние 10</th><th>Динамика</th></tr></thead><tbody>${taskRows}</tbody></table></div>` : `<p class="hint">Заданий ОГЭ ещё не было.</p>`}
+    <h4>Пробные ОГЭ</h4>${trialRows ? `<div class="tablewrap"><table class="grades admtbl"><thead><tr><th>Дата</th><th>Экзамен</th><th>Баллы</th><th>%</th><th>Не решено</th><th>Время</th></tr></thead><tbody>${trialRows}</tbody></table></div>` : `<p class="hint">Пробных ещё не было.</p>`}
+  </section>`;
+}
 function accountPanels(){ return profilePanel() + themePanel(); }
 function bindAccount(root){ bindProfile(root); bindTheme(root); }
 function apply(){ applyTheme(); syncOge(); syncMyBooks(); applyToc(); applyColors(); drawMe(); }
 
-window.Study = { ogeReadKey: async (b, say) => { const sec = ogeSections(b); if(!sec.key) return 0; return readKey(b, sec.key[0], Math.min(sec.key[1], sec.key[0]+39), say); }, syncMyBooks, applyColors, colorsPanel, bindColors, profilePanel, bindProfile, themePanel, bindTheme, ogeAutoPrep, ogeSections, ogeInfoRows, bindOgeInfo, ogeInfoFor, ogePage, syncOge, ogeAddHtml, bindOgeAdd, ogeKey, ogeVariants, ogeKeyRow, bindOgeKey, ogeSubjects, tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, idxButton, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
+window.Study = { activityReport, ogeReadKey: async (b, say) => { const sec = ogeSections(b); if(!sec.key) return 0; return readKey(b, sec.key[0], Math.min(sec.key[1], sec.key[0]+39), say); }, syncMyBooks, applyColors, colorsPanel, bindColors, profilePanel, bindProfile, themePanel, bindTheme, ogeAutoPrep, ogeSections, ogeInfoRows, bindOgeInfo, ogeInfoFor, ogePage, syncOge, ogeAddHtml, bindOgeAdd, ogeKey, ogeVariants, ogeKeyRow, bindOgeKey, ogeSubjects, tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, idxButton, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
 })();
