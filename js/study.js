@@ -302,21 +302,20 @@ function bindOgeBooks(root, after){
 }
 
 /* ================= ЗНАНИЯ ПО УЧЕБНИКАМ (кабинет) ================= */
-function knowPanel(){
-  const kd = Topic.know().k;
-  return `<section class="panel" id="knowp"><h3>Знания по учебникам</h3>
-    <p class="hint">Знание каждой темы сначала пустое и заполняется только по ответам: вопросы учителя в теме, итоговые вопросы по главе и срез знаний. Карточки параграфов помогают учителю знать, что объясняется в учебнике, какие примеры разобраны и какие упражнения уже решали в классе и дома.</p>
-    <div class="knowrows">${BOOKS.map(b=>{ const all = topicsOf(b), ci = classIdx(b), rated = all.filter(t=>kd[t.key]!==undefined).length, cards = Object.keys(idx(b.id).k).length, file = S.book(b.id).chunks && S.book(b.id).chunks.length;
-      return `<div class="knowrow" style="--c:${b.color}"><div class="kh"><b>${esc(b.subject)}</b><span class="sm">оценено ${rated} из ${all.length} тем · карточек ${cards}</span></div>
-        <label class="sm">Сейчас в классе<select data-classat="${b.id}"><option value="">${ci>=0?"по отметкам «пройдено»":"— не выбрано —"}</option>${all.map((t,i)=>`<option value="${t.key}" ${classAt()[b.id]===t.key?"selected":""}>${t.ci+1}.${t.pi+1}. ${esc(t.title.slice(0,60))}</option>`).join("")}</select></label>
-        <div class="chatrow"><a class="btn primary" href="#cut/${b.id}">Срез знаний</a><button class="btn" type="button" data-idx="${b.id}" ${file && Store.aiAvailable()?"":"disabled"} title="${file?"":"Сначала загрузи PDF"}">${cards?"Дополнить карточки":"Составить карточки параграфов"}</button></div>
-        <p class="status" id="status-idx-${b.id}" aria-live="polite"></p></div>`; }).join("")}</div></section>`;
+// знания по учебнику: в разделе самого учебника (выставляются учителем автоматически по ответам)
+function bookKnowHtml(b){
+  const kd = Topic.know().k, all = topicsOf(b), ci = classIdx(b), rated = all.filter(t=>kd[t.key]!==undefined).length, cards = Object.keys(idx(b.id).k).length, file = S.book(b.id).chunks && S.book(b.id).chunks.length;
+  return `<div class="knowrow bookknow" style="--c:${b.color}"><div class="kh"><b>Знания</b><span class="sm">учитель оценил ${rated} из ${all.length} тем · карточек параграфов ${cards}</span></div>
+    <p class="sm" style="margin:0">Уровень знания каждой темы выставляет учитель сам: по ответам в теме, итоговым вопросам и срезу знаний.</p>
+    <label class="sm">Сейчас в классе<select data-classat="${b.id}"><option value="">${ci>=0?"по отметкам «пройдено»":"— не выбрано —"}</option>${all.map(t=>`<option value="${t.key}" ${classAt()[b.id]===t.key?"selected":""}>${t.ci+1}.${t.pi+1}. ${esc(t.title.slice(0,60))}</option>`).join("")}</select></label>
+    <div class="chatrow"><a class="btn primary" href="#cut/${b.id}">Срез знаний</a><button class="btn" type="button" data-idx="${b.id}" ${file && Store.aiAvailable()?"":"disabled"} title="${file?"Учитель один раз прочитает учебник: что объясняется, какие примеры и упражнения на каких страницах":"Сначала загрузи PDF"}">${cards?"Дополнить карточки параграфов":"Составить карточки параграфов"}</button></div>
+    <p class="status" id="status-idx-${b.id}" aria-live="polite"></p></div>`;
 }
 function bindKnow(root){
   root.querySelectorAll("[data-classat]").forEach(s=>s.addEventListener("change", ()=>{ const d = classAt(); if(s.value) d[s.dataset.classat] = s.value; else delete d[s.dataset.classat]; Store.set("classAt", d, 0); }));
   root.querySelectorAll("[data-idx]").forEach(btn=>btn.addEventListener("click", ()=>{ const b = BOOKS.find(x=>x.id===btn.dataset.idx), st = $("status-idx-"+b.id);
     if(building){ building.stop = true; return; }
-    btn.textContent = "Остановить"; buildIndex(b, t=>{ if(st) st.textContent = t; }, true).finally(()=>{ if(btn.isConnected) btn.textContent = "Дополнить карточки"; }); }));
+    btn.textContent = "Остановить"; buildIndex(b, t=>{ if(st) st.textContent = t; }, true).finally(()=>{ if(btn.isConnected) btn.textContent = "Дополнить карточки параграфов"; }); }));
 }
 
 /* ================= СРЕЗ ЗНАНИЙ ================= */
@@ -542,9 +541,9 @@ async function renderAdmin(){
   }
 }
 
-function accountPanels(){ return profilePanel() + knowPanel() + tocPanel() + `<section class="panel"><h3>Сборники ОГЭ</h3><p class="hint">Загрузи сборник ФИПИ в PDF, и его можно открыть рядом с любым заданием ОГЭ, а учитель проверит решение по критериям.</p>${ogeBooksHtml()}</section>` + themePanel(); }
-function bindAccount(root){ bindProfile(root); bindKnow(root); bindToc(root); bindOgeBooks(root, ()=>{ location.hash = "#account"; window.dispatchEvent(new HashChangeEvent("hashchange")); }); bindTheme(root); }
+function accountPanels(){ return profilePanel() + tocPanel() + `<section class="panel"><h3>Сборники ОГЭ</h3><p class="hint">Загрузи сборник ФИПИ в PDF, и его можно открыть рядом с любым заданием ОГЭ, а учитель проверит решение по критериям.</p>${ogeBooksHtml()}</section>` + themePanel(); }
+function bindAccount(root){ bindProfile(root); bindToc(root); bindOgeBooks(root, ()=>{ location.hash = "#account"; window.dispatchEvent(new HashChangeEvent("hashchange")); }); bindTheme(root); }
 function apply(){ applyTheme(); applyToc(); drawMe(); }
 
-window.Study = { applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
+window.Study = { bookKnowHtml, bindKnow, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
 })();

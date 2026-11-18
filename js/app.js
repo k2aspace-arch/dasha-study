@@ -156,6 +156,7 @@ function renderBook(b){
     <div class="chips"><span class="chip">${pl(b.groups.reduce((a,g)=>a+g.chapters.length,0),"глава","главы","глав")} · ${pl(total,"параграф","параграфа","параграфов")}</span>
       ${b.approx?'<span class="chip warn">Оглавление приблизительно</span>':'<span class="chip ok">Оглавление по учебнику</span>'}</div>
     <div class="progress"><div class="bar"><i id="bar"></i></div><span id="pcnt"></span></div>
+    ${Study.bookKnowHtml(b)}
     ${file?`<div class="btnrow"><button class="btn primary" id="openbook" type="button">Открыть учебник</button></div>`
       :`<p class="fileline">PDF учебника пока не загружен. Загрузить его и указать страницы можно в <a href="#account">личном кабинете</a>.</p>`}
   </div><div class="chapters">`;
@@ -168,7 +169,7 @@ function renderBook(b){
         c.p.map((p,pi)=>{
           const k=`${b.id}.${gi}.${ci}.${pi}`, id=k.replace(/\./g,'-'), pg = m.pages[k];
           const right = pg && file ? `<button class="pg" type="button" data-page="${pg}">стр. ${pg}</button>` : "";
-          return `<li><label><input type="checkbox" id="cb-${id}" data-k="${k}" ${done[k]?"checked":""}><span class="box"></span><span class="pn">${ci+1}.${pi+1}</span></label><a class="pt tlink" href="#t/${b.id}/${gi}.${ci}.${pi}">${esc(p)}</a>${right}</li>`;
+          return `<li><label><input type="checkbox" id="cb-${id}" data-k="${k}" ${done[k]?"checked":""}><span class="box"></span><span class="pn">${ci+1}.${pi+1}</span></label><a class="pt tlink" href="#t/${b.id}/${gi}.${ci}.${pi}">${esc(p)}</a>${(()=>{ const v = Topic.know().k[k]; return v===undefined ? "" : `<span class="knchip kn${v}" title="Знание темы, по ответам учителю">${esc(Topic.KNOW[v])}</span>`; })()}${right}</li>`;
         }).join("") + `</ol><div class="chacts"><a class="btn" href="#t/${b.id}/${gi}.${ci}.0">Начать главу с учителем</a><a class="btn" href="#q/${b.id}/${gi}.${ci}">Итоговые вопросы по главе</a></div></details>`;
     });
   });
@@ -196,6 +197,7 @@ function mountBook(b){
   main.querySelectorAll("button[data-page]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(b, Number(btn.dataset.page), btn.closest("li").querySelector(".pt").textContent)));
   main.querySelectorAll("button[data-chpage]").forEach(btn=>btn.addEventListener("click",e=>{ e.preventDefault(); e.stopPropagation(); Reader.open(b, Number(btn.dataset.chpage), btn.dataset.chtitle); }));
   const ob = $("openbook"); if(ob) ob.addEventListener("click",()=>Reader.open(b, 0, ""));
+  Study.bindKnow(main);
 }
 
 /* ================= ЛИЧНЫЙ КАБИНЕТ ================= */
@@ -232,10 +234,7 @@ function renderAccount(openId){
         ${b.groups.map((g,gi)=>g.chapters.map((c,ci)=>`<div class="grade chrow" style="padding-left:0"><span style="flex:1;min-width:0">${esc(c.n)} ${esc(c.t)}</span><input class="pgin" type="number" min="1" max="999" data-cpk="${gi}.${ci}" value="${(m.chapterPages||{})[gi+"."+ci]||""}" placeholder="стр." aria-label="Страница главы: ${esc(c.t)}"></div><ol class="paras" style="padding:0 0 6px">${
           c.p.map((p,pi)=>{ const k=`${b.id}.${gi}.${ci}.${pi}`; return `<li><span class="pn">${ci+1}.${pi+1}</span><span class="pt" style="flex:1;min-width:0">${esc(p)}</span><input class="pgin" type="number" min="1" max="999" id="pg-${k.replace(/\./g,'-')}" data-pk="${k}" value="${m.pages[k]||""}" placeholder="стр." aria-label="Страница: ${esc(p)}"></li>`; }).join("")}</ol>`).join("")).join("")}
       </details>
-      <details class="pages-ed know-ed"><summary class="btn" style="display:inline-block;margin-top:6px">Как знаю темы (по ответам)</summary>
-        ${b.groups.map((g,gi)=>g.chapters.map((c,ci)=>`<div class="grade chrow" style="padding-left:0">${esc(c.n)} ${esc(c.t)}</div><ol class="paras" style="padding:0 0 6px">${
-          c.p.map((p,pi)=>{ const k=`${b.id}.${gi}.${ci}.${pi}`, v = Topic.know().k[k]; return `<li><span class="pn">${ci+1}.${pi+1}</span><a class="pt tlink" href="#t/${b.id}/${gi}.${ci}.${pi}" style="flex:1;min-width:0">${esc(p)}</a><span class="knchip kn${v===undefined?"":v}">${v===undefined?"пока не проверено":esc(Topic.KNOW[v])}</span></li>`; }).join("")}</ol>`).join("")).join("")}
-      </details></section>`; }).join("")}
+</section>`; }).join("")}
   </div>`;
   const main = $("main");
   main.querySelectorAll("[data-useshared]").forEach(btn=>btn.addEventListener("click", async()=>{ const id = btn.dataset.useshared;
