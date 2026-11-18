@@ -630,7 +630,7 @@ function saveResult(s, rows, ts, extra){
     ok: rows.filter(r=>r.state==="ok" && r.inTime).length, okAll: rows.filter(r=>r.state==="ok").length, n: rows.length, answered: rows.filter(r=>r.v.trim()).length, late: rows.filter(r=>r.v.trim() && !r.inTime).length, pts, ptsMax,
     notes: Object.fromEntries(rows.filter(r=>r.comment).map(r=>[r.i, r.comment])),
     // всё для разбора пробного: ответ, верный ответ, баллы, после времени; у пробного с сайта — и условие
-    rows: rows.map(r=>({ i:r.i, num:r.num, v:r.v, right: r.right !== undefined ? r.right : (r.t && r.t.a !== undefined ? shown(r.t) : undefined), score:r.score, max:r.max, state:r.state, long:!!r.long, late: !!(r.v && r.v.trim()) && !r.inTime && !r.long, blank:!!r.clean, draft:!!r.draft,
+    rows: rows.map(r=>({ i:r.i, num:r.num, v:r.v, right: r.right !== undefined ? r.right : (r.t && r.t.a !== undefined ? shown(r.t) : undefined), score:r.score, max:r.max, state:r.state, long:!!r.long, late: !!(r.v && r.v.trim()) && !r.inTime && !r.long, blank:!!r.clean, draft:!!r.draft, old: r.old || undefined,
       q: s.mode==="test" && r.t ? r.t.q : undefined, opts: s.mode==="test" && r.t ? r.t.opts : undefined, note: s.mode==="test" && r.t ? r.t.note : undefined })) }));
   Store.set("ogeTests", tl, 0);
   return tl.list.find(t=>t.ts===ts);
@@ -781,25 +781,46 @@ function review(exam, ts){
   const late = rows.filter(r=>r.late);
   const head = `${esc(exName(exam))}${t.variant ? `: вариант ${esc(t.variant)}` : ": пробный вариант"}`;
   $("main").innerHTML = `<section class="panel oge-run review"><div class="oge-top"><a href="#oge/${exam}" class="btn">← К ОГЭ</a><b>${head}</b><span class="chip ${t.pts!==undefined && fullMax(t) && t.pts/fullMax(t) >= .5 ? "ok" : ""}">${t.pts!==undefined ? `${t.pts} из ${fullMax(t)} баллов` : `${t.ok} из ${t.n}`}</span>
-      ${page ? `<button class="btn" type="button" id="revbook" title="Сборник откроется справа">📖 Сборник, стр. ${page} ⇥</button>` : ""}${rows.some(r=>r.right!==undefined) ? `<button class="btn" type="button" id="revkey" aria-pressed="false" title="Ответы этого варианта справа, экран делится пополам">🔑 Ответы варианта ⇥</button>` : ""}</div>
+      ${page ? `<button class="btn" type="button" id="revbook" title="Сборник откроется справа">📖 Сборник, стр. ${page} ⇥</button>` : ""}${b && t.variant && (rows.some(r=>r.right!==undefined && String(r.right).trim()) || Study.ogeSections(b).key) ? `<button class="btn" type="button" id="revkey" aria-pressed="false" title="Ответы этого варианта справа, экран делится пополам">🔑 Ответы варианта ⇥</button>` : ""}</div>
     <p class="sm" style="margin:0 0 10px">${D.format(new Date(t.ts))}${t.spent!==undefined ? ` · решала ${t.spent} из ${t.limit} мин` : ""}${t.answered!==undefined ? ` · вписано ${t.answered} из ${rows.length}` : ""}</p>
     ${late.length ? `<p class="note">После окончания времени вписаны ответы к ${late.length===1?"заданию":"заданиям"} ${late.map(r=>"№"+r.num).join(", ")}. В итоговые баллы они не вошли, но в разборе видно, верны ли они.</p>` : ""}
+    ${rows.some(r=>r.state==="nokey" || (r.long && r.score===undefined && r.state!=="empty")) ? `<div class="note revnote"><p style="margin:0 0 8px">Часть заданий не проверена: ${Object.keys(K).length ? "учитель ещё не смотрел развёрнутые" : "ответы сборника к этому варианту ещё не прочитаны"}. Учитель может проверить сейчас: ${b && Study.ogeSections(b).key ? "прочитает ответы сборника и сверит," : "решит задания по листам варианта и сверит,"} а развёрнутые оценит по бланкам.</p><button class="btn primary" type="button" id="revcheck">Проверить сейчас</button> <span class="sm" id="revst" aria-live="polite"></span></div>` : ""}
     ${!rows.length ? `<p class="note">Для этого пробного подробности не сохранились: он пройден до того, как сайт начал их записывать.</p>` : ""}
     ${page ? `<div class="vpages" id="vpages" aria-label="Листы варианта"><p class="sm">Загружаю листы сборника…</p></div>` : ""}
     <div class="revlist">${rows.map((r,k)=>`<div class="ogeq ${r.state==="ok"?"rv-ok":r.state==="bad"||r.state==="empty"?"rv-bad":""}"><div class="oge-num">Задание ${r.num}</div>
       ${r.q ? `<div class="oge-text">${r.q}</div>${r.opts ? `<ol class="oge-opts">${r.opts.map(o=>`<li>${o}</li>`).join("")}</ol>` : ""}` : ""}
       <div class="revrow">${r.long ? `<span class="sm">Развёрнутый ответ</span><span class="revv">${r.blank ? "на бланке №2" : r.draft ? "только в черновике" : r.old ? "—" : "бланк пустой"}</span>`
-        : `<span class="sm">Твой ответ</span><span class="revv ${r.state==="ok"?"ok":r.state==="bad"?"bad":""}">${esc(r.v||"—")}</span>${r.late ? `<span class="chip">после времени</span>` : ""}<span class="sm">Верный</span><span class="revv ok">${r.right!==undefined && String(r.right).trim() ? esc(String(r.right)) : "—"}</span>`}
+        : `<span class="sm">Твой ответ</span><span class="revv ${r.state==="ok"?"ok":r.state==="bad"?"bad":""}">${esc(r.v||"—")}</span>${r.late ? `<span class="chip">после времени</span>` : ""}<span class="sm">Верный</span>${r.right!==undefined && String(r.right).trim() ? `<span class="revv ok">${esc(String(r.right))}</span>` : `<span class="revv">?</span>`}`}
         ${chip(r)}</div>
       ${r.comment ? `<p class="hint revcomm">${esc(r.comment)}</p>` : ""}
       ${have.has("t"+r.i) || have.has("c"+r.i) ? `<div class="ogetools">${have.has("t"+r.i) ? `<button class="btn ictool has" type="button" data-revimg="t${r.i}">${IC_NB}<span>Черновик</span></button>` : ""}${have.has("c"+r.i) ? `<button class="btn ictool blank has" type="button" data-revimg="c${r.i}">${IC_BLANK}<span>Бланк №2</span></button>` : ""}</div><div class="revimgs" data-revbox="${r.i}"></div>` : ""}</div>`).join("")}</div>
     <p class="hint"><a href="#oge/${exam}">← К заданиям ОГЭ</a>. Ошибки и нерешённые задания уже в рекомендациях на главной.</p></section>`;
+  if($("revcheck")) $("revcheck").addEventListener("click", async()=>{ const btn = $("revcheck"), say = x => { const el = $("revst"); if(el) el.textContent = x; };
+    if(!Store.aiAvailable()){ say("Учитель пока не подключён."); return; }
+    btn.disabled = true;
+    try{
+      if(b && Study.ogeSections(b).key && !Object.keys(K).length){ say("Учитель читает ответы сборника (один раз на весь сборник)…"); await Study.ogeReadKey(b, say); }
+      const K2 = b && t.variant ? ((Study.ogeKey(b).v||{})[t.variant] || {}) : {};
+      const rr = rows.map(r=>{ const x = { i:r.i, old:r.old, t:{ q: r.q || "", opts: r.opts }, num:r.num, v:String(r.v||""), long:r.long, max:r.max, inTime: !r.late };
+        if(K2[x.num]!==undefined){ x.right = String(K2[x.num]); x.long = !x.right.trim(); x.max = x.long ? (((CAT[exam]||{})[x.num]||[])[1] || 2) : 1; }
+        else if(r.right!==undefined && String(r.right).trim()) x.right = String(r.right);
+        if(!x.long && x.v.trim() && x.right && x.right.trim()){ x.ok = matchKey(x.right, x.v); x.score = x.ok ? 1 : 0; x.state = x.ok ? "ok" : "bad"; }
+        else if(!x.long && !x.v.trim()){ x.score = 0; x.state = "empty"; }
+        return x; });
+      say(rr.some(x=>x.state===undefined || x.long) ? "Учитель проверяет оставшиеся задания…" : "Сверяю…");
+      const pages = [...document.querySelectorAll("#vpages .vpage img")].map(im=>String(im.src).split(",")[1]).filter(Boolean);
+      rerender = null; prog = null;
+      await aiCheck({ exam, v:t.variant, nb:t.nb, mode: t.src==="book" ? "btest" : "test" }, rr, { pages });
+      saveResult({ exam, mode: t.src==="book" ? "btest" : "test" }, rr, t.ts, {});
+      review(exam, ts);
+    }catch(e){ console.warn(e); say("Не получилось: " + e.message); btn.disabled = false; } });
   if($("revbook")) $("revbook").addEventListener("click", ()=>{ closeSide(); Reader.open(b, page, `Вариант ${t.variant}`, "right"); });
   if($("revkey")) $("revkey").addEventListener("click", ()=>{ const was = document.querySelector(".sidepane"); closeSide(); $("revkey").setAttribute("aria-pressed", "false"); if(was) return;
     if(window.Reader && Reader.state().open && !Reader.state().min) Reader.minimize();
     const sec = b ? Study.ogeSections(b).key : null, pane = document.createElement("aside"); pane.className = "sidepane"; pane.setAttribute("aria-label", "Ответы варианта");
     pane.innerHTML = `<div class="sp-head"><b>Ответы варианта ${esc(t.variant||"")}</b><span style="flex:1"></span><button class="ibtn" type="button" data-spclose aria-label="Закрыть">✕</button></div>
-      <table class="grades revkey"><thead><tr><th>№</th><th>Ответ сборника</th><th>Твой</th><th>Баллы</th></tr></thead><tbody>${rows.map(r=>`<tr class="${r.state==="ok"?"rv-ok":r.state==="bad"||r.state==="empty"?"rv-bad":""}"><td>${r.num}</td><td>${r.long ? "развёрнутый" : esc(String(r.right??"—"))}</td><td>${r.long ? (r.blank ? "бланк" : "—") : esc(r.v||"—")}${r.late?" ⏰":""}</td><td>${r.score!==undefined ? `${r.score}/${r.max}` : "—"}</td></tr>`).join("")}</tbody></table>
+      <table class="grades revkey"><thead><tr><th>№</th><th>Ответ сборника</th><th>Твой</th><th>Баллы</th></tr></thead><tbody>${rows.map(r=>`<tr class="${r.state==="ok"?"rv-ok":r.state==="bad"||r.state==="empty"?"rv-bad":""}"><td>${r.num}</td><td>${r.long ? "развёрнутый" : r.right!==undefined && String(r.right).trim() ? esc(String(r.right)) : "?"}</td><td>${r.long ? (r.blank ? "бланк" : "—") : esc(r.v||"—")}${r.late?" ⏰":""}</td><td>${r.score!==undefined ? `${r.score}/${r.max}` : "—"}</td></tr>`).join("")}</tbody></table>
+      ${rows.some(r=>!r.long && !(r.right!==undefined && String(r.right).trim())) ? `<p class="sm">? — ответ сборника ещё не прочитан. Нажми «Проверить сейчас» или открой страницу ответов ниже.</p>` : ""}
       ${late.length ? `<p class="sm">⏰ — вписано после окончания времени.</p>` : ""}
       ${sec ? `<button class="btn" type="button" data-spbook>Открыть страницу ответов в сборнике, стр. ${sec[0]}</button>` : ""}`;
     document.body.appendChild(pane); document.body.classList.add("nb-side"); $("revkey").setAttribute("aria-pressed", "true");
