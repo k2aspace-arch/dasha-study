@@ -236,8 +236,9 @@ const RUS = {
   return { q:`Замените разговорное слово «${w}» в предложении стилистически нейтральным синонимом. Напишите этот синоним.<blockquote>${s}</blockquote>`, a:acc[0], acc, kind:"text" }; }}
 };
 const EXAMS = {
-  math: { name:"Математика", tasks:MATH, test:{ min:80, title:"Пробный вариант: по одному заданию каждого типа" } },
-  rus:  { name:"Русский язык", tasks:RUS, test:{ min:25, title:"Пробный вариант заданий с кратким ответом" } }
+  // шкала перевода первичных баллов в оценку: рекомендация ФИПИ, регион может её поменять
+  math: { name:"Математика", scale:[[3,8],[4,15],[5,22]], scaleNote:"для «4» и «5» нужно не меньше 2 баллов за геометрию", tasks:MATH, test:{ min:80, title:"Пробный вариант: по одному заданию каждого типа" } },
+  rus:  { name:"Русский язык", scale:[[3,15],[4,23],[5,32]], scaleNote:"для «5» нужно ещё не меньше 4 баллов за грамотность (ГК1–ГК4)", tasks:RUS, test:{ min:25, title:"Пробный вариант заданий с кратким ответом" } }
 };
 /* Полный список заданий ОГЭ с максимальным баллом (по демоверсиям ФИПИ 2026–2027).
    auto — задание генерируется и проверяется на сайте; остальные разбираются с учителем. */
@@ -305,16 +306,18 @@ function renderMenu(only){
   const bar = (id, n) => { const a = (last[id]||{})[n] || []; return `<span class="ogebar" title="Последние ${a.length} из 33: верно ${a.reduce((x,y)=>x+y,0)}">${Array.from({length:33},(_,i)=>`<i class="${i<a.length?(a[i]?"g":"r"):""}"></i>`).join("")}</span>`; };
   const block = (id) => { const E = EXAMS[id], C = CAT[id], total = Object.values(C).reduce((a,x)=>a+x[1],0);
     return `<section class="panel oge-ex"><h3>${E.name} <span class="sm">· ${Object.keys(C).length} заданий, максимум ${total} баллов${id==="rus"?" + грамотность за изложение и сочинение":""}</span></h3>
+      ${E.scale ? `<div class="ogescale"><span class="chip ok">«5» от ${E.scale[2][1]} баллов</span><span class="sm">«4» от ${E.scale[1][1]} · «3» от ${E.scale[0][1]} · ${esc(E.scaleNote)}. Шкала по рекомендации ФИПИ, регион может её поменять.</span></div>` : ""}
       <button class="btn primary" type="button" data-test="${id}">${E.test.title}, ${E.test.min} минут</button>
       <div class="oge-types">${Object.entries(C).map(([n,[t,max]])=>{ const auto = !!E.tasks[n], c = (oc[id]||{})[n] || 0;
         return `<div class="ogetype"><span class="num">${n}</span><span class="nm">${esc(t)} <span class="chip ${max>1?"warn":""}">${pl(max,"балл","балла","баллов")}</span>${auto?"":` <span class="chip">с учителем</span>`}</span>${bar(id,n)}<span class="sm ${c>=goal?"okc":""}" title="Цель: 30 верных из 33 последних">${c}/30</span><button class="btn" type="button" data-train="${id}:${n}">${auto?"Тренировать":"Решать"}</button></div>`; }).join("")}</div>
       </section>`; };
   $("main").innerHTML = `<div class="stack">
-    <section class="panel"><h2>${only ? "ОГЭ: " + EXAMS[only].name.toLowerCase() : "ОГЭ"}</h2><p class="hint" style="margin:6px 0 12px">Все задания экзамена по порядку, у каждого его вес в баллах. Задания с пометкой «с учителем» (развёрнутые, изложение, сочинение и те, что пока не генерируются) решаются с ИИ-учителем: он даёт условие или берёт его из сборника, а потом проверяет по критериям ФИПИ. Критерии спрятаны в шапке каждого задания.</p>
-      <p class="hint">У каждого задания полоска из 33 последних решений: зелёные — верно, красные — ошибки (тренировки, задания с учителем и пробные вместе). Цель на ноутбук: у каждого задания 30 верных из 33 последних. Чем больше красного, тем дольше стоит решать.</p>
-    </section>
+    <section class="panel"><h2>${only ? "ОГЭ: " + EXAMS[only].name.toLowerCase() : "ОГЭ"}</h2></section>
     ${historyHtml(only)}
-    ${only ? block(only) : block("math")+block("rus")}</div>`;
+    ${only ? block(only) : block("math")+block("rus")}
+    <details class="panel plain ogehelp"><summary class="sm">Как устроен этот раздел</summary><p class="hint" style="margin:6px 0 12px">Все задания экзамена по порядку, у каждого его вес в баллах. Задания с пометкой «с учителем» (развёрнутые, изложение, сочинение и те, что пока не генерируются) решаются с ИИ-учителем: он даёт условие или берёт его из сборника, а потом проверяет по критериям ФИПИ. Критерии спрятаны в шапке каждого задания.</p>
+      <p class="hint">У каждого задания полоска из 33 последних решений: зелёные — верно, красные — ошибки (тренировки, задания с учителем и пробные вместе). Цель на ноутбук: у каждого задания 30 верных из 33 последних. Чем больше красного, тем дольше стоит решать.</p>
+    </details></div>`;
   $("main").querySelectorAll("[data-train]").forEach(b=>b.addEventListener("click",()=>{ const [e,n] = b.dataset.train.split(":"); EXAMS[e].tasks[n] ? startTrain(e, Number(n)) : startPractice(e, Number(n)); }));
   $("main").querySelectorAll("[data-test]").forEach(b=>b.addEventListener("click",()=>startTest(b.dataset.test)));
 }

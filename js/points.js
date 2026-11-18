@@ -267,15 +267,17 @@ async function reportCanvas(text){
 function openReport(){
   const ov = document.createElement("div"); ov.className = "av-overlay";
   ov.innerHTML = `<div class="av-sheet report"><div class="av-sheet-lines"></div><h2 style="position:relative;margin:0">Для папы</h2>
-    <div class="repimg" id="repimgbox"><p class="sm">Готовлю картинку…</p></div>
+    <div class="repimg" id="repimgbox"><p class="sm">Учитель пишет отчёт…</p></div>
     <div class="chatrow" style="position:relative;flex-wrap:wrap"><button class="btn primary" type="button" id="repshare">Отправить картинку</button><button class="btn" type="button" id="reptg">Telegram</button><button class="btn" type="button" id="repwa">WhatsApp</button><button class="btn" type="button" id="repdl">Скачать</button><button class="btn" type="button" id="repclose">Закрыть</button></div>
-    <p class="hint" id="repnote" style="position:relative">Отчёт отправляется картинкой, текст в нём поменять нельзя.</p></div><div class="av-host"></div>`;
+    <p class="hint" id="repnote" style="position:relative">Папе уйдёт картинка — страница дневника с этим текстом. Поменять текст нельзя.</p></div><div class="av-host"></div>`;
   document.body.appendChild(ov);
   const a = Avatar.create(ov.querySelector(".av-host")); a.setMood("think"); a.say("Сейчас всё расскажу…");
   const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
   let blob = null, ready = false;
   const note = t => { const n = $("repnote"); if(n) n.textContent = t; };
-  const draw = async txt => { const c = await reportCanvas(txt); blob = await new Promise(r=>c.toBlob(r, "image/png")); const box = $("repimgbox"); if(box){ box.innerHTML = ""; const im = new Image(); im.alt = "Отчёт для папы"; im.src = URL.createObjectURL(blob); box.appendChild(im); } };
+  // на экране — просто текст (его нельзя править), картинка-страница дневника готовится для отправки
+  const draw = async txt => { const box = $("repimgbox"); if(box) box.innerHTML = `<div class="reptxt">${window.Draw && Draw.md ? Draw.md(txt) : esc(txt).replace(/\n/g,"<br>")}</div>`;
+    const c = await reportCanvas(txt); blob = await new Promise(r=>c.toBlob(r, "image/png")); };
   const file = () => new File([blob], "otchet-dlya-papy.png", { type:"image/png" });
   const canShareFile = () => { try{ return !!(navigator.canShare && blob && navigator.canShare({ files:[file()] })); }catch(e){ return false; } };
   const download = () => { const u = URL.createObjectURL(blob), l = document.createElement("a"); l.href = u; l.download = "otchet-dlya-papy.png"; document.body.appendChild(l); l.click(); l.remove(); setTimeout(()=>URL.revokeObjectURL(u), 5000); };
@@ -299,7 +301,7 @@ function openReport(){
     try{ const { c, parts, prog, T, week, books } = reportData();
       const r = await Store.ask({ mode:"report", subject:"", messages:[{role:"user", content: JSON.stringify({ grades: S.grades().g, tests: T, points: c.total, week, streak: c.streak, books, oge: parts, trials: trials(), program: Math.round(prog*100) })}] });
       if(r && r.text) txt = r.text; }catch(e){}
-    if(ov.isConnected){ await draw(txt); note("Отчёт отправляется картинкой, текст в нём поменять нельзя."); finish(); }
+    if(ov.isConnected){ await draw(txt); note("Папе уйдёт картинка — страница дневника с этим текстом. Поменять текст нельзя."); finish(); }
   })(); else { draw(localReport()).then(finish); }
 }
 

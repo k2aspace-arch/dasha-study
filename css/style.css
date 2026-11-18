@@ -375,10 +375,14 @@ body.reading-right .shelf a,body.reading-left .shelf a{flex:none}
 /* ---------- ОГЭ ---------- */
 .oge-ex .btn.primary{margin:8px 0 12px}
 .oge-types{display:flex;flex-direction:column;gap:6px}
-.ogetype{display:grid;grid-template-columns:38px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line)}
+.ogetype{display:grid;grid-template-columns:32px minmax(0,1fr) auto auto;grid-template-areas:"num nm nm btn" ". bar cnt btn";gap:4px 12px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line)}
+.ogetype .num{grid-area:num}.ogetype .nm{grid-area:nm;min-width:0}.ogetype>.ogebar{grid-area:bar}.ogetype>.sm{grid-area:cnt;font-size:12px}.ogetype>.ogebar{width:100%;max-width:330px}.ogetype>.btn{grid-area:btn;white-space:nowrap;min-width:128px;text-align:center}
+.ogetype .nm .chip{white-space:nowrap}
+.ogescale{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:4px 0 12px}
+details.ogehelp>summary{cursor:pointer}
 .ogetype .num,.oge-num{font-family:var(--f-mono);font-weight:600;color:var(--accent)}
 .ogetype .sm{white-space:nowrap}
-@media (max-width:560px){ .ogetype{grid-template-columns:32px minmax(0,1fr) auto} .ogetype .sm{display:none} }
+@media (max-width:560px){ .ogetype>.btn{min-width:0} }
 .oge-top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-bottom:12px}
 .oge-top .timer{margin-left:auto;font-family:var(--f-mono);font-variant-numeric:tabular-nums;padding:4px 10px;border-radius:8px;background:var(--accent-soft);color:var(--accent)}
 .oge-top .timer.low{background:var(--warn-soft);color:var(--warn)}
@@ -791,3 +795,4 @@ table.grades th:nth-child(n+6){white-space:nowrap}
 .dock.inline .tutorstage{height:140px}
 body.dock-inline .dockbtn{z-index:44}
 table.grades .gcell.gcalc{color:var(--muted);opacity:.75;border-style:dashed}
+.repimg .reptxt{padding:14px 16px;align-self:start;width:100%;user-select:none;-webkit-user-select:none;line-height:1.55}
