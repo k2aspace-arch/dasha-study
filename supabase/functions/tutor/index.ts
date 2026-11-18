@@ -1,5 +1,5 @@
 // ИИ-учитель через OpenRouter: принимает вопрос с сайта и спрашивает Claude.
-// Версия функции: openrouter-6 (если в ответе ошибки нет слова OpenRouter, значит задеплоен старый код).
+// Версия функции: openrouter-7 (если в ответе ошибки нет слова OpenRouter, значит задеплоен старый код).
 // Ключ OpenRouter хранится в секретах Supabase (например, OPENROUTER_API_KEY), в браузер он не попадает.
 // Supabase сам проверяет, что запрос пришёл от вошедшего пользователя (JWT).
 
@@ -111,6 +111,11 @@ const TOCPAGES = `Тебе присылают картинки страниц о
 Для каждой темы из списка найди в оглавлении её страницу (номер, напечатанный в оглавлении). Темы на сайте могут называться чуть иначе или идти в другом порядке: сопоставляй по смыслу. Если темы в оглавлении нет, не включай её.
 Ещё посмотри, какой номер страницы напечатан на самой первой присланной странице (обычно внизу или вверху); если не видно, null.
 Ответь ТОЛЬКО JSON без Markdown: {"pages":{"<ключ темы>":<стр>},"chapters":{"<ключ главы>":<стр>},"printed":<номер или null>}`;
+
+const ANSKEY = `Тебе присылают картинки страниц с ответами из сборника вариантов ОГЭ. Перепиши ответы точно, как напечатано.
+Для заданий с развёрнутым ответом (где ответа-числа нет, а есть критерии или решение) поставь пустую строку "".
+Если в ответе несколько допустимых вариантов, перечисли их через « | ».
+Ответь ТОЛЬКО JSON без Markdown: {"variants":{"<номер варианта>":{"<номер задания>":"ответ"}}}`;
 
 const INDEX = `Тебе дают текст страниц одного параграфа школьного учебника. Составь короткую карточку параграфа для учителя-репетитора.
 Ответь ТОЛЬКО JSON без Markdown:
@@ -302,7 +307,7 @@ Deno.serve(async (req) => {
     let system = SYSTEM, maxTokens = 4000;
     let history: Msg[] = [];
 
-    const SYS: Record<string, string> = { report: REPORT, quiz: QUIZ, quizcheck: QUIZCHECK, fill: FILL, cut: CUT, toc: TOC, index: INDEX, ogegen: OGEGEN, tocpages: TOCPAGES };
+    const SYS: Record<string, string> = { report: REPORT, quiz: QUIZ, quizcheck: QUIZCHECK, fill: FILL, cut: CUT, toc: TOC, index: INDEX, ogegen: OGEGEN, tocpages: TOCPAGES, anskey: ANSKEY };
     if (SYS[mode]) system = SYS[mode];
     else {
       if (Array.isArray(pages) && pages.length) system += BOOK_RULES;
@@ -318,7 +323,7 @@ Deno.serve(async (req) => {
       maxTokens = 8000;
     } else if (mode === "index") {
       history = [{ role: "user", content: bookParts(pages ?? [], topic) }];
-    } else if (mode === "toc" || mode === "ogegen" || mode === "tocpages") {
+    } else if (mode === "toc" || mode === "ogegen" || mode === "tocpages" || mode === "anskey") {
       const content: Part[] = [{ type: "text", text: String(body.text ?? "").slice(0, mode === "tocpages" ? 30000 : 4000) || "Вот страницы." }];
       for (const im of (Array.isArray(images) ? images : []).slice(0, 8)) content.push(img(String(im)));
       history = [{ role: "user", content }];

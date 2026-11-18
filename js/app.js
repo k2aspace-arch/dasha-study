@@ -53,7 +53,7 @@ function renderShelf(cur){
   $("shelf").innerHTML =
     NAV.map(([id,t,ic])=>`<a class="navitem" href="#${id}" ${cur===id?'aria-current="page"':''}><span class="ic" aria-hidden="true">${ic}</span><span class="nm">${t}</span></a>`).join("") +
     `<div class="shelf-label">ОГЭ</div>` +
-    [["math","ОГЭ: математика","#2a4fd6"],["rus","ОГЭ: русский язык","#c2410c"]].map(([e,n,col])=>{ let p = 0; try{ const oc = Points.ogeCounts()[e]||{}, k = Object.keys(oc); p = k.length ? Math.round(100*k.reduce((a,x)=>a+Math.min(oc[x],30),0)/(30*k.length)) : 0; }catch(_){}
+    [["math","ОГЭ: математика","#2a4fd6"],["rus","ОГЭ: русский язык","#c2410c"]].concat(((window.Study && Study.OGE_BOOKS) || []).filter(b=>b.extra).map(b=>[b.exam, "ОГЭ: " + b.name.toLowerCase(), b.color])).map(([e,n,col])=>{ let p = 0; try{ if(e==="math"||e==="rus"){ const oc = Points.ogeCounts()[e]||{}, k = Object.keys(oc); p = k.length ? Math.round(100*k.reduce((a,x)=>a+Math.min(oc[x],30),0)/(30*k.length)) : 0; } else { const L = (Store.get("ogeTests",{list:[]}).list||[]).filter(t=>t.exam===e); p = L.length ? Math.round(100*Math.max(...L.map(t=>t.ptsMax ? t.pts/t.ptsMax : t.ok/t.n))) : 0; } }catch(_){}
       return `<a href="#oge/${e}" style="--c:${col}" ${cur==="oge-"+e?'aria-current="page"':''} title="Прогресс к цели 30 верных из 33 по каждому заданию"><span class="spine"></span><span class="nm">${n}</span><span class="pc">${p}%</span></a>`; }).join("") +
     `<div class="shelf-label">Учебники</div>` +
     BOOKS.map(b=>`<a href="#${b.id}" style="--c:${b.color}" ${cur===b.id?'aria-current="page"':''}><span class="spine"></span><span class="nm">${esc(b.subject)}</span><span class="pc" data-pc="${b.id}">${pct(b)}%</span></a>`).join("") +
@@ -229,6 +229,7 @@ function renderAccount(openId){
         <input type="file" id="file-${b.id}" accept="application/pdf,.pdf" hidden>
       </div>
       ${shareLine(b)}
+      ${b.exam ? Study.ogeKeyRow(b) : ""}
       <p class="status" id="status-${b.id}" aria-live="polite"></p>
       <details class="pages-ed" ${openId===b.id?"open":""}><summary class="btn" style="display:inline-block;margin-top:6px">Номера страниц параграфов</summary>
         ${file && Store.aiAvailable() ? `<div class="editbar tocai"><span>Оглавление на страницах учебника</span><input type="number" min="1" max="999" data-tocfrom="${b.id}" value="${(m.tocPdf||[])[0]||""}" placeholder="с" aria-label="Первая страница оглавления"><span>по</span><input type="number" min="1" max="999" data-tocto="${b.id}" value="${(m.tocPdf||[])[1]||""}" placeholder="по" aria-label="Последняя страница оглавления"><button class="btn primary" type="button" data-tocai="${b.id}">Взять главы и страницы из оглавления</button><span class="sm">Номера как «стр.» в учебнике на сайте. ИИ прочитает оглавление: главы и параграфы станут точно как в книге, страницы впишутся сами. Отметки «пройдено» по старым темам могут сбиться.</span></div>` : ""}
@@ -237,6 +238,7 @@ function renderAccount(openId){
           c.p.map((p,pi)=>{ const k=`${b.id}.${gi}.${ci}.${pi}`; return `<li><span class="pn">${ci+1}.${pi+1}</span><span class="pt" style="flex:1;min-width:0">${esc(p)}</span><input class="pgin" type="number" min="1" max="999" id="pg-${k.replace(/\./g,'-')}" data-pk="${k}" value="${m.pages[k]||""}" placeholder="стр." aria-label="Страница: ${esc(p)}"></li>`; }).join("")}</ol>`).join("")).join("")}
       </details>
 </section>`; }).join("")}
+  ${Study.ogeAddHtml()}
   </div>`;
   const main = $("main");
   main.querySelectorAll("[data-useshared]").forEach(btn=>btn.addEventListener("click", async()=>{ const id = btn.dataset.useshared;
@@ -251,6 +253,8 @@ function renderAccount(openId){
       handleFile(b, f).catch(e=>{ console.error(e); say("Не получилось загрузить файл: " + upErr(e), true); }); });
   });
   Study.bindAccount(main);
+  Study.bindOgeAdd(main, id=>{ renderShelf("account"); renderAccount(id); });
+  Study.bindOgeKey(main, id=>renderAccount(id));
   main.querySelectorAll("[data-auto]").forEach(btn=>btn.addEventListener("click",()=>{ const b = ACCB().find(x=>x.id===btn.dataset.auto); sayTarget = "status-"+b.id; btn.disabled = true; autoPages(b).catch(e=>{ console.error(e); say("Не получилось прочитать учебник: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
   main.querySelectorAll("[data-open]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(ACCB().find(x=>x.id===btn.dataset.open), 0, "")));
   main.querySelectorAll("[data-tocai]").forEach(btn=>btn.addEventListener("click",()=>{ const b = ACCB().find(x=>x.id===btn.dataset.tocai); sayTarget = "status-"+b.id; btn.disabled = true;

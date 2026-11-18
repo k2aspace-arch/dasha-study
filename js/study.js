@@ -287,16 +287,77 @@ const OGE_BOOKS = [
   { id:"oge-math", exam:"math", subject:"Сборник ОГЭ: математика", title:"Сборник ОГЭ по математике", color:"#2a4fd6", groups:[] },
   { id:"oge-rus", exam:"rus", subject:"Сборник ОГЭ: русский язык", title:"Сборник ОГЭ по русскому языку", color:"#8a6d1f", groups:[] }
 ];
+// сборники ОГЭ по другим предметам: список предметов в Store "ogeExtra"
+const OGE_SKIP = ["rus","algebra","geometry","prob","pe","trud","nat"], OGE_COLORS = ["#0f766e","#7c3aed","#b45309","#be185d","#15803d","#1d4ed8","#9a3412","#4d7c0f","#6d28d9"];
+const ogeSubjects = () => GRADE_SUBJECTS.filter(([id])=>!OGE_SKIP.includes(id));
+function syncOge(){
+  const want = (Store.get("ogeExtra", {list:[]}).list || []).filter(id=>ogeSubjects().some(x=>x[0]===id));
+  for(let i = OGE_BOOKS.length-1; i >= 2; i--) if(!want.includes(OGE_BOOKS[i].exam)) OGE_BOOKS.splice(i, 1);
+  want.forEach((id,i)=>{ if(OGE_BOOKS.some(b=>b.exam===id)) return; const n = ogeSubjects().find(x=>x[0]===id)[1];
+    OGE_BOOKS.push({ id:"oge-"+id, exam:id, extra:true, subject:`Сборник ОГЭ: ${n.toLowerCase()}`, name:n, title:`Сборник ОГЭ по предмету «${n}»`, color:OGE_COLORS[i % OGE_COLORS.length], groups:[] }); });
+}
+function ogeAddHtml(){
+  const have = OGE_BOOKS.map(b=>b.exam), free = ogeSubjects().filter(([id])=>!have.includes(id));
+  if(!free.length) return "";
+  return `<section class="panel"><h3>Сборник ОГЭ по другому предмету</h3><p class="hint" style="margin-top:0">Появится в списке выше и на полке слева, с пробными вариантами из сборника.</p>
+    <div class="chatrow"><select id="ogeaddsel">${free.map(([id,n])=>`<option value="${id}">${esc(n)}</option>`).join("")}</select><button class="btn primary" type="button" id="ogeadd">Добавить сборник</button></div></section>`;
+}
+function bindOgeAdd(root, after){
+  const btn = root.querySelector("#ogeadd"); if(btn) btn.addEventListener("click", async()=>{ const id = root.querySelector("#ogeaddsel").value, d = Object.assign({list:[]}, Store.get("ogeExtra", {}));
+    if(!d.list.includes(id)) d.list = d.list.concat([id]); await Store.set("ogeExtra", d, 0); syncOge(); applyToc(); after && after("oge-"+id); });
+  root.querySelectorAll("[data-ogedrop]").forEach(b=>b.addEventListener("click", async()=>{ const id = b.dataset.ogedrop, d = Object.assign({list:[]}, Store.get("ogeExtra", {}));
+    d.list = d.list.filter(x=>x!==id); await Store.set("ogeExtra", d, 0); syncOge(); after && after(); }));
+}
+// ответы сборника: ИИ один раз читает страницы с ответами, по ним сверяется пробный вариант
+const ogeKey = b => Object.assign({ v:{} }, Store.get("okey-"+b.id, {}) || {});
+function ogeVariants(b){
+  const key = ogeKey(b), m = S.book(b.id), out = {};
+  (b.groups||[]).forEach((g,gi)=>g.chapters.forEach((c,ci)=>{ const mm = String(c.t).match(/вариант\s*№?\s*(\d+)/i);
+    if(mm) out[mm[1]] = (m.chapterPages||{})[`${gi}.${ci}`] || (m.pages||{})[`${b.id}.${gi}.${ci}.0`] || 0;
+    c.p.forEach((p,pi)=>{ const t = String(p).match(/вариант\s*№?\s*(\d+)/i); if(t && !out[t[1]]) out[t[1]] = (m.pages||{})[`${b.id}.${gi}.${ci}.${pi}`] || 0; }); }));
+  return Object.keys(key.v).sort((a,b)=>a-b).map(v=>({ v, page: out[v] || 0, n: Object.keys(key.v[v]).length }));
+}
+function ogeKeyRow(b){
+  const k = ogeKey(b), vs = Object.keys(k.v), file = S.book(b.id).chunks && S.book(b.id).chunks.length;
+  if(!file) return "";
+  return `<div class="editbar tocai okeyrow"><b class="sm">Ответы сборника</b><span>на страницах</span><input type="number" min="1" max="999" data-okfrom="${b.id}" value="${(k.pages||[])[0]||""}" placeholder="с" aria-label="Первая страница ответов"><span>по</span><input type="number" min="1" max="999" data-okto="${b.id}" value="${(k.pages||[])[1]||""}" placeholder="по" aria-label="Последняя страница ответов">
+    <button class="btn primary" type="button" data-okread="${b.id}" ${Store.aiAvailable()?"":"disabled"}>Прочитать ответы</button>
+    <span class="sm">${vs.length ? `Прочитано: ${pl(vs.length,"вариант","варианта","вариантов")}. По ним учитель сверяет пробные.` : "Номера как «стр.» в сборнике. Учитель один раз прочитает таблицы ответов, и пробные варианты из сборника будут проверяться по ним."}</span>
+    ${b.extra ? `<button class="btn" type="button" data-ogedrop="${b.exam}">Убрать сборник</button>` : ""}<p class="status" id="status-ok-${b.id}" aria-live="polite" style="flex-basis:100%;margin:0"></p></div>`;
+}
+async function readKey(b, from, to, say){
+  const m = S.book(b.id), total = m.totalPages || 999, off = Number(m.offset)||0;
+  if(!(from > 0)) throw new Error("укажи страницы с ответами");
+  if(!(to >= from)) to = from; if(to - from > 39) throw new Error("не больше 40 страниц за раз");
+  const key = ogeKey(b); key.v = Object.assign({}, key.v); key.pages = [from, to];
+  for(let a = from; a <= to; a += 4){
+    const z = Math.min(to, a + 3), images = [];
+    say(`Учитель читает ответы: страницы ${a}–${z} из ${from}–${to}…`);
+    for(let n = a; n <= z; n++) images.push(await Reader.pageImage(b, Math.max(1, Math.min(total, n + off)), 1400));
+    const r = await Store.ask({ mode:"anskey", images, text:`Сборник: ${b.title}. Это страницы ${a}–${z} с ответами.` });
+    const j = parseJson(String(r.text||""));
+    Object.entries(j.variants||{}).forEach(([v, ans])=>{ const vv = String(v).replace(/\D/g,""); if(!vv) return; key.v[vv] = Object.assign({}, key.v[vv], ...Object.entries(ans||{}).map(([n,x])=>({ [String(n).replace(/\D/g,"")]: String(x ?? "").trim() }))); });
+  }
+  key.ts = Date.now(); await Store.set("okey-"+b.id, key, 0);
+  return Object.keys(key.v).length;
+}
+function bindOgeKey(root, after){
+  root.querySelectorAll("[data-okread]").forEach(btn=>btn.addEventListener("click", async()=>{ const b = OGE_BOOKS.find(x=>x.id===btn.dataset.okread), st = $("status-ok-"+b.id), say = t => { if(st) st.textContent = t; };
+    btn.disabled = true;
+    try{ const n = await readKey(b, parseInt(root.querySelector(`[data-okfrom="${b.id}"]`).value,10), parseInt(root.querySelector(`[data-okto="${b.id}"]`).value,10), say);
+      after && after(b.id); const s2 = $("status-ok-"+b.id); if(s2) s2.textContent = n ? `Готово: ответы к ${pl(n,"варианту","вариантам","вариантам")}.` : "Ответов не нашлось: проверь страницы."; }
+    catch(e){ say("Не получилось: " + e.message); btn.disabled = false; } }));
+}
 // страница сборника для задания N: по оглавлению сборника (глава или раздел, где есть «задание N» или «№N»)
 function ogePage(exam, num){
-  const b = OGE_BOOKS.find(x=>x.exam===exam), m = S.book(b.id), re = new RegExp(`(задани[еяй]|№)\\s*${num}(?!\\d)`, "i");
+  const b = OGE_BOOKS.find(x=>x.exam===exam); if(!b) return 0; const m = S.book(b.id), re = new RegExp(`(задани[еяй]|№)\\s*${num}(?!\\d)`, "i");
   let pg = 0;
   (b.groups||[]).forEach((g,gi)=>g.chapters.forEach((c,ci)=>{ if(pg) return;
     if(re.test(c.t)) pg = (m.chapterPages||{})[`${gi}.${ci}`] || (m.pages||{})[`${b.id}.${gi}.${ci}.0`] || 0;
     c.p.forEach((p,pi)=>{ if(!pg && re.test(p)) pg = (m.pages||{})[`${b.id}.${gi}.${ci}.${pi}`] || 0; }); }));
   return pg;
 }
-const ogeBook = exam => { const b = OGE_BOOKS.find(x=>x.exam===exam), m = S.book(b.id); return m.chunks && m.chunks.length ? b : null; };
+const ogeBook = exam => { const b = OGE_BOOKS.find(x=>x.exam===exam); if(!b) return null; const m = S.book(b.id); return m.chunks && m.chunks.length ? b : null; };
 function ogeBooksHtml(){
   return `<div class="ogebooks">${OGE_BOOKS.map(b=>{ const m = S.book(b.id), has = m.chunks && m.chunks.length;
     return `<div class="ogebook"><b>${esc(b.subject)}</b><span class="sm">${has ? `${esc(m.fileName||"сборник.pdf")}, ${pl(m.totalPages||0,"страница","страницы","страниц")}` : "сборник ФИПИ в PDF не загружен"}</span>
@@ -552,7 +613,7 @@ async function renderAdmin(){
 
 function accountPanels(){ return profilePanel() + themePanel(); }
 function bindAccount(root){ bindProfile(root); bindTheme(root); }
-function apply(){ applyTheme(); applyToc(); drawMe(); }
+function apply(){ applyTheme(); syncOge(); applyToc(); drawMe(); }
 
-window.Study = { ogePage, tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
+window.Study = { ogePage, syncOge, ogeAddHtml, bindOgeAdd, ogeKey, ogeVariants, ogeKeyRow, bindOgeKey, ogeSubjects, tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
 })();
