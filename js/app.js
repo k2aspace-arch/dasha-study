@@ -646,7 +646,7 @@ async function routeInner(){
   const b = BOOKS.find(x=>x.id===id), e = EMPTY.find(x=>x.id===id);
   if(b) return mountBook(b);
   curBook = null;
-  if(e) return $("main").innerHTML = `<article class="book" style="--c:${e.color}"><div class="book-head"><div class="subject">${esc(e.subject)}</div><h2>${esc(e.subject)}. 9 класс</h2><p class="meta">Учебник ещё не добавлен</p></div><div class="placeholder"><p>Здесь появятся главы, как только будет фото обложки и оглавления.</p><ul><li>фото обложки (видны авторы)</li><li>фото страниц с оглавлением</li></ul></div></article><section class="panel" id="enb" style="margin-top:16px"></section>`, emptyNb(e);
+  if(e){ $("main").innerHTML = `<article class="book" style="--c:${e.color}"><div class="book-head"><div class="subject">${esc(e.subject)}</div><h2>${esc(e.subject)}. 9 класс</h2><p class="meta">Учебник ещё не добавлен</p></div><div class="placeholder"><p>Здесь появятся главы, как только будет фото обложки и оглавления.</p><ul><li>фото обложки (видны авторы)</li><li>фото страниц с оглавлением</li></ul></div></article><section class="panel" id="enb" style="margin-top:16px"></section>`, emptyNb(e); $("main").insertAdjacentHTML("beforeend", Study.tocPanel(e.id)); Study.bindToc($("main")); return; }
   if(id==="board"){ location.replace("#tutor"); return; }
   if(id==="tutor") return renderTutor();
   if(id==="stats") return renderStats();
