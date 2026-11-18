@@ -99,7 +99,8 @@
     async putFile(path, blob){
       await idbPut("f:"+path, blob).catch(()=>{});
       if(!cloud) return;
-      const { error } = await sb.storage.from("files").upload(fp(path), blob, { upsert:true, contentType: blob.type || "application/octet-stream" });
+      // в общую папку shared/ кладём только новые файлы (у каждого своё имя): перезапись там запрещена правилами
+      const { error } = await sb.storage.from("files").upload(fp(path), blob, { upsert: !path.startsWith("shared/"), contentType: blob.type || "application/octet-stream" });
       if(error) throw error;
     },
     async getFile(path){

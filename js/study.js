@@ -242,7 +242,11 @@ function applyToc(){
     let b = BOOKS.find(x=>x.id===id);
     if(!b){ const e = EMPTY.find(x=>x.id===id); if(!e) return; EMPTY.splice(EMPTY.indexOf(e), 1);
       b = { id, subject:e.subject, color:e.color, title:`${e.subject}. 9 класс`, authors:"Оглавление по фото" }; BOOKS.push(b); }
-    b.groups = [{ grade:"", now:true, chapters }]; b.approx = false; b.fromToc = true;
+    // оглавление из PDF учебника: заменяем только группу текущего класса, повторение прошлых лет остаётся
+    const orig = b._orig || (b._orig = b.groups || []), gi = orig.findIndex(g=>g.now);
+    if(toc.keep && orig.length > 1 && gi >= 0) b.groups = orig.map((g,i)=>i===gi ? { grade:g.grade, now:true, chapters } : g);
+    else b.groups = [{ grade:"", now:true, chapters }];
+    b.approx = false; b.fromToc = true;
   });
 }
 let tocState = { subj:"", imgs:[], result:null };
@@ -542,5 +546,5 @@ function accountPanels(){ return profilePanel() + knowPanel() + tocPanel() + `<s
 function bindAccount(root){ bindProfile(root); bindKnow(root); bindToc(root); bindOgeBooks(root, ()=>{ location.hash = "#account"; window.dispatchEvent(new HashChangeEvent("hashchange")); }); bindTheme(root); }
 function apply(){ applyTheme(); applyToc(); drawMe(); }
 
-window.Study = { drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
+window.Study = { applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
 })();

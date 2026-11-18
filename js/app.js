@@ -21,7 +21,7 @@ const S = {
   }
 };
 let done = {};
-window.App = { uploadPdf(b, f, sid, after){ sayTarget = sid; return handleFile(b, f, after).then(()=>{ sayTarget = sid; }).catch(e=>{ console.error(e); say("Не получилось загрузить файл. Проверь интернет и попробуй ещё раз.", true); }); }, $, esc, pl, S, keysOf, get done(){ return done }, setDone(k, on){ if(on) done[k] = Date.now(); else delete done[k]; saveDone(); } };
+window.App = { uploadPdf(b, f, sid, after){ sayTarget = sid; return handleFile(b, f, after).then(()=>{ sayTarget = sid; }).catch(e=>{ console.error(e); say("Не получилось загрузить файл: " + upErr(e), true); }); }, $, esc, pl, S, keysOf, get done(){ return done }, setDone(k, on){ if(on) done[k] = Date.now(); else delete done[k]; saveDone(); } };
 function loadDone(){ done = Object.assign({}, S.progress().done || {}); }
 function saveDone(){ Store.set("progress", {done}); }
 const pct = b => { const k=keysOf(b); return k.length ? Math.round(100*k.filter(x=>done[x]).length/k.length) : 0 };
@@ -227,7 +227,7 @@ function renderAccount(openId){
       ${shareLine(b)}
       <p class="status" id="status-${b.id}" aria-live="polite"></p>
       <details class="pages-ed" ${openId===b.id?"open":""}><summary class="btn" style="display:inline-block;margin-top:6px">Номера страниц параграфов</summary>
-        ${file && Store.aiAvailable() ? `<div class="editbar tocai"><span>Оглавление на страницах учебника</span><input type="number" min="1" max="999" data-tocfrom="${b.id}" value="${(m.tocPdf||[])[0]||""}" placeholder="с" aria-label="Первая страница оглавления"><span>по</span><input type="number" min="1" max="999" data-tocto="${b.id}" value="${(m.tocPdf||[])[1]||""}" placeholder="по" aria-label="Последняя страница оглавления"><button class="btn primary" type="button" data-tocai="${b.id}">ИИ расставит страницы</button><span class="sm">Номера как «стр.» в учебнике на сайте. Учитель прочитает оглавление и сам впишет страницы глав и параграфов.</span></div>` : ""}
+        ${file && Store.aiAvailable() ? `<div class="editbar tocai"><span>Оглавление на страницах учебника</span><input type="number" min="1" max="999" data-tocfrom="${b.id}" value="${(m.tocPdf||[])[0]||""}" placeholder="с" aria-label="Первая страница оглавления"><span>по</span><input type="number" min="1" max="999" data-tocto="${b.id}" value="${(m.tocPdf||[])[1]||""}" placeholder="по" aria-label="Последняя страница оглавления"><button class="btn primary" type="button" data-tocai="${b.id}">Взять главы и страницы из оглавления</button><span class="sm">Номера как «стр.» в учебнике на сайте. ИИ прочитает оглавление: главы и параграфы станут точно как в книге, страницы впишутся сами. Отметки «пройдено» по старым темам могут сбиться.</span></div>` : ""}
         <div class="editbar"><label for="offset-${b.id}">Страниц в файле до первой страницы учебника:</label><input type="number" id="offset-${b.id}" data-off="${b.id}" min="-50" max="300" value="${Number(m.offset)||0}"><span>Если в PDF есть обложка и титульные листы, впиши, сколько их. Тогда номера ниже совпадут с номерами в книге.</span></div>
         ${b.groups.map((g,gi)=>g.chapters.map((c,ci)=>`<div class="grade chrow" style="padding-left:0"><span style="flex:1;min-width:0">${esc(c.n)} ${esc(c.t)}</span><input class="pgin" type="number" min="1" max="999" data-cpk="${gi}.${ci}" value="${(m.chapterPages||{})[gi+"."+ci]||""}" placeholder="стр." aria-label="Страница главы: ${esc(c.t)}"></div><ol class="paras" style="padding:0 0 6px">${
           c.p.map((p,pi)=>{ const k=`${b.id}.${gi}.${ci}.${pi}`; return `<li><span class="pn">${ci+1}.${pi+1}</span><span class="pt" style="flex:1;min-width:0">${esc(p)}</span><input class="pgin" type="number" min="1" max="999" id="pg-${k.replace(/\./g,'-')}" data-pk="${k}" value="${m.pages[k]||""}" placeholder="стр." aria-label="Страница: ${esc(p)}"></li>`; }).join("")}</ol>`).join("")).join("")}
@@ -247,7 +247,7 @@ function renderAccount(openId){
   main.querySelectorAll("[data-up]").forEach(btn=>{ const id = btn.dataset.up, b = BOOKS.find(x=>x.id===id), fi = $("file-"+id);
     btn.addEventListener("click",()=>fi.click());
     fi.addEventListener("change",()=>{ const f = fi.files && fi.files[0]; fi.value = ""; sayTarget = "status-"+id;
-      handleFile(b, f).catch(e=>{ console.error(e); say("Не получилось загрузить файл. Проверь интернет и попробуй ещё раз.", true); }); });
+      handleFile(b, f).catch(e=>{ console.error(e); say("Не получилось загрузить файл: " + upErr(e), true); }); });
   });
   Study.bindAccount(main);
   main.querySelectorAll("[data-auto]").forEach(btn=>btn.addEventListener("click",()=>{ const b = BOOKS.find(x=>x.id===btn.dataset.auto); sayTarget = "status-"+b.id; btn.disabled = true; autoPages(b).catch(e=>{ console.error(e); say("Не получилось прочитать учебник: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
@@ -283,7 +283,7 @@ async function autoPages(b){
   say(found ? `Нашёл страницы у ${found} из ${topics.length} тем. Проверь их в «Номера страниц параграфов»: если темы в учебнике называются иначе, часть страниц придётся вписать вручную.` : "Не нашёл ни одной темы: похоже, в этом издании темы называются иначе. Впиши страницы вручную.", !found);
   const keep = sayTarget, msg = $(keep) ? $(keep).textContent : ""; renderAccount(b.id); sayTarget = keep; say(msg, !found);
 }
-// страницы параграфов по оглавлению: картинки страниц оглавления из PDF + список тем сайта -> ИИ сопоставляет
+// главы, параграфы и страницы строго по оглавлению учебника: картинки страниц оглавления из PDF -> ИИ читает их
 async function tocPagesAi(b, from, to){
   const m0 = S.book(b.id), total = m0.totalPages || 999, off0 = Number(m0.offset)||0;
   if(!(from > 0)) throw new Error("укажи, на какой странице начинается оглавление");
@@ -294,23 +294,27 @@ async function tocPagesAi(b, from, to){
   from = Math.max(1, Math.min(total, from + off0)); to = Math.max(from, Math.min(total, to + off0));
   say(`Готовлю страницы оглавления ${bookFrom}–${bookTo}…`);
   const images = []; for(let n=from; n<=to; n++) images.push(await Reader.pageImage(b, n, 1300));
-  const chapters = [], topics = [];
-  b.groups.forEach((g,gi)=>g.chapters.forEach((c,ci)=>{ chapters.push({ key:`${gi}.${ci}`, title:`${c.n} ${c.t}` }); c.p.forEach((p,pi)=>topics.push({ key:`${b.id}.${gi}.${ci}.${pi}`, title:p })); }));
   say("Учитель читает оглавление…");
-  const r = await Store.ask({ mode:"tocpages", images, text:`Учебник: ${b.subject}, ${b.title}. Первая присланная картинка — страница ${from} файла.\nГлавы (ключ: название): ${JSON.stringify(chapters)}\nТемы (ключ: название): ${JSON.stringify(topics)}` });
+  const r = await Store.ask({ mode:"toc", images, text:`Учебник: ${b.subject}, ${b.title}, 9 класс.` });
   const t = String(r.text||""), a = t.indexOf("{"), z = t.lastIndexOf("}"); if(a<0 || z<a) throw new Error("учитель ответил не в том формате");
-  const j = JSON.parse(t.slice(a, z+1)), m = S.book(b.id);
-  m.pages = Object.assign({}, m.pages); m.chapterPages = Object.assign({}, m.chapterPages); m.tocPdf = [bookFrom, bookTo];
+  const chapters = (JSON.parse(t.slice(a, z+1)).chapters||[]).map(c=>({ title:String(c.title||"").trim(), topics:(c.topics||[]).filter(x=>x && String(x.title||"").trim()).map(x=>({ title:String(x.title).trim(), page:x.page })) })).filter(c=>c.title && c.topics.length);
+  if(!chapters.length) throw new Error("на этих страницах не нашлось оглавления. Проверь номера страниц");
+  const orig = b._orig || b.groups || [], gi = orig.length > 1 ? Math.max(0, orig.findIndex(g=>g.now)) : 0;
+  await Store.set("toc-"+b.id, { chapters, ts:Date.now(), keep:true, src:"pdf" }, 0);
+  Study.applyToc();
+  const m = S.book(b.id); m.pages = {}; m.chapterPages = {}; m.tocPdf = [bookFrom, bookTo];
   let n = 0;
-  Object.entries(j.pages||{}).forEach(([k,v])=>{ const pg = parseInt(v,10); if(pg>0 && topics.some(x=>x.key===k)){ m.pages[k] = pg; n++; } });
-  Object.entries(j.chapters||{}).forEach(([k,v])=>{ const pg = parseInt(v,10); if(pg>0 && chapters.some(x=>x.key===k)) m.chapterPages[k] = pg; });
-  // сдвиг: номер файла минус напечатанный номер на первой странице оглавления
-  const printed = parseInt(j.printed,10); let offNote = "";
-  if(printed > 0 && Math.abs(from - printed) < 300 && from - printed !== off0){ m.offset = from - printed; offNote = ` Сдвиг страниц файла поправлен: ${m.offset}.`; }
-  S.setBook(b.id, m);
-  const msg = n ? `Готово: страницы у ${n} из ${topics.length} тем.${offNote} Проверь их ниже.` : "В оглавлении не нашлось тем сайта. Проверь, те ли страницы указаны.";
-  renderAccount(b.id); sayTarget = "status-"+b.id; say(msg, !n);
+  chapters.forEach((c,ci)=>c.topics.forEach((x,pi)=>{ const pg = parseInt(x.page,10); if(pg>0){ m.pages[`${b.id}.${gi}.${ci}.${pi}`] = pg; n++; if(pi===0) m.chapterPages[`${gi}.${ci}`] = pg; } }));
+  await S.setBook(b.id, m);
+  const all = chapters.reduce((s,c)=>s+c.topics.length,0);
+  renderAccount(b.id); sayTarget = "status-"+b.id;
+  say(`Готово: ${pl(chapters.length,"глава","главы","глав")} и ${pl(all,"параграф","параграфа","параграфов")} как в учебнике, страницы у ${n}. Проверь их ниже.`);
 }
+function upErr(e){ const m = String((e && (e.message || e.error)) || e || "");
+  if(/row-level security|policy|403|Unauthorized/i.test(m)) return "облако не разрешило сохранить файл (нужно заново запустить SQL из файла all-sql)";
+  if(/too large|exceeded|413|maximum allowed size/i.test(m)) return "файл слишком большой для облака";
+  if(/Failed to fetch|NetworkError|network|timeout/i.test(m)) return "оборвалось соединение, попробуй ещё раз";
+  return m.slice(0, 200) || "неизвестная ошибка"; }
 function say(t, err){ const st = $(sayTarget); if(st){ st.textContent = t; st.classList.toggle("err", !!err); } }
 function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("script "+src)); document.head.appendChild(s); }); }
 
@@ -324,7 +328,7 @@ async function handleFile(b, file, after){
   catch(e){ say("Не получилось открыть этот PDF. Проверь, что файл не повреждён.", true); return; }
   const stamp = Date.now(), parts = [];
   if(file.size <= Store.maxPart){
-    say(Store.mode==="cloud" ? "Загружаю учебник в облако…" : "Сохраняю учебник…");
+    say(Store.mode==="cloud" ? `Загружаю в облако ${Math.round(file.size/1048576)} МБ, это может занять несколько минут, не закрывай страницу…` : "Сохраняю учебник…");
     const path = `${Store.mode==="cloud"?"shared/":""}books/${b.id}/${stamp}-1.pdf`;
     await Store.putFile(path, new Blob([bytes], {type:"application/pdf"}));
     parts.push({from:1, to:n, path});
