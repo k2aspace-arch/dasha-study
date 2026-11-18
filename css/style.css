@@ -973,3 +973,6 @@ details.rulesbox>summary::-webkit-details-marker{display:none}
 .ogeprog .psteps{display:flex;flex-wrap:wrap;gap:4px 16px;margin:0;padding:0;list-style:none;font-size:.85em;color:var(--muted,#777)}
 .ogeprog .psteps li.now{color:var(--accent);font-weight:600}
 .ogeprog .psteps li.done{color:#1f8a5a}
+.achmap .am-dates th{vertical-align:bottom;font-weight:500;font-size:11px;color:var(--muted,#777);padding:6px 2px}
+.achmap .am-dates th span{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;display:inline-block}
+.achmap .am-dates th:first-child{text-align:left;vertical-align:bottom}

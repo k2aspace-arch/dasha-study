@@ -338,7 +338,7 @@ function achMap(exam){
   const D = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short"});
   const cell = (p, n) => { const v = p[n]; return v === undefined ? `<td class="am-none"></td>` : v === null ? `<td class="am-long" title="Развёрнутое: проверяет учитель">у</td>` : `<td class="${v>0?"am-ok":"am-bad"}">${v}</td>`; };
   return `<details class="panel plain ogehelp"><summary class="sm">Карта индивидуальных достижений</summary><p class="hint" style="margin-top:0">Баллы за каждое задание во всех пробных, пройденных на сайте. Столбец — вариант (цифра — вариант из сборника, П — пробный из заданий сайта).</p>
-    <div class="tablewrap"><table class="achmap"><thead><tr><th class="am-corner"><span>Вариант</span><span>Задание</span></th>${cols.map((c,i)=>`<th title="${c.tt}, ${D.format(new Date(L[i].ts))}">${esc(c.h)}</th>`).join("")}</tr></thead>
+    <div class="tablewrap"><table class="achmap"><thead><tr class="am-dates"><th>Дата</th>${L.map(t=>`<th><span>${new Date(t.ts).toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit",year:"2-digit"})}</span></th>`).join("")}</tr><tr><th class="am-corner"><span>Вариант</span><span>Задание</span></th>${cols.map((c,i)=>`<th title="${c.tt}, ${D.format(new Date(L[i].ts))}">${esc(c.h)}</th>`).join("")}</tr></thead>
     <tbody>${nums.map(n=>`<tr><th>${n}</th>${P.map(p=>cell(p, n)).join("")}</tr>`).join("")}</tbody>
     <tfoot><tr><th>Баллы</th>${L.map((t,i)=>`<td><b>${Object.values(P[i]).reduce((a,v)=>a+(v||0),0)}</b></td>`).join("")}</tr></tfoot></table></div></details>`;
 }
