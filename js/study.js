@@ -18,15 +18,15 @@ function applyTheme(p){ p = p || prefs(); const r = document.documentElement; r.
 function setPref(k, v){ const p = prefs(); p[k] = v; Store.set("prefs", p, 0); try{ localStorage.setItem("dasha:prefs", JSON.stringify(p)) }catch(e){} applyTheme(p); }
 function themePanel(){
   const p = prefs();
-  return `<section class="panel" id="themep"><h3>Оформление</h3>
+  return `<div class="stack" id="themep"><section class="panel"><h3>Тема</h3>
     <div class="themerow"><span class="sm">Цвет</span>${SKINS.map(([id,n,c])=>`<button class="skinbtn" type="button" data-skin="${id}" aria-pressed="${p.skin===id}" style="--sw:${c}"><i></i>${n}</button>`).join("")}</div>
     <div class="themerow"><span class="sm">Фон</span>${PATTERNS.map(([id,n])=>`<button class="vbtn" type="button" data-pat="${id}" aria-pressed="${p.pattern===id}">${n}</button>`).join("")}</div>
     <div class="themerow"><span class="sm">Тема</span>${MODES.map(([id,n])=>`<button class="vbtn" type="button" data-mode="${id}" aria-pressed="${p.mode===id}">${n}</button>`).join("")}</div>
-    <h4 class="sm" style="margin:14px 0 4px">Учитель</h4>
+    </section><section class="panel"><h3>Стиль учителя</h3>
     <div class="themerow" id="tprev"></div>
     <div class="themerow"><span class="sm">Вид</span>${TSTYLES.map(([id,n])=>`<button class="vbtn" type="button" data-tstyle="${id}" aria-pressed="${p.tstyle===id}">${n.split(":")[0]}</button>`).join("")}</div>
     <div class="themerow"><span class="sm">Цвет</span>${TCOLORS.map(([c,n])=>`<button class="tpick" type="button" data-tcolor="${c}" aria-pressed="${p.tcolor===c}" style="--sw:${c}" title="${n}"><i class="tsw"></i></button>`).join("")}</div>
-    <p class="hint">Настройки сохраняются в аккаунте и применяются на всех устройствах.</p></section>`;
+    </section><p class="hint sm" style="margin:0 4px">Настройки сохраняются в аккаунте и применяются на всех устройствах.</p></div>`;
 }
 let themeAv = null;
 function bindTheme(root){
