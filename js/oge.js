@@ -284,9 +284,9 @@ const mmss = sec => { sec = Math.max(0, Math.round(sec)); return `${Math.floor(s
 const timesOf = (exam, n) => ((Store.get("ogeTimes", {}) || {})[exam+":"+n] || []);
 function logTime(exam, n, sec, ok){ const all = Object.assign({}, Store.get("ogeTimes", {}) || {}), k = exam+":"+n; all[k] = (all[k]||[]).concat([[Date.now(), Math.round(sec), ok ? 1 : 0]]).slice(-40); Store.set("ogeTimes", all, 1000); }
 const avgOf = a => a.length ? a.reduce((x,y)=>x+y[1],0)/a.length : 0;
-function budgetHtml(exam){ const T = TARGET[exam], B = BUDGET[exam]; if(!T || !B) return "";
+function budgetHtml(exam, named){ const T = TARGET[exam], B = BUDGET[exam]; if(!T || !B) return "";
   const tasks = Object.values(T).reduce((a,x)=>a+x,0), extra = B.reduce((a,x)=>a+x[1],0);
-  return `<details class="panel plain ogehelp budget"><summary class="sm">⏱ Как распределить ${tasks+extra} минут экзамена</summary>
+  return `<details class="panel plain ogehelp"><summary class="sm">⏱ Как распределить ${tasks+extra} минут экзамена${named ? ` · ${EXAMS[exam].name.toLowerCase()}` : ""}</summary>
     <p class="hint" style="margin-top:0">У каждого задания своё целевое время с запасом (оно в списке рядом с заданием и на тренировке рядом с секундомером). На задания уходит ${tasks} минут, остальное заложено на бланки и проверку:</p>
     <table class="grades budgett"><tbody><tr><td>Все задания по целевому времени</td><td><b>${tasks} мин</b></td></tr>${B.map(([t,m])=>`<tr><td>${esc(t)}</td><td>${m} мин</td></tr>`).join("")}<tr><th>Итого</th><th>${tasks+extra} мин</th></tr></tbody></table>
     <p class="hint">Инструктаж и заполнение регистрационных полей бланков проходят до начала экзамена (обычно 15–20 минут) и в эти минуты не входят.</p></details>`; }
@@ -352,7 +352,6 @@ function renderMenu(only){
       ${bookBlock(id)}
       ${selfHtml(id)}
       ${hasBook(id) ? "" : `<button class="btn primary" type="button" data-test="${id}">${E.test.title}, ${E.test.min} минут</button>`}
-      ${budgetHtml(id)}
       <div class="oge-types">${Object.entries(C).map(([n,[t,max]])=>{ const auto = !!E.tasks[n], c = (oc[id]||{})[n] || 0;
         return `<div class="ogetype"><span class="num">${n}</span><span class="nm">${esc(t)} <span class="chip ${max>1?"warn":""}">${pl(max,"балл","балла","баллов")}</span>${tchip(id,n)}${auto?"":` <span class="chip">с учителем</span>`}</span>${bar(id,n)}<span class="sm ${c>=goal?"okc":""}" title="Цель: 30 верных из 33 последних">${c}/30</span><button class="btn" type="button" data-train="${id}:${n}">${auto?"Тренировать":"Решать"}</button></div>`; }).join("")}</div>
       </section>`; };
@@ -361,6 +360,7 @@ function renderMenu(only){
     ${only ? block(only) : block("math")+block("rus")}
     ${only ? achMap(only) : ""}
     ${historyHtml(only)}
+    ${only ? budgetHtml(only) : budgetHtml("math", true) + budgetHtml("rus", true)}
     <details class="panel plain ogehelp"><summary class="sm">Как устроен этот раздел</summary><p class="hint" style="margin:6px 0 12px">Все задания экзамена по порядку, у каждого его вес в баллах. Задания с пометкой «с учителем» (развёрнутые, изложение, сочинение и те, что пока не генерируются) решаются с ИИ-учителем: он даёт условие или берёт его из сборника, а потом проверяет по критериям ФИПИ. Критерии спрятаны в шапке каждого задания.</p>
       <p class="hint">У каждого задания полоска из 33 последних решений: зелёные — верно, красные — ошибки (тренировки, задания с учителем и пробные вместе; решения из пробных — с тёмной риской снизу). Рядом с заданием ⏱ целевое время с запасом и твоё среднее время на тренировках. Цель на ноутбук: у каждого задания 30 верных из 33 последних. Чем больше красного, тем дольше стоит решать.</p>
     </details></div>`;
