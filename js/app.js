@@ -227,7 +227,7 @@ function renderAccount(openId){
       ${shareLine(b)}
       <p class="status" id="status-${b.id}" aria-live="polite"></p>
       <details class="pages-ed" ${openId===b.id?"open":""}><summary class="btn" style="display:inline-block;margin-top:6px">Номера страниц параграфов</summary>
-        ${file && Store.aiAvailable() ? `<div class="editbar tocai"><span>Оглавление в PDF на страницах</span><input type="number" min="1" max="999" data-tocfrom="${b.id}" value="${(m.tocPdf||[])[0]||""}" placeholder="с" aria-label="Первая страница оглавления в файле"><span>по</span><input type="number" min="1" max="999" data-tocto="${b.id}" value="${(m.tocPdf||[])[1]||""}" placeholder="по" aria-label="Последняя страница оглавления в файле"><button class="btn primary" type="button" data-tocai="${b.id}">ИИ расставит страницы</button><span class="sm">Номера как в просмотрщике PDF (первая страница файла = 1). Учитель прочитает оглавление и сам впишет страницы глав и параграфов.</span></div>` : ""}
+        ${file && Store.aiAvailable() ? `<div class="editbar tocai"><span>Оглавление на страницах учебника</span><input type="number" min="1" max="999" data-tocfrom="${b.id}" value="${(m.tocPdf||[])[0]||""}" placeholder="с" aria-label="Первая страница оглавления"><span>по</span><input type="number" min="1" max="999" data-tocto="${b.id}" value="${(m.tocPdf||[])[1]||""}" placeholder="по" aria-label="Последняя страница оглавления"><button class="btn primary" type="button" data-tocai="${b.id}">ИИ расставит страницы</button><span class="sm">Номера как «стр.» в учебнике на сайте. Учитель прочитает оглавление и сам впишет страницы глав и параграфов.</span></div>` : ""}
         <div class="editbar"><label for="offset-${b.id}">Страниц в файле до первой страницы учебника:</label><input type="number" id="offset-${b.id}" data-off="${b.id}" min="-50" max="300" value="${Number(m.offset)||0}"><span>Если в PDF есть обложка и титульные листы, впиши, сколько их. Тогда номера ниже совпадут с номерами в книге.</span></div>
         ${b.groups.map((g,gi)=>g.chapters.map((c,ci)=>`<div class="grade chrow" style="padding-left:0"><span style="flex:1;min-width:0">${esc(c.n)} ${esc(c.t)}</span><input class="pgin" type="number" min="1" max="999" data-cpk="${gi}.${ci}" value="${(m.chapterPages||{})[gi+"."+ci]||""}" placeholder="стр." aria-label="Страница главы: ${esc(c.t)}"></div><ol class="paras" style="padding:0 0 6px">${
           c.p.map((p,pi)=>{ const k=`${b.id}.${gi}.${ci}.${pi}`; return `<li><span class="pn">${ci+1}.${pi+1}</span><span class="pt" style="flex:1;min-width:0">${esc(p)}</span><input class="pgin" type="number" min="1" max="999" id="pg-${k.replace(/\./g,'-')}" data-pk="${k}" value="${m.pages[k]||""}" placeholder="стр." aria-label="Страница: ${esc(p)}"></li>`; }).join("")}</ol>`).join("")).join("")}
@@ -285,12 +285,14 @@ async function autoPages(b){
 }
 // страницы параграфов по оглавлению: картинки страниц оглавления из PDF + список тем сайта -> ИИ сопоставляет
 async function tocPagesAi(b, from, to){
-  const m0 = S.book(b.id), total = m0.totalPages || 999;
-  if(!(from > 0)) throw new Error("укажи, на какой странице файла начинается оглавление");
+  const m0 = S.book(b.id), total = m0.totalPages || 999, off0 = Number(m0.offset)||0;
+  if(!(from > 0)) throw new Error("укажи, на какой странице начинается оглавление");
   if(!(to >= from)) to = from;
   if(to - from > 7) throw new Error("оглавление больше 8 страниц: укажи часть, например первые 8");
-  if(to > total) throw new Error(`в файле всего ${total} страниц`);
-  say(`Готовлю страницы оглавления ${from}–${to}…`);
+  const bookFrom = from, bookTo = to;
+  // номера как «стр.» в учебнике -> номера страниц в файле (со сдвигом); если вышли за файл, прижимаем к краю
+  from = Math.max(1, Math.min(total, from + off0)); to = Math.max(from, Math.min(total, to + off0));
+  say(`Готовлю страницы оглавления ${bookFrom}–${bookTo}…`);
   const images = []; for(let n=from; n<=to; n++) images.push(await Reader.pageImage(b, n, 1300));
   const chapters = [], topics = [];
   b.groups.forEach((g,gi)=>g.chapters.forEach((c,ci)=>{ chapters.push({ key:`${gi}.${ci}`, title:`${c.n} ${c.t}` }); c.p.forEach((p,pi)=>topics.push({ key:`${b.id}.${gi}.${ci}.${pi}`, title:p })); }));
@@ -298,13 +300,13 @@ async function tocPagesAi(b, from, to){
   const r = await Store.ask({ mode:"tocpages", images, text:`Учебник: ${b.subject}, ${b.title}. Первая присланная картинка — страница ${from} файла.\nГлавы (ключ: название): ${JSON.stringify(chapters)}\nТемы (ключ: название): ${JSON.stringify(topics)}` });
   const t = String(r.text||""), a = t.indexOf("{"), z = t.lastIndexOf("}"); if(a<0 || z<a) throw new Error("учитель ответил не в том формате");
   const j = JSON.parse(t.slice(a, z+1)), m = S.book(b.id);
-  m.pages = Object.assign({}, m.pages); m.chapterPages = Object.assign({}, m.chapterPages); m.tocPdf = [from, to];
+  m.pages = Object.assign({}, m.pages); m.chapterPages = Object.assign({}, m.chapterPages); m.tocPdf = [bookFrom, bookTo];
   let n = 0;
   Object.entries(j.pages||{}).forEach(([k,v])=>{ const pg = parseInt(v,10); if(pg>0 && topics.some(x=>x.key===k)){ m.pages[k] = pg; n++; } });
   Object.entries(j.chapters||{}).forEach(([k,v])=>{ const pg = parseInt(v,10); if(pg>0 && chapters.some(x=>x.key===k)) m.chapterPages[k] = pg; });
   // сдвиг: номер файла минус напечатанный номер на первой странице оглавления
   const printed = parseInt(j.printed,10); let offNote = "";
-  if(printed > 0 && from - printed >= 0 && from - printed < 300){ m.offset = from - printed; offNote = ` Сдвиг страниц файла: ${m.offset}.`; }
+  if(printed > 0 && Math.abs(from - printed) < 300 && from - printed !== off0){ m.offset = from - printed; offNote = ` Сдвиг страниц файла поправлен: ${m.offset}.`; }
   S.setBook(b.id, m);
   const msg = n ? `Готово: страницы у ${n} из ${topics.length} тем.${offNote} Проверь их ниже.` : "В оглавлении не нашлось тем сайта. Проверь, те ли страницы указаны.";
   renderAccount(b.id); sayTarget = "status-"+b.id; say(msg, !n);
