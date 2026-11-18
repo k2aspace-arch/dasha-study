@@ -796,3 +796,13 @@ table.grades th:nth-child(n+6){white-space:nowrap}
 body.dock-inline .dockbtn{z-index:44}
 table.grades .gcell.gcalc{color:var(--muted);opacity:.75;border-style:dashed}
 .repimg .reptxt{padding:14px 16px;align-self:start;width:100%;user-select:none;-webkit-user-select:none;line-height:1.55}
+/* линия огоньков */
+.fireline{display:inline-flex;gap:5px;align-items:center}
+.fl{display:inline-block;width:16px;height:20px;border-radius:50%/60% 60% 40% 40%}
+.fl-empty,.fl-none,.fl-today,.fl-future{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);background:transparent;margin:3px 1px}
+.fl-none,.fl-future{opacity:.45;border-style:dotted}
+.fl-today{border-color:#ff9a4a;border-style:dashed}
+.fl-fire,.fl-dim{clip-path:path("M8 0C9.6 4.8 16 7.2 16 12.8a8 7.2 0 0 1-16 0C0 8.8 3.2 7.2 4 3.2c1.6 3.2 2.4 4 4 4.8C8 4.8 7.2 2.4 8 0z")}
+.fl-fire{background:linear-gradient(#ffd23f,#ff5a1a)}
+.fl-dim{background:linear-gradient(#ffe7b8,#f3b98a);opacity:.55}
+@media (max-width:600px){ .fl{width:11px;height:14px} .fl-fire,.fl-dim{clip-path:path("M5.5 0C6.6 3.3 11 4.9 11 8.8a5.5 5 0 0 1-11 0C0 6 2.2 4.9 2.7 2.2c1.1 2.2 1.7 2.7 2.8 3.3C5.5 3.3 4.9 1.6 5.5 0z")} .fl-empty,.fl-none,.fl-today,.fl-future{width:9px;height:9px} .fireline{gap:3px} }

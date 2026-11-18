@@ -133,6 +133,29 @@ function bonuses(){
 function programShare(){ const all = BOOKS.flatMap(keysOf); return all.length ? all.filter(k=>App.done[k]).length / all.length : 0; }
 function yearAvg(){ const g = S.grades().g; const v = GRADE_SUBJECTS.map(([id])=>Number((g[id]||{}).y)).filter(x=>x>=2); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; }
 
+/* ---------- линия огоньков: последние 14 дней ---------- */
+// fire — день засчитан; dim — серия не сломалась (выходной, каникулы, болезнь или первый день простоя); empty — пусто
+function fireLine(c){
+  const J = Object.assign({abs:[]}, Store.get("journal", {})), today = todayIso(), out = [];
+  let idle = 0;
+  // окно — текущие 2 недели (как период награды): прошедшие дни с огоньками, будущие — пустые кружки
+  let a0 = RULES.start; while(addDays(a0, 14) <= today) a0 = addDays(a0, 14);
+  const end = addDays(a0, 13);
+  for(let d = addDays(today, -40); d <= end; d = addDays(d, 1)){
+    const rec = c.byDay[d], sick = (J.abs||[]).some(a=>a.date===d && a.reason!=="absent" && !a.subj);
+    let st;
+    if(d < RULES.start) st = "none";
+    else if(d > today) st = "future";
+    else if(rec && rec.active){ st = "fire"; idle = 0; }
+    else if(d === today) st = "today";
+    else if(!isSchoolDay(d) || sick) st = "dim";
+    else { idle++; st = idle === 1 ? "dim" : "empty"; }
+    out.push([d, st]);
+  }
+  const TT = { fire:"огонь: день засчитан", dim:"тусклый: серия не сломалась", empty:"пусто: день без занятий", today:"сегодня: ещё можно позаниматься", none:"до старта", future:"впереди" };
+  return `<span class="fireline" aria-label="Огоньки за две недели">${out.filter(([d])=>d>=a0).map(([d,st])=>`<i class="fl fl-${st}" title="${DM.format(day(d))}: ${TT[st]}"></i>`).join("")}</span>`;
+}
+
 /* ---------- полоса сверху ---------- */
 const STATE_TXT = { hot:"Серия горит", wait:"Позанимайся сегодня, чтобы серия не остыла", cool:"Серия остывает: вчера не было занятий", out:"Серия погасла. Со 2-го дня простоя снимаются очки" };
 function renderBar(){
@@ -142,6 +165,7 @@ function renderBar(){
   el.hidden = false;
   el.className = "streakbar st-" + c.state;
   el.innerHTML = `<a href="#rewards" class="sb-fire" aria-label="${STATE_TXT[c.state]}"><span class="flame" aria-hidden="true"></span><b>${c.state==="out"?0:c.streak}</b><span class="sm">${c.state==="out"?"серия погасла":pl(c.streak,"день","дня","дней")+" подряд"}</span></a>
+    <a href="#rewards" class="sb-line">${fireLine(c)}</a>
     <a href="#rewards" class="sb-pts"><b>${c.total}</b><span class="sm">очков</span></a>
     ${cur2w?`<a href="#rewards" class="sb-next"><span class="sm">До подписки на кино: ${Math.max(0, cur2w.goal - cur2w.pts)} очков до ${DM.format(day(cur2w.b))}</span><span class="bar"><i style="width:${Math.min(100, Math.round(100*cur2w.pts/cur2w.goal))}%"></i></span></a>`:""}
     <span class="sb-state sm">${STATE_TXT[c.state]}</span>
