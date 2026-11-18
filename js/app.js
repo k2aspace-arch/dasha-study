@@ -165,11 +165,11 @@ function renderBook(b){
     g.chapters.forEach((c,ci)=>{
       const open = (gi===0 && ci===0) ? " open" : "";
       const cpg = (m.chapterPages||{})[`${gi}.${ci}`];
-      html += `<details class="ch" data-ch="${gi}.${ci}"${open}><summary><span class="num">${esc(c.n)}</span><span class="ttl">${esc(c.t)}</span><span class="cnt" data-cnt="${gi}.${ci}"></span>${cpg && file ? `<button class="pg chpg" type="button" data-chpage="${cpg}" data-chtitle="${esc(c.n+" "+c.t)}">стр. ${cpg}</button>` : ""}</summary><ol class="paras">` +
+      html += `<details class="ch" data-ch="${gi}.${ci}"${open}><summary><span class="num">${esc(c.n)}</span><span class="ttl">${esc(c.t)}</span><span class="cnt" data-cnt="${gi}.${ci}"></span>${Topic.chapterPassed(b.id, gi+"."+ci) ? `<span class="chpass" title="Итоговые вопросы по главе пройдены">✓ глава проверена</span>` : ""}${cpg && file ? `<button class="pg chpg" type="button" data-chpage="${cpg}" data-chtitle="${esc(c.n+" "+c.t)}">стр. ${cpg}</button>` : ""}</summary><ol class="paras">` +
         c.p.map((p,pi)=>{
           const k=`${b.id}.${gi}.${ci}.${pi}`, id=k.replace(/\./g,'-'), pg = m.pages[k];
           const right = pg && file ? `<button class="pg" type="button" data-page="${pg}">стр. ${pg}</button>` : "";
-          return `<li><label><input type="checkbox" id="cb-${id}" data-k="${k}" ${done[k]?"checked":""}><span class="box"></span><span class="pn">${ci+1}.${pi+1}</span></label><a class="pt tlink" href="#t/${b.id}/${gi}.${ci}.${pi}">${esc(p)}</a>${(()=>{ const v = Topic.know().k[k]; return v===undefined ? "" : `<span class="knchip kn${v}" title="Знание темы, по ответам учителю">${esc(Topic.KNOW[v])}</span>`; })()}${right}</li>`;
+          return `<li><label><input type="checkbox" id="cb-${id}" data-k="${k}" ${done[k]?"checked":""}><span class="box"></span><span class="pn">${ci+1}.${pi+1}</span></label><a class="pt tlink" href="#t/${b.id}/${gi}.${ci}.${pi}">${esc(p)}</a>${(()=>{ const r = Topic.testOf(k); return r && r.pass ? `<span class="tchk" title="Тема освоена: тест пройден ${r.ok} из ${r.n}" aria-label="Тест пройден">✓</span>` : ""; })()}${(()=>{ const v = Topic.know().k[k]; return v===undefined ? "" : `<span class="knchip kn${v}" title="Знание темы, по ответам учителю">${esc(Topic.KNOW[v])}</span>`; })()}${right}</li>`;
         }).join("") + `</ol><div class="chacts"><a class="btn" href="#t/${b.id}/${gi}.${ci}.0">Начать главу с учителем</a><a class="btn" href="#q/${b.id}/${gi}.${ci}">Итоговые вопросы по главе</a></div></details>`;
     });
   });

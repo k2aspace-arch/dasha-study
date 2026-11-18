@@ -83,13 +83,12 @@ function render(arg){
     <h2>${t.ci+1}.${t.pi+1}. ${esc(t.title)}</h2>
     <div class="topic-row">
       ${rg && file ? `<button class="btn primary" type="button" id="topen">Открыть учебник на стр. ${rg[0]}</button>` : file ? `<button class="btn primary" type="button" id="tbook">Открыть учебник</button><span class="sm">Страница темы не указана, <a href="#account">указать</a></span>` : `<a class="btn" href="#account">Загрузить учебник</a>`}
-      <label class="ck"><input type="checkbox" id="tdone" ${App.done[t.key]?"checked":""}> Тема пройдена</label>
+      ${testHtml(t)}
       <span class="knchip kn${k===undefined?"":k}" id="tknow" title="Заполняется по твоим ответам учителю, итоговым вопросам и срезу знаний">${k===undefined?"Знание: пока не проверено":"Знание: "+KNOW[k].toLowerCase()}</span>
     </div>
     <div class="topic-nav">${prev?`<a class="btn" href="${link(prev)}">← Предыдущая тема</a>`:""}<span style="flex:1"></span>${next?`<a class="btn" href="${link(next)}">Следующая тема →</a>`:""}</div>
   </section>
   <section class="panel" id="tnb"></section>
-  <section class="panel dadrow"><div><h3>Итоговые вопросы по главе</h3><p class="hint">Тест на понимание и пара заданий нарисовать по теме «${esc(t.c.t)}».</p></div><a class="btn" href="#q/${b.id}/${t.ckey}">Пройти</a></section>
   </div>`;
   Study.Dock.claim("topic", "Учитель Клод", `${t.ci+1}.${t.pi+1}. ${t.title}`, null).innerHTML = teacherHtml;
   const ruled = b.id === "rus";
@@ -101,7 +100,6 @@ function render(arg){
   if(rg && file && window.innerWidth >= 1000 && !pend) Reader.open(b, rg[0], `${t.ci+1}.${t.pi+1}. ${t.title}`);
   $("topen") && $("topen").addEventListener("click", ()=>Reader.open(b, rg[0], `${t.ci+1}.${t.pi+1}. ${t.title}`));
   $("tbook") && $("tbook").addEventListener("click", ()=>Reader.open(b, 0, ""));
-  $("tdone").addEventListener("change", e=>{ App.setDone(t.key, e.target.checked); if(window.Points) Points.renderBar(); });
   $("tphoto").addEventListener("click", async()=>{ const got = await Photo.pick(false); if(got[0]){ cur.photo = got[0]; drawPhoto(); say("Фото приложено. Нажми «Проверь моё решение», «Подсказка» или просто отправь вопрос."); } });
   $("tnew").addEventListener("click", ()=>{ cur.chat = []; cur.level = 0; persist(); draw(); });
   cur.onReader = () => selInfo(); window.addEventListener("reader:change", cur.onReader); selInfo();
@@ -204,23 +202,36 @@ async function send(mode, content, opt){
   if(cur===me){ persist(); draw(); if(me.gotLater){ me.gotLater = false; act("got"); } } else { lsSet("tchat:"+t.key, { msgs: me.chat.slice(-40), level: me.level }); }
 }
 
-/* ---------- итоговые вопросы по главе ---------- */
+/* ---------- тест по теме: пройден на 80% и выше → «тема освоена, тест пройден» ---------- */
+const PASS = 0.8;
+const tests = () => Object.assign({}, Store.get("topicTests", {}));
+function testOf(key){ return tests()[key] || null; }
+function chapterPassed(bookId, ck){ const r = (Store.get("quizRes", {})[`${bookId}.${ck}`]) || []; return r.length ? r[r.length-1] >= PASS : null; }
+function testHtml(t){
+  const r = testOf(t.key), href = `#q/${t.b.id}/${t.gi}.${t.ci}.${t.pi}`;
+  if(r && r.pass) return `<span class="tpassed" title="Тест пройден ${new Date(r.ts).toLocaleDateString("ru-RU")}">✓ Тема освоена · тест пройден, ${r.ok} из ${r.n}</span><a class="btn sm" href="${href}">Пройти ещё раз</a>`;
+  return `<a class="btn" href="${href}">${r ? "Пройти тест ещё раз" : "Пройти тест по теме"}</a>${r ? `<span class="sm">последний раз ${r.ok} из ${r.n}, нужно ${Math.ceil(PASS*r.n)}</span>` : ""}`;
+}
+
+/* ---------- итоговые вопросы по главе и тест по теме ---------- */
 const parseJson = s => { const a = s.indexOf("{"), z = s.lastIndexOf("}"); if(a<0||z<a) throw new Error("Учитель ответил не в том формате"); return JSON.parse(s.slice(a, z+1)); };
 async function renderQuiz(arg){
   leave();
-  const [bookId, ck] = arg.split("/"), t = find(bookId, ck + ".0");
-  if(!t){ $("main").innerHTML = `<section class="panel"><p>Такой главы нет.</p></section>`; return; }
-  const b = t.b, ai = Store.aiAvailable(), me = cur = { t, quiz:true };
-  $("main").innerHTML = `<section class="panel quiz" style="--c:${b.color}"><div class="crumbs"><a href="#${b.id}">${esc(b.subject)}</a></div><h2>Итоговые вопросы: ${esc(t.c.n)} ${esc(t.c.t)}</h2>
+  const [bookId, ck] = arg.split("/"), one = ck.split(".").length === 3, t = find(bookId, one ? ck : ck + ".0");
+  if(!t){ $("main").innerHTML = `<section class="panel"><p>Такой ${one?"темы":"главы"} нет.</p></section>`; return; }
+  const b = t.b, ai = Store.aiAvailable(), me = cur = { t, quiz:true, one, tp: one ? [t.pi] : t.c.p.map((_,i)=>i) };
+  $("main").innerHTML = `<section class="panel quiz" style="--c:${b.color}"><div class="crumbs"><a href="#${b.id}">${esc(b.subject)}</a>${one?` · <a href="#t/${b.id}/${ck}">${t.ci+1}.${t.pi+1}. ${esc(t.title)}</a>`:""}</div><h2>${one ? `Тест по теме: ${esc(t.title)}` : `Итоговые вопросы: ${esc(t.c.n)} ${esc(t.c.t)}`}</h2>
+    ${one ? `<p class="hint">Ответь хотя бы на ${Math.round(PASS*100)}% вопросов верно, и тема будет отмечена как освоенная и проверенная.</p>` : ""}
     <div class="tutorstage" id="qstage"></div><div id="qbody">${ai ? `<p class="hint">Учитель читает главу и составляет вопросы…</p>` : `<p class="note"><b>Учитель пока не подключён.</b> Итоговые вопросы составляет ИИ по страницам учебника, поэтому они заработают после подключения.</p>`}</div></section>`;
   me.av = Avatar.create($("qstage"), {compact:true});
   if(!ai){ me.av.start(); return; }
-  me.av.setMood("think"); me.av.say("Составляю вопросы по главе…");
+  me.av.setMood("think"); me.av.say(one ? "Составляю тест по теме…" : "Составляю вопросы по главе…");
   try{
-    const topics = t.c.p, pages = [];
-    if(hasFile(b)) for(let pi=0; pi<topics.length; pi++){ const st = pageOf(b, t.gi, t.ci, pi); if(st){ const got = await pagesFor(b, st, st+1, 2); got.forEach(p=>{ if(!pages.some(x=>x.n===p.n)) pages.push(p); }); } }
-    if(!pages.length){ $("qbody").innerHTML = `<p class="note">Чтобы вопросы были строго по учебнику, укажи страницы тем этой главы в <a href="#account">личном кабинете</a>.</p>`; me.av.setMood("squint"); me.av.say("Мне нужен учебник", 4000); return; }
-    const r = await Store.ask({ mode:"quiz", subject:b.subject, topic:{ book:b.title, chapter:`${t.c.n} ${t.c.t}`, title:t.c.t, topics }, pages: pages.slice(0, 10) });
+    const topics = me.tp.map(pi=>t.c.p[pi]), pages = [], rg = one ? range(t) : null;
+    if(hasFile(b)){ if(one){ if(rg) (await pagesFor(b, rg[0], rg[1], 4)).forEach(p=>pages.push(p)); }
+      else for(let pi=0; pi<topics.length; pi++){ const st = pageOf(b, t.gi, t.ci, pi); if(st){ const got = await pagesFor(b, st, st+1, 2); got.forEach(p=>{ if(!pages.some(x=>x.n===p.n)) pages.push(p); }); } } }
+    if(!pages.length){ $("qbody").innerHTML = `<p class="note">Чтобы вопросы были строго по учебнику, укажи страницы ${one?"этой темы":"тем этой главы"} в <a href="#account">личном кабинете</a>.</p>`; me.av.setMood("squint"); me.av.say("Мне нужен учебник", 4000); return; }
+    const r = await Store.ask({ mode:"quiz", subject:b.subject, topic:{ book:b.title, chapter:`${t.c.n} ${t.c.t}`, title: one ? t.title : t.c.t, topics }, pages: pages.slice(0, 10) });
     if(cur!==me) return;
     const qs = (parseJson(r.text).questions || []).filter(q=>q && q.q);
     if(!qs.length) throw new Error("Вопросы не получились");
@@ -253,23 +264,31 @@ function drawQuiz(me, qs){
     if(cur!==me) return;
     const ok = res.filter(r=>r.ok).length, pct = ok/qs.length;
     // слабые темы: понижаем «знаю хорошо» до «надо повторить»
-    const weak = new Set(); qs.forEach((q,i)=>{ if(!res[i].ok && Number.isInteger(q.topic) && me.t.c.p[q.topic]!==undefined) weak.add(q.topic); });
-    const per = {}; qs.forEach((q,i)=>{ if(Number.isInteger(q.topic) && me.t.c.p[q.topic]!==undefined){ const p = per[q.topic] = per[q.topic] || [0,0]; p[1]++; if(res[i].ok) p[0]++; } });
+    const piOf = q => me.one ? me.t.pi : Number.isInteger(q.topic) && me.tp[q.topic]!==undefined ? me.tp[q.topic] : null;
+    const weak = new Set(); qs.forEach((q,i)=>{ const pi = piOf(q); if(!res[i].ok && pi!==null) weak.add(pi); });
+    const per = {}; qs.forEach((q,i)=>{ const pi = piOf(q); if(pi!==null){ const p = per[pi] = per[pi] || [0,0]; p[1]++; if(res[i].ok) p[0]++; } });
     const kd = know(); kd.k = Object.assign({}, kd.k); Object.entries(per).forEach(([pi,[ok,n]])=>{ const k = `${me.t.b.id}.${me.t.gi}.${me.t.ci}.${pi}`, r = ok/n; kd.k[k] = r===1 && n>=2 ? 3 : r>=.5 ? 2 : 1; }); Store.set("know", kd, 0);
-    const qr = Object.assign({}, Store.get("quizRes", {})), key = `${me.t.b.id}.${me.t.ckey}`, prev = qr[key] ? qr[key][qr[key].length-1] : null;
-    qr[key] = (qr[key]||[]).concat([pct]).slice(-10); Store.set("quizRes", qr, 0);
-    const ql = Object.assign({list:[]}, Store.get("quizzes", {})); ql.list = ql.list.concat([{ ts:Date.now(), key, ok, n:qs.length }]); Store.set("quizzes", ql, 0);
+    let prev = null; const passed = pct >= PASS;
+    if(me.one){ const all = tests(), was = all[me.t.key]; prev = was ? was.ok/was.n : null;
+      all[me.t.key] = { ts:Date.now(), ok, n:qs.length, pass: passed || !!(was && was.pass), last: pct }; Store.set("topicTests", all, 0);
+      if(passed && !App.done[me.t.key]) App.setDone(me.t.key, true);
+      if(window.Points && Points.logAct) Points.logAct(); }
+    else { const qr = Object.assign({}, Store.get("quizRes", {})), key = `${me.t.b.id}.${me.t.ckey}`; prev = qr[key] ? qr[key][qr[key].length-1] : null;
+      qr[key] = (qr[key]||[]).concat([pct]).slice(-10); Store.set("quizRes", qr, 0);
+      const ql = Object.assign({list:[]}, Store.get("quizzes", {})); ql.list = ql.list.concat([{ ts:Date.now(), key, ok, n:qs.length }]); Store.set("quizzes", ql, 0); }
     if(window.Points) Points.renderBar();
-    $("qbody").innerHTML = `<p><b>Верно ${ok} из ${qs.length}.</b>${weak.size ? ` Стоит повторить: ${[...weak].map(pi=>`<a href="#t/${me.t.b.id}/${me.t.ckey}.${pi}?brief">${esc(me.t.c.p[pi])}</a>`).join(", ")}.` : ""}</p>
+    const back = me.one ? `#t/${me.t.b.id}/${me.t.ckey}.${me.t.pi}` : `#${me.t.b.id}`;
+    $("qbody").innerHTML = `${passed ? `<p class="tpassed big">✓ ${me.one ? "Тема освоена, тест пройден" : "Глава проверена, тест пройден"}</p>` : `<p class="note">Пока не засчитано: нужно не меньше ${Math.ceil(PASS*qs.length)} верных из ${qs.length}. Повтори и попробуй ещё раз.</p>`}
+      <p><b>Верно ${ok} из ${qs.length}.</b>${weak.size ? ` Стоит повторить: ${[...weak].map(pi=>`<a href="#t/${me.t.b.id}/${me.t.ckey}.${pi}?brief">${esc(me.t.c.p[pi])}</a>`).join(", ")}.` : ""}</p>
       ${qs.map((q,i)=>`<div class="ogeq"><div class="oge-num">Вопрос ${i+1} ${res[i].ok?`<span class="chip ok">верно</span>`:`<span class="chip warn">ошибка</span>`}</div><div class="oge-text">${esc(q.q)}</div><p class="hint">${esc(res[i].comment||"")}</p></div>`).join("")}
-      <div class="btnrow"><a class="btn" href="#q/${me.t.b.id}/${me.t.ckey}" id="qagain">Новые вопросы</a></div>`;
-    $("qagain").addEventListener("click", e=>{ e.preventDefault(); renderQuiz(`${me.t.b.id}/${me.t.ckey}`); });
+      <div class="btnrow"><a class="btn" href="#" id="qagain">Новые вопросы</a><a class="btn" href="${back}">${me.one ? "Вернуться к теме" : "К оглавлению"}</a></div>`;
+    $("qagain").addEventListener("click", e=>{ e.preventDefault(); renderQuiz(me.one ? `${me.t.b.id}/${me.t.ckey}.${me.t.pi}` : `${me.t.b.id}/${me.t.ckey}`); });
     me.av.setMood("idle");
     const verdict = pct===1 ? "perfect" : prev===null ? (pct>=.5 ? "better" : "worse") : pct > prev ? "better" : pct < prev ? "worse" : "same";
-    await Avatar.grade({ mark: pct>=.9?5:pct>=.7?4:pct>=.5?3:2, verdict, detail:`Итоговые вопросы по главе: верно ${ok} из ${qs.length}.` });
+    await Avatar.grade({ mark: pct>=.9?5:pct>=.7?4:pct>=.5?3:2, verdict, detail:`${me.one ? "Тест по теме" : "Итоговые вопросы по главе"}: верно ${ok} из ${qs.length}.` });
     if(cur===me) me.av.start();
   });
 }
 
-window.Topic = { render, renderQuiz, leave, find, pageOf, range, know, setKnow, KNOW, flat, pagesFor };
+window.Topic = { render, renderQuiz, leave, testOf, chapterPassed, find, pageOf, range, know, setKnow, KNOW, flat, pagesFor };
 })();
