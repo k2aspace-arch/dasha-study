@@ -259,7 +259,7 @@ function renderAccount(openId){
       <p class="fileline">${file?`Файл: <b>${esc(m.fileName||"учебник.pdf")}</b>, ${pl(m.totalPages||0,"страница","страницы","страниц")}. Страницы указаны у ${set} из ${total} параграфов и у ${Object.keys(m.chapterPages||{}).length} глав.`:"PDF ещё не загружен."}</p>
       <div class="btnrow">
         <button class="btn ${file?"":"primary"}" data-up="${b.id}" type="button">${file?"Заменить PDF":"Загрузить PDF"}</button>
-        ${file?`<button class="btn" data-open="${b.id}" type="button">Открыть учебник</button><button class="btn" data-auto="${b.id}" type="button">Найти страницы тем автоматически</button>${b.exam?"":Study.idxButton(b)}`:""}
+        ${file?`<button class="btn" data-open="${b.id}" type="button">Открыть учебник</button>${b.exam?"":Study.idxButton(b)}`:""}
         <input type="file" id="file-${b.id}" accept="application/pdf,.pdf" hidden>
       </div>
       ${shareLine(b)}${b.user ? `<div class="btnrow"><button class="btn" type="button" data-mydrop="${b.id}">Убрать ${b.kind==="wb"?"рабочую тетрадь":"учебник"}</button></div>` : ""}
@@ -294,7 +294,6 @@ function renderAccount(openId){
     const off = await detectOffset(b).catch(()=>null); btn.disabled = false;
     if(off === null){ say("Не получилось определить: на страницах не видно номеров. Впиши сдвиг вручную.", true); return; }
     const m = S.book(b.id); m.offset = off; await S.setBook(b.id, m); renderAccount(b.id); sayTarget = "status-"+b.id; say(`Сдвиг страниц: ${off}. Номера «стр.» теперь совпадают с книгой.`); }));
-  main.querySelectorAll("[data-auto]").forEach(btn=>btn.addEventListener("click",()=>{ const b = ACCB().find(x=>x.id===btn.dataset.auto); sayTarget = "status-"+b.id; btn.disabled = true; autoPages(b).catch(e=>{ console.error(e); say("Не получилось прочитать учебник: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
   Study.bindKnow(main);
   main.querySelectorAll("[data-open]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(ACCB().find(x=>x.id===btn.dataset.open), 0, "")));
   main.querySelectorAll("[data-tocai]").forEach(btn=>btn.addEventListener("click",()=>{ const b = ACCB().find(x=>x.id===btn.dataset.tocai); sayTarget = "status-"+b.id; btn.disabled = true;
@@ -310,24 +309,6 @@ function renderAccount(openId){
 }
 let sayTarget = "status";
 // Поиск страниц тем по тексту PDF: ищем заголовок каждой темы по порядку, пропуская оглавление.
-async function autoPages(b){
-  const m = S.book(b.id), total = m.totalPages || 0, norm = t => t.toLowerCase().replace(/ё/g,"е").replace(/[^a-zа-я0-9]+/g," ").trim();
-  const texts = [];
-  for(let n=1; n<=total; n++){ if(n%10===1) say(`Читаю учебник: страница ${n} из ${total}…`); try{ texts[n] = norm(await Reader.pageText(b, n)); }catch(e){ texts[n] = ""; } }
-  const withText = texts.filter(t=>t && t.length > 100).length;
-  if(withText < total*0.3){ say("В этом PDF нет текстового слоя (учебник отсканирован картинками), поэтому найти страницы автоматически не получится. Впиши их вручную в «Номера страниц параграфов».", true); return; }
-  const topics = []; b.groups.forEach((g,gi)=>g.chapters.forEach((c,ci)=>c.p.forEach((p,pi)=>topics.push({ k:`${b.id}.${gi}.${ci}.${pi}`, ck:`${gi}.${ci}`, pi, q: norm(p).split(" ").slice(0,6).join(" ") }))));
-  const isToc = n => topics.filter(t=>t.q.length>6 && texts[n].includes(t.q)).length >= 3;
-  const off = Number(m.offset)||0; m.pages = Object.assign({}, m.pages); m.chapterPages = Object.assign({}, m.chapterPages);
-  let from = 1, found = 0;
-  for(const t of topics){
-    if(t.q.length < 6) continue;
-    for(let n=from; n<=total; n++){ if(texts[n] && texts[n].includes(t.q) && !isToc(n)){ m.pages[t.k] = n - off; if(t.pi===0 && !m.chapterPages[t.ck]) m.chapterPages[t.ck] = n - off; from = n; found++; break; } }
-  }
-  S.setBook(b.id, m);
-  say(found ? `Нашёл страницы у ${found} из ${topics.length} тем. Проверь их в «Номера страниц параграфов»: если темы в учебнике называются иначе, часть страниц придётся вписать вручную.` : "Не нашёл ни одной темы: похоже, в этом издании темы называются иначе. Впиши страницы вручную.", !found);
-  const keep = sayTarget, msg = $(keep) ? $(keep).textContent : ""; renderAccount(b.id); sayTarget = keep; say(msg, !found);
-}
 // главы, параграфы и страницы строго по оглавлению учебника: картинки страниц оглавления из PDF -> ИИ читает их
 async function tocPagesAi(b, from, to){
   const m0 = S.book(b.id), total = m0.totalPages || 999, off0 = Number(m0.offset)||0;
