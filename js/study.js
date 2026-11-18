@@ -341,8 +341,19 @@ async function readInfo(b, k, from, to, say){
   const inf = ogeInfo(b); inf[k] = { text: parts.join("\n\n"), pages:[from, to], ts:Date.now() }; await Store.set("oinfo-"+b.id, inf, 0);
 }
 // после оглавления сборника: ответы, инструкция и справочные материалы читаются сами, если они есть в оглавлении
+// если в оглавлении нет строк «Вариант N», ищем заголовки вариантов в тексте самого PDF
+async function findVariantPages(b, say){
+  const m = S.book(b.id), total = m.totalPages || 0, off = Number(m.offset)||0, found = {};
+  for(let n = 1; n <= total; n++){ if(n % 20 === 1) say(`Ищу варианты в сборнике: страница ${n} из ${total}…`);
+    let t = ""; try{ t = await Reader.pageText(b, n); }catch(e){}
+    const head = t.split("\n").slice(0, 6).join(" "), mm = head.match(/вариант\s*№?\s*(\d{1,2})(?!\d)/i);
+    if(mm && !found[mm[1]]) found[mm[1]] = n - off; }
+  if(Object.keys(found).length){ m.varPages = found; await S.setBook(b.id, m); }
+  return Object.keys(found).length;
+}
 async function ogeAutoPrep(b, say){
   const sec = ogeSections(b), done = [];
+  if(!ogeVariants(b).some(x=>x.page)){ const n = await findVariantPages(b, say).catch(()=>0); if(n) done.push(`страницы ${pl(n,"варианта","вариантов","вариантов")} по тексту сборника`); }
   if(sec.key){ try{ const n = await readKey(b, sec.key[0], Math.min(sec.key[1], sec.key[0]+39), say); if(n) done.push(`ответы к ${pl(n,"варианту","вариантам","вариантам")}`); }catch(e){ console.warn(e); } }
   for(const k of ["instr","ref"]) if(sec[k]){ try{ await readInfo(b, k, sec[k][0], sec[k][1], say); done.push(INFO_KINDS[k].toLowerCase()); }catch(e){ console.warn(e); } }
   return done;
@@ -356,6 +367,7 @@ function ogeVariants(b){
   (b.groups||[]).forEach((g,gi)=>g.chapters.forEach((c,ci)=>{ const mm = String(c.t).match(/вариант\s*№?\s*(\d+)/i);
     if(mm) out[mm[1]] = (m.chapterPages||{})[`${gi}.${ci}`] || (m.pages||{})[`${b.id}.${gi}.${ci}.0`] || 0;
     c.p.forEach((p,pi)=>{ const t = String(p).match(/вариант\s*№?\s*(\d+)/i); if(t && !out[t[1]]) out[t[1]] = (m.pages||{})[`${b.id}.${gi}.${ci}.${pi}`] || 0; }); }));
+  Object.entries(m.varPages||{}).forEach(([v,pg])=>{ if(!out[v]) out[v] = pg; });
   // страницы варианта: от его начала до начала следующего раздела оглавления
   const starts = [];
   (b.groups||[]).forEach((g,gi)=>g.chapters.forEach((c,ci)=>{ const cp = (m.chapterPages||{})[`${gi}.${ci}`]; if(cp) starts.push(cp); c.p.forEach((x,pi)=>{ const pg = (m.pages||{})[`${b.id}.${gi}.${ci}.${pi}`]; if(pg) starts.push(pg); }); }));
