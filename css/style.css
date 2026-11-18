@@ -985,3 +985,21 @@ details.rulesbox>summary::-webkit-details-marker{display:none}
 .profline{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:0 0 14px}
 .profline .btn{flex:none}
 .profdanger{border-color:color-mix(in srgb, #d23c3c 30%, var(--line))}
+/* круглая кнопка учителя с живым аватаром */
+.dockbtn{width:84px;height:84px;padding:0;border-radius:50%;justify-content:center;overflow:hidden;background:radial-gradient(circle at 50% 35%, var(--card) 0 55%, var(--accent-soft) 100%)}
+.dockbtn .dockav{position:absolute;inset:0;pointer-events:none}
+.dockbtn .av-stage.mini{height:100%;overflow:hidden}
+.dockbtn .av-stage.mini .av-walker{width:52px;bottom:4px}
+.dockbtn .av-stage.mini .av-say{display:none}
+.dockbtn.ping::after{top:6px;right:10px}
+@media (max-width:600px){ .dockbtn{width:68px;height:68px} .dockbtn .av-stage.mini .av-walker{width:42px} }
+/* подсказка-пузырь от учителя */
+.docktip{position:fixed;right:18px;bottom:114px;z-index:45;max-width:min(360px,calc(100vw - 36px));padding:14px 16px 12px;border-radius:18px 18px 4px 18px;background:var(--card);color:var(--ink);border:2px solid var(--accent);box-shadow:0 10px 30px rgba(0,0,0,.2);font-size:14px;line-height:1.45;animation:tipin .35s ease-out}
+.docktip.high{bottom:18px}
+.docktip::after{content:"";position:absolute;right:30px;bottom:-10px;width:16px;height:16px;background:var(--card);border-right:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:rotate(45deg)}
+.docktip.high::after{display:none}
+.docktip-t b{color:var(--accent)}
+.docktip-x{display:block;margin:10px 0 0 auto;font:inherit;font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
+@keyframes tipin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (max-width:600px){ .docktip{right:12px;bottom:92px} }
+@media (prefers-reduced-motion: reduce){ .docktip{animation:none} }

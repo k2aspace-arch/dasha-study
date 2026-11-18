@@ -72,8 +72,16 @@ const Dock = (()=>{
     away(onLeave){ D.release(); away = true; claimed = true; awayClean = onLeave || null; },
     end(fallback){ if(away){ hidden = true; apply(false); return; } hidden = false; if(!claimed && kind!=="general") fallback(); apply(want()); },
     hide(){ hidden = true; apply(false); },
-    ping(){ const el = $("dock"), b = $("dockbtn"); if(el && el.hidden && b) b.classList.add("ping"); }
+    ping(){ const el = $("dock"), b = $("dockbtn"); if(el && el.hidden && b) b.classList.add("ping"); },
+    // подсказка пузырём от учителя у кнопки в правом нижнем углу
+    tip(text){ const t = $("docktip"); if(!t) return; if(!text){ t.hidden = true; return; } t.querySelector(".docktip-t").innerHTML = text; t.hidden = false;
+      t.classList.toggle("high", !!($("dockbtn") && $("dockbtn").hidden)); if(dockAv){ dockAv.setMood("smile"); setTimeout(()=>dockAv && dockAv.setMood("idle"), 2500); } }
   };
+  // круглая кнопка: внутри живой учитель, ходит и думает
+  let dockAv = null;
+  setTimeout(()=>{ const h = document.querySelector("#dockbtn .dockav"); if(h && window.Avatar && !dockAv){ dockAv = Avatar.create(h, {compact:true}); dockAv.el.classList.add("mini"); dockAv.start(); } }, 0);
+  document.addEventListener("click", e=>{ if(e.target.closest(".docktip-x")) D.tip(""); });
+  window.addEventListener("hashchange", ()=>D.tip(""));
   document.addEventListener("click", e=>{ if(e.target.closest("#dockbtn")) D.open(); else if(e.target.closest("#dockclose")) D.close(); else if(e.target.closest("#dockwide")){ setInline(!isInline()); if(isInline()) $("dock").scrollIntoView({ behavior:"smooth", block:"start" }); } });
   setTimeout(()=>setInline(isInline()), 0);
   window.addEventListener("resize", ()=>{ const el = $("dock"); if(el && !hidden) apply(!el.hidden); });

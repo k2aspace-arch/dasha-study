@@ -469,7 +469,6 @@ function startBookTest(exam, v){
   const list = nums.map(n=>({ num:n, long: isLong(n), q:`Задание ${n} варианта ${v} — условие и рисунок на листах сборника выше${page?` (вариант с стр. ${page})`:""}.` }));
   session = { mode:"btest", exam, v, key, hasKey, list, ans:list.map(()=>""), at:list.map(()=>0), start:Date.now(), end:Date.now() + min*60e3, nb:"trial-"+Date.now(), draft:null };
   $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><b>${esc(exName(exam))}: вариант ${esc(v)} из сборника</b><span class="timer" id="ogetimer" role="timer"></span><button class="btn" type="button" id="ogeopenbk" title="Сборник откроется сбоку, как учебник: его можно свернуть кнопкой ▁ и вернуть, а эта кнопка всегда возвращает к началу варианта">📖 Сборник сбоку${page?`, стр. ${page}`:""}</button><button class="btn" type="button" id="ogequit">Выйти без оценки</button></div>
-    <p class="hint" style="margin:0 0 8px">Ниже листы варианта прямо из сборника, со всеми рисунками. Ответы вписывай в поля под ними. Кнопка «📖 Сборник сбоку» открывает сам сборник рядом, как учебник: его можно свернуть и вернуть, а кнопка снова открывает начало варианта. Поставь курсор в поле ответа, и под заданием откроется листок-черновик.</p>
     ${page ? `<div class="vpages" id="vpages" aria-label="Листы варианта ${esc(v)}"><p class="sm">Загружаю листы сборника…</p></div>` : `<p class="note">В оглавлении сборника не нашлась страница варианта ${esc(v)}. Открой сборник кнопкой сверху.</p>`}
     <form id="ogeform">${list.map((t,i)=>`<div class="ogeq"><div class="oge-num">Задание ${t.num}</div>${t.long ? `<p class="hint" style="margin:4px 0">Развёрнутый ответ: реши в черновике, после проверки покажи учителю.</p><button class="btn" type="button" data-opendraft="${i}">✎ Открыть черновик</button>` : `<label class="oge-ans"><span class="sm">Ответ</span><input type="text" autocomplete="off" data-ans="${i}"></label>`}<div class="ogedraft" data-draft="${i}"></div></div>`).join("")}
     <div class="btnrow"><button class="btn primary" type="submit">Завершить и проверить</button></div></form></section>`;
@@ -478,6 +477,7 @@ function startBookTest(exam, v){
     el.textContent = left > 0 ? `Осталось ${mmss(left)}` : `Время вышло · +${mmss(-left)} сверх`; el.classList.toggle("low", left < 5*60e3); el.classList.toggle("over", left <= 0); };
   tick(); timer = setInterval(tick, 1000); addInfo(exam);
   $("main").querySelectorAll("[data-ans]").forEach(inp=>inp.addEventListener("input",()=>{ const i = Number(inp.dataset.ans); session.ans[i] = inp.value; session.at[i] = Date.now(); }));
+  Study.Dock.tip(`Удачи! Ниже листы варианта прямо из сборника, со всеми рисунками. Ответы вписывай в поля под ними.<br><br>Поставь курсор в поле ответа, и под заданием откроется <b>черновик</b>. Кнопка <b>«📖 Сборник сбоку»</b> откроет сам сборник рядом: его можно свернуть и вернуть.`);
   bindDrafts();
   $("ogeopenbk").addEventListener("click", ()=>Reader.open(b, page || 0, `Вариант ${v}`));
   if(page) (async()=>{ const box = $("vpages"), m = App.S.book(b.id), off = Number(m.offset)||0, total = m.totalPages || 999, end = vinfo.end || page; let html = "";
@@ -493,7 +493,7 @@ function startBookTest(exam, v){
 }
 async function submitBookTest(){
   clearInterval(timer); confirmArmed = false;
-  const s = session; if(!s) return; await closeDraft(); session = null;
+  const s = session; if(!s) return; await closeDraft(); session = null; Study.Dock.tip("");
   const pages = [...document.querySelectorAll("#vpages .vpage img")].map(im=>String(im.src).split(",")[1]).filter(Boolean);
   const b = bookOf(s.exam), now = Date.now();
   const rows = s.list.map((t,i)=>({ i, t, num:t.num, v:s.ans[i], long:t.long, max: t.long ? ((CAT[s.exam]||{})[t.num]||[])[1] || 2 : 1, inTime: !!s.ans[i].trim() && s.at[i] <= s.end }));
@@ -606,7 +606,6 @@ function startTest(exam){
   nums.forEach(n=>{ list.push(make(exam,n)); if(exam==="rus") list.push(make(exam,n)); });
   session = { mode:"test", exam, list, ans:list.map(()=>""), at:list.map(()=>0), start: Date.now(), end: Date.now() + E.test.min*60e3, nb:"trial-"+Date.now(), draft:null };
   $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><b>${E.name}: пробный вариант</b><span class="timer" id="ogetimer" role="timer"></span><button class="btn" type="button" id="ogequit">Выйти без оценки</button></div>
-    <p class="hint" style="margin:0 0 8px">Поставь курсор в поле ответа, и под заданием откроется чистый листок-черновик на весь экран. Черновики сохранятся вместе с пробным на 30 дней.</p>
     <form id="ogeform">${list.map((t,i)=>taskHtml(t,i).replace(/<\/div>$/, `<div class="ogedraft" data-draft="${i}"></div></div>`)).join("")}<div class="btnrow"><button class="btn primary" type="submit">Завершить и проверить</button></div></form></section>`;
   const mmss = ms => `${Math.floor(ms/60e3)}:${String(Math.floor(ms/1e3)%60).padStart(2,"0")}`;
   const tick = () => { const el = $("ogetimer"); if(!el || !session){ clearInterval(timer); return; } const left = session.end - Date.now();
@@ -614,6 +613,7 @@ function startTest(exam){
   tick(); timer = setInterval(tick, 1000); addInfo(exam);
   $("main").querySelectorAll("[data-ans]").forEach(inp=>inp.addEventListener("input",()=>{ const i = Number(inp.dataset.ans); session.ans[i] = inp.value; session.at[i] = Date.now(); }));
   // черновик под заданием: открывается по нажатию, у каждого задания свой лист
+  Study.Dock.tip(`Удачи! Поставь курсор в поле ответа, и под заданием откроется <b>черновик</b> на весь экран. Черновики сохранятся вместе с пробным на 30 дней, а учитель посмотрит их при проверке.`);
   bindDrafts();
   $("ogequit").addEventListener("click", ()=>{ const e = session && session.exam; closeDraft(); clearInterval(timer); session = null; renderMenu(e); });
   $("ogeform").addEventListener("submit", e=>{ e.preventDefault(); const empty = session.ans.filter(a=>!a.trim()).length;
@@ -678,7 +678,7 @@ function confirmInline(empty){
 }
 async function submitTest(){
   clearInterval(timer); confirmArmed = false;
-  const s = session; if(!s) return; await closeDraft(); session = null;
+  const s = session; if(!s) return; await closeDraft(); session = null; Study.Dock.tip("");
   const now = Date.now(), rows = s.list.map((t,i)=>{ const v = s.ans[i], ok = !!v.trim() && check(t, v); return { i, t, num:t.num, v, max: maxOf(s.exam, t.num), ok, score: ok ? maxOf(s.exam, t.num) : 0, state: !v.trim() ? "empty" : ok ? "ok" : "bad", inTime: !!v.trim() && s.at[i] <= s.end }; });
   const tl = Object.assign({list:[]}, Store.get("ogeTests", {})); tl.list = tl.list.concat([{ ts:now, exam:s.exam, pending:true, spent: Math.round((now - s.start)/60e3), limit: EXAMS[s.exam].test.min, nb: draftSheets(s.nb).length ? s.nb : null }]); Store.set("ogeTests", tl, 0);
   const o = { s, rows, head: EXAMS[s.exam].name, back:`#oge/${s.exam}`, backT:"← К заданиям", showTask:true }; prog = { step:2, pct:0.4, text:"Сверяю ответы…" };
