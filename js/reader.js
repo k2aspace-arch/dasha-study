@@ -19,17 +19,24 @@ async function pdfFor(path){
 }
 
 /* ---------- панель ---------- */
+// «справа»: панель у правого края; «в странице»: блоком над содержимым, как учитель
 function applyDock(){
-  const side = lsGet("rside","right"), w = Number(lsGet("rwidth", 0)) || Math.min(Math.round(window.innerWidth*0.48), 820);
-  const el = $("reader");
-  el.classList.toggle("left", side==="left"); el.classList.toggle("right", side!=="left");
+  const side = lsGet("rside","right")==="inline" ? "inline" : "right", w = Number(lsGet("rwidth", 0)) || Math.min(Math.round(window.innerWidth*0.48), 820);
+  const el = $("reader"), slot = $("rslot"), inl = side==="inline";
+  if(inl && slot && el.parentNode !== slot) slot.appendChild(el);
+  if(!inl && el.parentNode !== document.body) document.body.insertBefore(el, $("rtab"));
+  el.classList.remove("left"); el.classList.toggle("inline", inl); el.classList.toggle("right", !inl);
   document.documentElement.style.setProperty("--rw", w+"px");
-  document.body.classList.toggle("reading-left", !el.hidden && side==="left");
-  document.body.classList.toggle("reading-right", !el.hidden && side!=="left");
-  $("rdock").textContent = side==="left" ? "Вправо ⇥" : "⇤ Влево";
+  document.body.classList.remove("reading-left");
+  document.body.classList.toggle("reading-right", !el.hidden && !inl && !el.classList.contains("full"));
+  $("rdock").setAttribute("aria-pressed", inl); $("rright").setAttribute("aria-pressed", !inl);
+  const f = el.classList.contains("full"); $("rfull").textContent = f ? "🗗" : "⛶";
+  $("rfull").title = f ? "Вернуть обычный размер" : "Раскрыть на весь экран"; $("rfull").setAttribute("aria-label", $("rfull").title);
 }
-function open(b, bookPage, label){
-  if(R.dirty) saveInk();
+function setSide(v){ lsSet("rside", v); $("reader").classList.remove("full"); applyDock(); show(R.n);
+  if(v==="inline") $("reader").scrollIntoView({ behavior:"smooth", block:"start" }); }
+function open(b, bookPage, label, side){
+  if(R.dirty) saveInk(); if(side) lsSet("rside", side);
   R.book = b; R.label = label || ""; R.zoom = 1;
   $("reader").hidden = false; $("rtab").hidden = true; applyDock(); fire();
   $("rtitle").textContent = b.title; $("rtabname").textContent = b.subject;
@@ -182,10 +189,10 @@ function bindResize(){
   const h = $("rhandle"); let drag = false;
   const setW = w => { w = Math.max(320, Math.min(window.innerWidth - 300, Math.round(w))); lsSet("rwidth", w); document.documentElement.style.setProperty("--rw", w+"px"); };
   h.addEventListener("pointerdown", e=>{ drag = true; h.setPointerCapture(e.pointerId); document.body.classList.add("resizing"); });
-  h.addEventListener("pointermove", e=>{ if(!drag) return; setW(lsGet("rside","right")==="left" ? e.clientX : window.innerWidth - e.clientX); });
+  h.addEventListener("pointermove", e=>{ if(!drag) return; setW(window.innerWidth - e.clientX); });
   const end = () => { if(drag){ drag = false; document.body.classList.remove("resizing"); show(R.n); } };
   h.addEventListener("pointerup", end); h.addEventListener("pointercancel", end);
-  h.addEventListener("keydown", e=>{ const cur = Number(lsGet("rwidth",0)) || $("reader").offsetWidth; const left = lsGet("rside","right")==="left";
+  h.addEventListener("keydown", e=>{ const cur = Number(lsGet("rwidth",0)) || $("reader").offsetWidth; const left = false;
     if(e.key==="ArrowLeft"){ setW(cur + (left?-40:40)); show(R.n); } else if(e.key==="ArrowRight"){ setW(cur + (left?40:-40)); show(R.n); } });
 }
 
@@ -202,8 +209,9 @@ function init(){
   $("rzin").addEventListener("click", ()=>{ R.zoom = Math.min(3, R.zoom*1.25); show(R.n); });
   $("rzout").addEventListener("click", ()=>{ R.zoom = Math.max(0.4, R.zoom/1.25); show(R.n); });
   $("rpagein").addEventListener("change", ()=>{ const p = parseInt($("rpagein").value,10); if(!isNaN(p)) show(toFile(R.book, p)); });
-  $("rdock").addEventListener("click", ()=>{ lsSet("rside", lsGet("rside","right")==="left" ? "right" : "left"); applyDock(); });
-  $("rfull").addEventListener("click", ()=>{ $("reader").classList.toggle("full"); show(R.n); });
+  $("rdock").addEventListener("click", ()=>setSide("inline"));
+  $("rright").addEventListener("click", ()=>setSide("right"));
+  $("rfull").addEventListener("click", ()=>{ $("reader").classList.toggle("full"); applyDock(); show(R.n); });
   $("rundo").addEventListener("click", ()=>{ const s = R.undo.pop(); if(s){ $("rink").getContext("2d").putImageData(s,0,0); inkChanged(); } });
   document.querySelectorAll("#reader [data-rtool]").forEach(x=>x.addEventListener("click", ()=>setTool(x.dataset.rtool)));
   document.querySelectorAll("#reader [data-rcolor]").forEach(x=>x.addEventListener("click", ()=>{ R.color = x.dataset.rcolor;

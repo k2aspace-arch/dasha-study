@@ -22,7 +22,7 @@
   <p class="note" id="savewarn" hidden><b>Не сохранилось.</b> Проверь интернет: изменения пока есть только на этом устройстве.</p>
   <div class="layout">
     <nav class="shelf" id="shelf" aria-label="Разделы"></nav>
-    <div class="maincol"><div id="dockslot"></div><main id="main"><p class="hint">Загружаю…</p></main></div>
+    <div class="maincol"><div id="dockslot"></div><div id="rslot"></div><main id="main"><p class="hint">Загружаю…</p></main></div>
   </div>
 </div>
 
@@ -43,9 +43,10 @@
     <div class="rgroup">
       <button class="vbtn" id="rzout" type="button" aria-label="Уменьшить">−</button>
       <button class="vbtn" id="rzin" type="button" aria-label="Увеличить">+</button>
-      <button class="vbtn" id="rdock" type="button">⇤ Влево</button>
-      <button class="vbtn" id="rfull" type="button" aria-label="Во весь экран">⛶</button>
-      <button class="vbtn" id="rmin" type="button" aria-label="Свернуть учебник">▁</button>
+      <button class="vbtn" id="rdock" type="button" title="Встроить в страницу" aria-label="Встроить в страницу">⇤</button>
+      <button class="vbtn" id="rright" type="button" title="Поставить справа" aria-label="Поставить справа">⇥</button>
+      <button class="vbtn" id="rfull" type="button" title="Раскрыть на весь экран" aria-label="Раскрыть на весь экран">⛶</button>
+      <button class="vbtn" id="rmin" type="button" title="Свернуть" aria-label="Свернуть">▁</button>
       <button class="vbtn" id="rclose" type="button" aria-label="Закрыть учебник">✕</button>
     </div>
     <div class="rgroup" role="toolbar" aria-label="Пометки">

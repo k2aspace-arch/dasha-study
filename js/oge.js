@@ -468,7 +468,7 @@ function startBookTest(exam, v){
   const isLong = n => hasKey ? !String(key[n]||"").trim() : !!(CAT[exam] && CAT[exam][n] && CAT[exam][n][1] > 1);
   const list = nums.map(n=>({ num:n, long: isLong(n), q:`Задание ${n} варианта ${v} — условие и рисунок на листах сборника выше${page?` (вариант с стр. ${page})`:""}.` }));
   session = { mode:"btest", exam, v, key, hasKey, list, ans:list.map(()=>""), at:list.map(()=>0), start:Date.now(), end:Date.now() + min*60e3, nb:"trial-"+Date.now(), draft:null };
-  $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><b>${esc(exName(exam))}: вариант ${esc(v)} из сборника</b><span class="timer" id="ogetimer" role="timer"></span><button class="btn" type="button" id="ogeopenbk" title="Сборник откроется сбоку, как учебник: его можно свернуть кнопкой ▁ и вернуть, а эта кнопка всегда возвращает к началу варианта">📖 Сборник сбоку${page?`, стр. ${page}`:""}</button><button class="btn" type="button" id="ogequit">Выйти без оценки</button></div>
+  $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><b>${esc(exName(exam))}: вариант ${esc(v)} из сборника</b><span class="timer" id="ogetimer" role="timer"></span><button class="btn" type="button" id="ogeopenbk" title="Сборник откроется справа. Его кнопки: ⇤ встроить в страницу, ⇥ поставить справа, ⛶ раскрыть на весь экран, ▁ свернуть">📖 Сборник${page?`, стр. ${page}`:""} ⇥</button><button class="btn" type="button" id="ogequit">Выйти без оценки</button></div>
     ${page ? `<div class="vpages" id="vpages" aria-label="Листы варианта ${esc(v)}"><p class="sm">Загружаю листы сборника…</p></div>` : `<p class="note">В оглавлении сборника не нашлась страница варианта ${esc(v)}. Открой сборник кнопкой сверху.</p>`}
     <form id="ogeform">${list.map((t,i)=>`<div class="ogeq"><div class="oge-num">Задание ${t.num}</div>${t.long ? `<p class="hint" style="margin:4px 0">Развёрнутый ответ: реши в черновике, после проверки покажи учителю.</p><button class="btn" type="button" data-opendraft="${i}">✎ Открыть черновик</button>` : `<label class="oge-ans"><span class="sm">Ответ</span><input type="text" autocomplete="off" data-ans="${i}"></label>`}<div class="ogedraft" data-draft="${i}"></div></div>`).join("")}
     <div class="btnrow"><button class="btn primary" type="submit">Завершить и проверить</button></div></form></section>`;
@@ -477,9 +477,9 @@ function startBookTest(exam, v){
     el.textContent = left > 0 ? `Осталось ${mmss(left)}` : `Время вышло · +${mmss(-left)} сверх`; el.classList.toggle("low", left < 5*60e3); el.classList.toggle("over", left <= 0); };
   tick(); timer = setInterval(tick, 1000); addInfo(exam);
   $("main").querySelectorAll("[data-ans]").forEach(inp=>inp.addEventListener("input",()=>{ const i = Number(inp.dataset.ans); session.ans[i] = inp.value; session.at[i] = Date.now(); }));
-  Study.Dock.tip(`Удачи! Ниже листы варианта прямо из сборника, со всеми рисунками. Ответы вписывай в поля под ними.<br><br>Поставь курсор в поле ответа, и под заданием откроется <b>черновик</b>. Кнопка <b>«📖 Сборник сбоку»</b> откроет сам сборник рядом: его можно свернуть и вернуть.`);
+  Study.Dock.tip(`Удачи! Ниже листы варианта прямо из сборника, со всеми рисунками. Ответы вписывай в поля под ними.<br><br>Поставь курсор в поле ответа, и под заданием откроется <b>черновик</b>. Кнопка <b>«📖 Сборник ⇥»</b> откроет сам сборник справа. Его можно встроить в страницу ⇤, вернуть вправо ⇥, раскрыть на весь экран ⛶ или свернуть ▁.`);
   bindDrafts();
-  $("ogeopenbk").addEventListener("click", ()=>Reader.open(b, page || 0, `Вариант ${v}`));
+  $("ogeopenbk").addEventListener("click", ()=>Reader.open(b, page || 0, `Вариант ${v}`, "right"));
   if(page) (async()=>{ const box = $("vpages"), m = App.S.book(b.id), off = Number(m.offset)||0, total = m.totalPages || 999, end = vinfo.end || page; let html = "";
     if(!box) return; box.innerHTML = "";
     for(let pg = page; pg <= end && pg + off <= total; pg++){
