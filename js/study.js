@@ -178,9 +178,10 @@ function recoHome(){
   // ОГЭ: ошибки последнего пробного и задания, где среди последних решений много красного
   const oge = [], seen = new Set();
   if(window.Oge && window.Points){ const T = (Object.assign({list:[]}, Store.get("ogeTests", {})).list||[]);
-    ["math","rus"].forEach(e=>{ const t = T.filter(x=>x.exam===e).pop(); (t && t.wrong || []).forEach(n=>seen.add(e+":"+n)); });
+    const unsolved = new Set();
+    ["math","rus"].forEach(e=>{ const t = T.filter(x=>x.exam===e && !x.pending).pop(); (t && t.wrong || []).forEach(n=>seen.add(e+":"+n)); (t && t.empty || []).forEach(n=>{ seen.add(e+":"+n); unsolved.add(e+":"+n); }); });
     const L = Points.ogeLast(); Object.entries(L).forEach(([e,o])=>Object.entries(o).forEach(([n,a])=>{ if(a.length>=4 && a.reduce((x,y)=>x+y,0)/a.length < .7) seen.add(e+":"+n); }));
-    seen.forEach(k=>{ const [e,n] = k.split(":"); const c = Oge.CAT[e] && Oge.CAT[e][n]; if(c) oge.push(`<a class="reco-i" href="#oge/${e}/${n}"><span class="dot" style="background:${e==="math"?"#2a4fd6":"#8a6d1f"}"></span><span><b>ОГЭ ${e==="math"?"математика":"русский"}</b> · №${n} ${esc(c[0])}</span></a>`); }); }
+    seen.forEach(k=>{ const [e,n] = k.split(":"); const c = Oge.CAT[e] && Oge.CAT[e][n]; if(c) oge.push(`<a class="reco-i" href="#oge/${e}/${n}"><span class="dot" style="background:${e==="math"?"#2a4fd6":"#8a6d1f"}"></span><span><b>ОГЭ ${e==="math"?"математика":"русский"}</b> · №${n} ${esc(c[0])}${unsolved.has(k) ? ` <span class="chip warn">не решено</span>` : ""}</span></a>`); }); }
   const col = (h, list) => `<div><h4>${h}${list.length?` · ${list.length}`:""}</h4>${list.length ? list.slice(0,8).join("") + (list.length>8?`<p class="sm">и ещё ${list.length-8}</p>`:"") : `<p class="hint">Таких тем нет.</p>`}</div>`;
   return `<section class="panel reco" id="reco"><h3>Рекомендации</h3>
     ${again.length || brief.length || oge.length ? `<div class="reco-cols">${col("Разобрать заново", again)}${col("Повторить", brief)}${oge.length?col("ОГЭ: потренировать", oge):""}</div><p class="hint">Это пройденные темы, где ответы на вопросы учителя, итоговые вопросы или срез знаний показали пробелы. Нажми на тему, и учитель начнёт сразу.</p>`
@@ -736,5 +737,5 @@ function accountPanels(){ return profilePanel() + themePanel(); }
 function bindAccount(root){ bindProfile(root); bindTheme(root); }
 function apply(){ applyTheme(); syncOge(); syncMyBooks(); applyToc(); applyColors(); drawMe(); }
 
-window.Study = { syncMyBooks, applyColors, colorsPanel, bindColors, profilePanel, bindProfile, themePanel, bindTheme, ogeAutoPrep, ogeSections, ogeInfoRows, bindOgeInfo, ogeInfoFor, ogePage, syncOge, ogeAddHtml, bindOgeAdd, ogeKey, ogeVariants, ogeKeyRow, bindOgeKey, ogeSubjects, tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, idxButton, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
+window.Study = { ogeReadKey: async (b, say) => { const sec = ogeSections(b); if(!sec.key) return 0; return readKey(b, sec.key[0], Math.min(sec.key[1], sec.key[0]+39), say); }, syncMyBooks, applyColors, colorsPanel, bindColors, profilePanel, bindProfile, themePanel, bindTheme, ogeAutoPrep, ogeSections, ogeInfoRows, bindOgeInfo, ogeInfoFor, ogePage, syncOge, ogeAddHtml, bindOgeAdd, ogeKey, ogeVariants, ogeKeyRow, bindOgeKey, ogeSubjects, tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, idxButton, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
 })();

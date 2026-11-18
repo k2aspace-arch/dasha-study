@@ -1,5 +1,5 @@
 // ИИ-учитель через OpenRouter: принимает вопрос с сайта и спрашивает Claude.
-// Версия функции: openrouter-10 (если в ответе ошибки нет слова OpenRouter, значит задеплоен старый код).
+// Версия функции: openrouter-11 (если в ответе ошибки нет слова OpenRouter, значит задеплоен старый код).
 // Ключ OpenRouter хранится в секретах Supabase (например, OPENROUTER_API_KEY), в браузер он не попадает.
 // Supabase сам проверяет, что запрос пришёл от вошедшего пользователя (JWT).
 
@@ -106,6 +106,17 @@ const CUT = `Ты учитель Клод. Составь «срез знани�
 const TOC = `Тебе присылают фото страниц оглавления школьного учебника. Извлеки структуру.
 Ответь ТОЛЬКО JSON без Markdown: {"chapters":[{"title":"Глава 1. ...","page":<страница главы, если напечатана, иначе null>,"topics":[{"title":"§1. ...","page":<номер страницы как в оглавлении>}]}]}
 Сохраняй нумерацию и названия как в оглавлении, все главы с первой до последней, по всем присланным страницам. Отдельные строки оглавления без подпунктов (например «Ответы … 239», «Система оценивания … 253», «Справочные материалы», «Тексты для изложений») тоже выпиши: каждую как главу с одной темой того же названия и её страницей. Если среди картинок есть страницы не из оглавления, пропусти их. Пункты внутри параграфа (подпункты) не выписывай, только параграфы. Ничего не выдумывай.`;
+
+const OGECHECK = `Ты учитель Клод и эксперт ОГЭ. Проверь пробный вариант ученицы 9 класса целиком, как эксперт на экзамене.
+Тебе дают список заданий (id, номер, условие или «условие на листах сборника» — тогда смотри картинки страниц варианта, эталон, если есть, ответ ученицы, максимум баллов, есть ли черновик, предварительный вердикт) и картинки: страницы варианта и черновики (подписаны, к какому заданию).
+Правила:
+- Развёрнутые задания (long=true): оцени по критериям ФИПИ (если даны критерии из сборника, строго по ним) по решению в черновике и ответу. score от 0 до max.
+- Краткий ответ без эталона: реши задание сам по условию и сравни ответ ученицы. score = max, если верно, иначе 0.
+- Если вердикт уже «верно» или «неверно», не меняй его, а по черновику коротко объясни, где именно ошибка.
+- Если ответ пустой и в черновике решения нет: score 0, comment «Не решено».
+- Если ответ пустой, но в черновике есть начатое решение: score 0, в комментарии скажи, что получилось и где остановилась.
+comment: 1–2 предложения по-доброму и по делу, на русском.
+Ответь ТОЛЬКО JSON без Markdown: {"results":[{"id":<id>,"num":<номер>,"score":<баллы>,"comment":"..."}]}`;
 
 const TOCPAGES = `Тебе присылают картинки страниц оглавления школьного учебника и список тем сайта с ключами.
 Для каждой темы из списка найди в оглавлении её страницу (номер, напечатанный в оглавлении). Темы на сайте могут называться чуть иначе или идти в другом порядке: сопоставляй по смыслу. Если темы в оглавлении нет, не включай её.
@@ -314,7 +325,7 @@ Deno.serve(async (req) => {
     let system = SYSTEM, maxTokens = 4000;
     let history: Msg[] = [];
 
-    const SYS: Record<string, string> = { report: REPORT, quiz: QUIZ, quizcheck: QUIZCHECK, fill: FILL, cut: CUT, toc: TOC, index: INDEX, ogegen: OGEGEN, tocpages: TOCPAGES, anskey: ANSKEY, transcribe: TRANSCRIBE, pagenum: PAGENUM };
+    const SYS: Record<string, string> = { ogecheck: OGECHECK, report: REPORT, quiz: QUIZ, quizcheck: QUIZCHECK, fill: FILL, cut: CUT, toc: TOC, index: INDEX, ogegen: OGEGEN, tocpages: TOCPAGES, anskey: ANSKEY, transcribe: TRANSCRIBE, pagenum: PAGENUM };
     if (SYS[mode]) system = SYS[mode];
     else {
       if (Array.isArray(pages) && pages.length) system += BOOK_RULES;
@@ -335,6 +346,11 @@ Deno.serve(async (req) => {
       for (const im of (Array.isArray(images) ? images : []).slice(0, 8)) content.push(img(String(im)));
       history = [{ role: "user", content }];
       maxTokens = mode === "toc" ? 16000 : mode === "ogegen" || mode === "transcribe" ? 8000 : 6000;
+    } else if (mode === "ogecheck") {
+      const content: Part[] = [{ type: "text", text: String(body.text ?? "").slice(0, 40000) }];
+      for (const im of (Array.isArray(images) ? images : []).slice(0, 16)) content.push(img(String(im)));
+      history = [{ role: "user", content }];
+      maxTokens = 8000;
     } else if (mode === "fill") {
       const content: Part[] = [{ type: "text", text: `Сегодня: ${body.today ?? ""}. Предметы (id: название): ${JSON.stringify(body.subjects ?? [])}.\nТекст от пользователя:\n${String(body.text ?? "").slice(0, 20000)}` }];
       for (const im of (Array.isArray(images) ? images : []).slice(0, 8)) content.push(img(String(im)));

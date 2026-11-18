@@ -136,7 +136,7 @@ function mount(host, opts){
     // лист вместе с клеткой или линейкой, для проверки учителем (JPEG base64)
     image(){ const c = document.createElement("canvas"), s = 0.7; c.width = W*s; c.height = H*s; const x = c.getContext("2d");
       x.drawImage(bg,0,0,c.width,c.height); x.drawImage(cv,0,0,c.width,c.height); return c.toDataURL("image/jpeg",0.8).split(",")[1]; },
-    destroy(){ save(); window.removeEventListener("beforeunload", save); host.innerHTML = ""; }
+    destroy(){ const p = save(); window.removeEventListener("beforeunload", save); host.innerHTML = ""; return p; }
   };
 }
 

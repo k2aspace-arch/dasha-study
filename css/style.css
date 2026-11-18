@@ -931,3 +931,5 @@ body.is-login #main .panel{margin:6vh auto 0}
 .colsw input[type=color]{width:34px;height:30px;padding:0;border:1.5px solid var(--line);border-radius:8px;background:none}
 #tprev>.av-stage{flex:1;min-width:220px}
 .draftclose{margin-left:auto}
+.ogecomm td{font-size:.9em;color:var(--muted,#777);padding-top:0;border-top:0}
+.draftcap{margin:6px 2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

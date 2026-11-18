@@ -330,7 +330,7 @@ function renderMenu(only){
 }
 /* карта индивидуальных достижений: строки — задания, столбцы — пробные варианты (как в сборниках ФИПИ) */
 function achMap(exam){
-  const L = (Object.assign({list:[]}, Store.get("ogeTests", {})).list||[]).filter(t=>t.exam===exam).slice(-18);
+  const L = (Object.assign({list:[]}, Store.get("ogeTests", {})).list||[]).filter(t=>t.exam===exam && !t.pending).slice(-18);
   if(!L.length) return "";
   const perOf = t => { if(t.per) return t.per; const o = {}; Object.keys((EXAMS[t.exam]||{}).tasks||{}).forEach(n=>{ o[n] = (t.wrong||[]).map(String).includes(String(n)) ? 0 : 1; }); return o; };
   const P = L.map(perOf), nums = (CAT[exam] ? Object.keys(CAT[exam]) : [...new Set(P.flatMap(p=>Object.keys(p)))]).map(Number).sort((a,b)=>a-b);
@@ -343,7 +343,7 @@ function achMap(exam){
     <tfoot><tr><th>Баллы</th>${L.map((t,i)=>`<td><b>${Object.values(P[i]).reduce((a,v)=>a+(v||0),0)}</b></td>`).join("")}</tr></tfoot></table></div></section>`;
 }
 function historyHtml(only){
-  const L = (Object.assign({list:[]}, Store.get("ogeTests", {})).list||[]).filter(t=>!only || t.exam===only).slice().reverse();
+  const L = (Object.assign({list:[]}, Store.get("ogeTests", {})).list||[]).filter(t=>(!only || t.exam===only) && !t.pending).slice().reverse();
   if(!L.length) return "";
   const D = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
   return `<section class="panel"><h3>Мои пробные</h3><div class="tablewrap"><table class="grades ogehist"><thead><tr><th>Когда</th><th>Экзамен</th><th>Баллы вовремя</th><th>Время</th><th>Сделано</th><th>Повторить</th><th></th></tr></thead><tbody>
@@ -492,21 +492,97 @@ function startBookTest(exam, v){
 async function submitBookTest(){
   clearInterval(timer); confirmArmed = false;
   const s = session; if(!s) return; await closeDraft(); session = null;
-  const now = Date.now(), res = s.list.map((t,i)=>({ t, v:s.ans[i], right:String(s.key[t.num]||""), ok: !t.long && s.hasKey && matchKey(s.key[t.num], s.ans[i]), inTime: !!s.ans[i].trim() && s.at[i] <= s.end }));
-  if(EXAMS[s.exam] && s.hasKey) res.forEach(r=>{ if(!r.t.long && r.v.trim() && CAT[s.exam] && CAT[s.exam][r.t.num]) Points.logOge(s.exam, r.t.num, r.ok); });
-  const auto = res.filter(r=>!r.t.long), okIn = auto.filter(r=>r.ok && r.inTime), okAll = auto.filter(r=>r.ok).length, answered = auto.filter(r=>r.v.trim()).length, late = auto.filter(r=>r.v.trim() && !r.inTime).length;
-  const spent = Math.round((now - s.start)/60e3), limit = FULL_MIN[s.exam] || 180, wrong = auto.filter(r=>!r.ok).map(r=>r.t.num), longs = res.filter(r=>r.t.long).map(r=>r.t.num);
-  const tl = Object.assign({list:[]}, Store.get("ogeTests", {})); tl.list = tl.list.concat([{ ts:now, exam:s.exam, variant:s.v, src:"book", answers: Object.fromEntries(res.map(r=>[r.t.num, r.v])), unchecked: !s.hasKey, per: Object.fromEntries(res.map(r=>[r.t.num, r.t.long || !s.hasKey ? null : (r.ok && r.inTime ? 1 : 0)])), ok:okIn.length, okAll, n:auto.length, answered, late, pts:okIn.length, ptsMax:auto.length, spent, limit, wrong, longs, nb: draftSheets(s.nb).length ? s.nb : null }]); Store.set("ogeTests", tl, 0);
-  const entry = tl.list[tl.list.length-1], teach = EXAMS[s.exam];
-  $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><a href="#oge/${s.exam}" class="btn">← К ОГЭ</a><b>${esc(exName(s.exam))}, вариант ${esc(s.v)}: ${s.hasKey ? `верно ${okIn.length} из ${auto.length} с кратким ответом` : "ответы сохранены, проверка после чтения ответов сборника"}</b></div>
-    <p>Время: ${spent} мин из ${limit}${spent>limit?` (сверх времени ${spent-limit} мин)`:""}. Сделано ${answered} из ${auto.length}${late?`, после звонка ${late}`:""}, верно всего ${okAll}.${longs.length?` Развёрнутые (${longs.join(", ")}) проверяет учитель.`:""}</p>
-    <div class="tablewrap"><table class="grades ogeres"><thead><tr><th>№</th><th>Твой ответ</th><th>Ответ сборника</th><th></th></tr></thead><tbody>
-    ${res.map(r=>`<tr><td>${r.t.num}</td><td>${r.t.long?"—":esc(r.v||"—")}${!r.t.long&&r.v.trim()&&!r.inTime?` <span class="chip">после времени</span>`:""}</td><td>${r.t.long?"развёрнутый":s.hasKey?esc(r.right):"ещё не прочитан"}</td><td>${r.t.long ? (teach && CAT[s.exam][r.t.num] ? `<a class="btn" href="#oge/${s.exam}/${r.t.num}">Показать учителю</a>` : `<a class="btn" href="#tutor">Показать учителю</a>`) : !s.hasKey ? `<span class="chip">не проверено</span>` : r.ok?`<span class="chip ok">верно</span>`:`<span class="chip warn">ошибка</span>`}</td></tr>`).join("")}
+  const pages = [...document.querySelectorAll("#vpages .vpage img")].map(im=>String(im.src).split(",")[1]).filter(Boolean);
+  const b = bookOf(s.exam), now = Date.now();
+  const rows = s.list.map((t,i)=>({ i, t, num:t.num, v:s.ans[i], long:t.long, max: t.long ? ((CAT[s.exam]||{})[t.num]||[])[1] || 2 : 1, inTime: !!s.ans[i].trim() && s.at[i] <= s.end }));
+  const tl = Object.assign({list:[]}, Store.get("ogeTests", {})); tl.list = tl.list.concat([{ ts:now, exam:s.exam, variant:s.v, src:"book", answers: Object.fromEntries(rows.map(r=>[r.num, r.v])), pending:true, spent: Math.round((now - s.start)/60e3), limit: FULL_MIN[s.exam] || 180, nb: draftSheets(s.nb).length ? s.nb : null }]); Store.set("ogeTests", tl, 0);
+  const head = `${esc(exName(s.exam))}, вариант ${esc(s.v)}`;
+  const view = () => resultsView({ s, rows, head, back:`#oge/${s.exam}`, backT:"← К ОГЭ", showTask:false });
+  view();
+  // ответы сборника: если ещё не прочитаны, учитель читает их сейчас (один раз на весь сборник)
+  let key = s.key, hasKey = s.hasKey;
+  if(!hasKey && b && Store.aiAvailable()){ try{ await Study.ogeReadKey(b, t=>status(t)); key = (Study.ogeKey(b).v||{})[s.v] || {}; hasKey = !!Object.keys(key).length; }catch(e){ console.warn(e); } }
+  rows.forEach(r=>{ if(hasKey){ r.right = String(key[r.num]||""); if(!r.long && !r.right.trim() && key[r.num]!==undefined) r.long = true; }
+    if(!r.v.trim() && !r.long){ r.score = 0; r.state = "empty"; }
+    else if(!r.long && hasKey){ r.ok = matchKey(key[r.num], r.v); r.score = r.ok ? 1 : 0; r.state = r.ok ? "ok" : "bad"; } });
+  await aiCheck(s, rows, { pages, hasKey });
+  saveResult(s, rows, now, { variant:s.v });
+  view();
+  const got = rows.reduce((a,r)=>a+(r.score||0),0), max = rows.reduce((a,r)=>a+r.max,0);
+  await finish(`btest:${s.exam}`, got, max || 1, `Вариант ${s.v} из сборника, ${exName(s.exam).toLowerCase()}`);
+}
+// строка статуса на странице результатов
+function status(t){ const el = $("ogestat"); if(el){ el.textContent = t || ""; el.hidden = !t; } }
+// проверка учителем: развёрнутые по критериям, ответы без ключа, черновики к ошибкам и пустым
+async function aiCheck(s, rows, o){
+  const drafts = await draftImgs(s.nb), dOf = i => drafts.filter(d=>d.i===i);
+  rows.forEach(r=>{ r.draft = dOf(r.i).length > 0; if(r.state==="empty" && !r.draft) r.comment = "Задание не решено: 0 баллов."; });
+  const need = rows.filter(r=>r.long || r.state===undefined || (r.draft && r.state!=="ok") );
+  rows.forEach(r=>{ if(r.state===undefined) r.state = "wait"; });
+  if(!need.length) return;
+  if(!Store.aiAvailable()){ need.forEach(r=>{ if(r.state==="wait"){ r.state = r.long ? "long" : "nokey"; } }); return; }
+  need.forEach(r=>{ if(r.state==="wait") r.state = "checking"; }); rerender && rerender();
+  status("Учитель проверяет весь вариант: развёрнутые задания и черновики…");
+  const imgs = [], legend = [];
+  const usePages = (o.pages||[]).length && need.some(r=>r.long || r.state==="checking");
+  if(usePages) (o.pages||[]).slice(0, 6).forEach((p,k)=>{ imgs.push(p); legend.push(`картинка ${imgs.length}: страница варианта ${k+1}`); });
+  need.forEach(r=>dOf(r.i).forEach(d=>{ if(imgs.length < 16){ imgs.push(d.b64); legend.push(`картинка ${imgs.length}: черновик к заданию ${r.num} (id ${r.i})`); } }));
+  const items = need.map(r=>({ id:r.i, num:r.num, task: r.t.q ? plain(r.t.q).slice(0, 1500) : "", options: r.t.opts ? r.t.opts.map(plain) : undefined, key: r.right !== undefined ? r.right : (r.t.a !== undefined ? shown(r.t) : ""), given: r.v || "(пусто)", max: r.max, long: !!r.long, draft: r.draft, verdict: r.state==="ok" ? "верно" : r.state==="bad" ? "неверно" : r.state==="empty" ? "пусто" : "не проверено" }));
+  const crit = ((Study.ogeInfoFor(s.exam)||{}).instr||{}).text || "";
+  try{
+    const r = await Store.ask({ mode:"ogecheck", subject: exName(s.exam), images: imgs,
+      text: `Экзамен: ОГЭ, ${exName(s.exam)}.${s.v ? ` Вариант ${s.v} из сборника.` : ""}\nКартинки по порядку: ${legend.join("; ") || "нет"}.\n${crit ? `Критерии и система оценивания из сборника:\n${crit.slice(0, 12000)}\n` : ""}Задания: ${JSON.stringify(items)}` });
+    const t = String(r.text||""), a = t.indexOf("{"), z = t.lastIndexOf("}"); const out = (JSON.parse(t.slice(a, z+1)).results)||[];
+    need.forEach(row=>{ const x = out.find(y=>Number(y.id)===row.i) || out.find(y=>Number(y.num)===row.num && y.id===undefined); if(!x){ if(row.state==="checking") row.state = row.long ? "long" : "nokey"; return; }
+      if(x.comment) row.comment = String(x.comment);
+      if(row.state==="checking"){ const sc = Math.max(0, Math.min(row.max, Number(x.score)||0)); row.score = sc; row.ai = true;
+        row.state = !row.v.trim() && !row.draft ? "empty" : row.long ? "long" : sc >= row.max ? "ok" : "bad"; if(!row.long) row.ok = sc >= row.max; } });
+    status("");
+  }catch(e){ console.warn(e); need.forEach(r=>{ if(r.state==="checking") r.state = r.long ? "long" : "nokey"; }); status("Учитель не смог проверить развёрнутые задания и черновики: " + e.message); }
+}
+let rerender = null;
+// черновики пробного картинками на белом фоне (для учителя)
+async function draftImgs(nbId){
+  const out = [];
+  for(const x of draftSheets(nbId)){ try{ const blob = await Store.getFile(x.path); if(!blob) continue; const url = URL.createObjectURL(blob), im = new Image(); im.src = url; await im.decode();
+    const w = 900, h = Math.round(w * (im.naturalHeight||1700) / (im.naturalWidth||1200)), c = document.createElement("canvas"); c.width = w; c.height = h;
+    const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0,0,w,h); g.drawImage(im,0,0,w,h); URL.revokeObjectURL(url);
+    const px = g.getImageData(0,0,w,h).data; let ink = 0; for(let k=0;k<px.length;k+=64) if(px[k] < 200) { ink++; if(ink > 20) break; }
+    if(ink > 20) out.push({ i: Number(x.k.slice(1)), b64: c.toDataURL("image/jpeg", 0.8).split(",")[1] }); }catch(e){} }
+  return out;
+}
+// итог в историю: баллы по заданиям, пустые отдельно (в рекомендациях — «не решено»)
+function saveResult(s, rows, ts, extra){
+  const done = r => r.score !== undefined;
+  const per = {}; rows.forEach(r=>{ per[r.num] = done(r) ? Math.max(per[r.num]||0, r.score) : (per[r.num] ?? null); });
+  const empty = [...new Set(rows.filter(r=>r.state==="empty").map(r=>r.num))], wrong = [...new Set(rows.filter(r=>done(r) && r.score < r.max).map(r=>r.num))];
+  const pts = rows.reduce((a,r)=>a+(r.inTime || r.long ? (r.score||0) : 0),0), ptsMax = rows.reduce((a,r)=>a+r.max,0), checked = rows.filter(done);
+  rows.forEach(r=>{ if(done(r) && CAT[s.exam] && CAT[s.exam][r.num]) Points.logOge(s.exam, r.num, r.score >= r.max); });
+  const tl = Object.assign({list:[]}, Store.get("ogeTests", {})); tl.list = tl.list.map(t=>t.ts!==ts ? t : Object.assign({}, t, extra, { pending:false, unchecked: checked.length < rows.length && rows.some(r=>r.state==="nokey"), per, empty, wrong, longs: rows.filter(r=>r.long).map(r=>r.num),
+    ok: rows.filter(r=>r.state==="ok" && r.inTime).length, okAll: rows.filter(r=>r.state==="ok").length, n: rows.length, answered: rows.filter(r=>r.v.trim()).length, late: rows.filter(r=>r.v.trim() && !r.inTime).length, pts, ptsMax,
+    notes: Object.fromEntries(rows.filter(r=>r.comment).map(r=>[r.i, r.comment])) }));
+  Store.set("ogeTests", tl, 0);
+  return tl.list.find(t=>t.ts===ts);
+}
+// страница результатов (общая для пробного из заданий сайта и из сборника)
+function resultsView(o){
+  const { s, rows } = o, entry = (Store.get("ogeTests", {list:[]}).list||[]).find(t=>t.nb && t.nb===s.nb) || (s.nb && draftSheets(s.nb).length ? { nb:s.nb, exam:s.exam } : null);
+  const got = rows.reduce((a,r)=>a+(r.score||0),0), max = rows.reduce((a,r)=>a+r.max,0), open = rows.some(r=>["wait","checking"].includes(r.state));
+  const chip = r => r.state==="ok" ? `<span class="chip ok">верно</span>` : r.state==="bad" ? `<span class="chip warn">${r.max>1 ? `${r.score} из ${r.max} б.` : "ошибка"}</span>` : r.state==="empty" ? `<span class="chip warn">не решено · 0 б.</span>`
+    : r.state==="long" ? (r.score !== undefined ? `<span class="chip ${r.score>=r.max?"ok":r.score>0?"":"warn"}">${r.score} из ${r.max} б.</span>` : `<span class="chip">не проверено</span>`) : r.state==="nokey" ? `<span class="chip">не проверено</span>` : `<span class="chip">проверяется…</span>`;
+  const right = r => r.right !== undefined ? (r.long ? "развёрнутый" : esc(r.right||"—")) : r.t.a !== undefined ? esc(shown(r.t)) : (r.long ? "развёрнутый" : "—");
+  const spent = Math.round((Date.now() - s.start)/60e3);
+  $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><a href="${o.back}" class="btn">${o.backT}</a><b>${o.head}: ${open ? "проверяется…" : `${got} из ${max} баллов`}</b></div>
+    <p class="status" id="ogestat" aria-live="polite" ${open?"":"hidden"}>${open ? "Проверяю…" : ""}</p>
+    <p>Решено ${rows.filter(r=>r.v.trim() || r.draft).length} из ${rows.length}, не решено ${rows.filter(r=>r.state==="empty").length}. Пустое задание — 0 баллов, оно попадёт в рекомендации как непонятая тема.</p>
+    <div class="tablewrap"><table class="grades ogeres"><thead><tr><th>№</th>${o.showTask?"<th>Задание</th>":""}<th>Твой ответ</th><th>Правильный</th><th>Итог</th></tr></thead><tbody>
+    ${rows.map((r,k)=>`<tr><td>${o.showTask ? k+1 : r.num}</td>${o.showTask?`<td>${r.num}. ${esc((EXAMS[s.exam]&&EXAMS[s.exam].tasks[r.num]||{}).t||"")}</td>`:""}<td>${r.long && !r.v.trim() ? (r.draft ? "в черновике" : "—") : esc(r.v||"—")}${r.v.trim()&&!r.inTime&&!r.long?` <span class="chip">после времени</span>`:""}</td><td>${right(r)}</td><td>${chip(r)}</td></tr>${r.comment?`<tr class="ogecomm"><td></td><td colspan="${o.showTask?4:3}">${esc(r.comment)}</td></tr>`:""}`).join("")}
     </tbody></table></div>
-    ${entry.nb ? `<details class="pages-ed" open><summary>Мои черновики (хранятся 30 дней)</summary><div id="drafts"></div></details>` : ""}</section>`;
-  if(entry.nb && $("drafts")) draftsInto($("drafts"), entry);
-  if(!s.hasKey) return;
-  await finish(`btest:${s.exam}`, okIn.length, auto.length || 1, `Вариант ${s.v} из сборника, ${exName(s.exam).toLowerCase()}`);
+    ${entry && entry.nb ? `<div id="drafts"></div><p class="sm muted draftcap">Мои черновики (хранятся 30 дней)</p>` : ""}
+    ${o.extra || ""}</section>`;
+  $("main").querySelectorAll("details [data-ans]").forEach(i=>i.readOnly = true);
+  if(entry && entry.nb && $("drafts")) draftsInto($("drafts"), entry);
+  rerender = () => resultsView(o);
 }
 function startTest(exam){
   clearInterval(timer);
@@ -527,7 +603,7 @@ function startTest(exam){
   $("ogeform").addEventListener("submit", e=>{ e.preventDefault(); const empty = session.ans.filter(a=>!a.trim()).length;
     if(empty && !confirmInline(empty)) return; submitTest(); });
 }
-function closeDraft(){ const s = session; if(s && s.draft){ const d = s.draft; s.draft = null; d.nb.destroy(); const host = $("main").querySelector(`[data-draft="${d.i}"]`); if(host) host.classList.remove("open"); return d.nb.save(); } return Promise.resolve(); }
+function closeDraft(){ const s = session; if(s && s.draft){ const d = s.draft; s.draft = null; const p = d.nb.destroy(); const host = $("main").querySelector(`[data-draft="${d.i}"]`); if(host) host.classList.remove("open"); return Promise.resolve(p); } return Promise.resolve(); }
 // черновик открывается, когда ставишь курсор в поле ответа (или кнопкой у развёрнутых заданий)
 function bindDrafts(){
   $("main").querySelectorAll("[data-ans]").forEach(inp=>inp.addEventListener("focus", ()=>{ if(session) openDraft(Number(inp.dataset.ans)); }));
@@ -587,25 +663,17 @@ function confirmInline(empty){
 async function submitTest(){
   clearInterval(timer); confirmArmed = false;
   const s = session; if(!s) return; await closeDraft(); session = null;
-  const now = Date.now(), res = s.list.map((t,i)=>({ t, v:s.ans[i], ok: check(t, s.ans[i]), inTime: !!s.ans[i].trim() && s.at[i] <= s.end }));
-  res.forEach(r=>{ if(r.v.trim()) Points.logOge(s.exam, r.t.num, r.ok); });
-  const okIn = res.filter(r=>r.ok && r.inTime), okAll = res.filter(r=>r.ok).length, answered = res.filter(r=>r.v.trim()).length, late = res.filter(r=>r.v.trim() && !r.inTime).length;
-  const pts = okIn.reduce((a,r)=>a+maxOf(s.exam, r.t.num),0), ptsMax = res.reduce((a,r)=>a+maxOf(s.exam, r.t.num),0), spent = Math.round((now - s.start)/60e3), limit = EXAMS[s.exam].test.min;
-  const wrong = [...new Set(res.filter(r=>!r.ok).map(r=>r.t.num))];
-  const per = {}; res.forEach(r=>{ per[r.t.num] = Math.max(per[r.t.num]||0, r.ok && r.inTime ? 1 : 0); });
-  const tl = Object.assign({list:[]}, Store.get("ogeTests", {})); tl.list = tl.list.concat([{ ts:now, exam:s.exam, per, ok:okIn.length, okAll, n:res.length, answered, late, pts, ptsMax, spent, limit, wrong, nb: draftSheets(s.nb).length ? s.nb : null }]); Store.set("ogeTests", tl, 0);
-  const entry = tl.list[tl.list.length-1];
-  $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><a href="#oge/${s.exam}" class="btn" id="ogeback">← К заданиям</a><b>${EXAMS[s.exam].name}: ${pts} из ${ptsMax} баллов за время</b></div>
-    <p>Вовремя верно ${okIn.length} из ${res.length}. Время: ${spent} мин из ${limit}${spent>limit?` (сверх времени ${spent-limit} мин)`:""}. Всего сделано ${answered} из ${res.length}${late?`, после звонка ${late}`:""}, верно всего ${okAll}.</p>
-    ${wrong.length?`<p class="hint">Повторить задания: ${wrong.map(n=>`<a href="#oge/${s.exam}/${n}">№${n} ${esc(CAT[s.exam][n][0])}</a>`).join(", ")}. Они появятся в рекомендациях на главной.</p>`:""}
-    <div class="tablewrap"><table class="grades ogeres"><thead><tr><th>№</th><th>Задание</th><th>Твой ответ</th><th>Правильный</th><th></th></tr></thead><tbody>
-    ${res.map((r,i)=>`<tr><td>${i+1}</td><td>${r.t.num}. ${esc(EXAMS[s.exam].tasks[r.t.num].t)}</td><td>${esc(r.v||"—")}${r.v.trim()&&!r.inTime?` <span class="chip">после времени</span>`:""}</td><td>${esc(shown(r.t))}</td><td>${r.ok?`<span class="chip ok">верно</span>`:`<span class="chip warn">ошибка</span>`}</td></tr>`).join("")}
-    </tbody></table></div>
-    ${entry.nb ? `<details class="pages-ed" open><summary>Мои черновики (хранятся 30 дней)</summary><div id="drafts"></div></details>` : ""}
-    <details class="pages-ed"><summary>Посмотреть задания с ошибками</summary>${res.filter(r=>!r.ok).map(r=>taskHtml(r.t, undefined, r.v)).join("") || "<p>Ошибок нет!</p>"}</details></section>`;
-  $("main").querySelectorAll("details [data-ans]").forEach(i=>i.readOnly = true);
-  if(entry.nb && $("drafts")) draftsInto($("drafts"), entry);
-  await finish(`test:${s.exam}`, okIn.length, res.length, `Пробный вариант, ${EXAMS[s.exam].name.toLowerCase()}`);
+  const now = Date.now(), rows = s.list.map((t,i)=>{ const v = s.ans[i], ok = !!v.trim() && check(t, v); return { i, t, num:t.num, v, max: maxOf(s.exam, t.num), ok, score: ok ? maxOf(s.exam, t.num) : 0, state: !v.trim() ? "empty" : ok ? "ok" : "bad", inTime: !!v.trim() && s.at[i] <= s.end }; });
+  const tl = Object.assign({list:[]}, Store.get("ogeTests", {})); tl.list = tl.list.concat([{ ts:now, exam:s.exam, pending:true, spent: Math.round((now - s.start)/60e3), limit: EXAMS[s.exam].test.min, nb: draftSheets(s.nb).length ? s.nb : null }]); Store.set("ogeTests", tl, 0);
+  const o = { s, rows, head: EXAMS[s.exam].name, back:`#oge/${s.exam}`, backT:"← К заданиям", showTask:true };
+  resultsView(o);
+  await aiCheck(s, rows, {});
+  const entry = saveResult(s, rows, now, {});
+  const bad = (entry.wrong||[]);
+  o.extra = `${bad.length?`<p class="hint">Повторить задания: ${bad.map(n=>`<a href="#oge/${s.exam}/${n}">№${n} ${esc(CAT[s.exam][n][0])}</a>`).join(", ")}. Они появятся в рекомендациях на главной.</p>`:""}
+    <details class="pages-ed"><summary>Посмотреть задания с ошибками</summary>${rows.filter(r=>r.state!=="ok").map(r=>taskHtml(r.t, undefined, r.v)).join("") || "<p>Ошибок нет!</p>"}</details>`;
+  resultsView(o);
+  await finish(`test:${s.exam}`, rows.filter(r=>r.state==="ok" && r.inTime).length, rows.length, `Пробный вариант, ${EXAMS[s.exam].name.toLowerCase()}`);
 }
 
 /* развёрнутые и не генерируемые задания: условие от учителя, из сборника или своё; проверка по критериям */
