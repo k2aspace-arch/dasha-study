@@ -806,3 +806,7 @@ table.grades .gcell.gcalc{color:var(--muted);opacity:.75;border-style:dashed}
 .fl-fire{background:linear-gradient(#ffd23f,#ff5a1a)}
 .fl-dim{background:linear-gradient(#ffe7b8,#f3b98a);opacity:.55}
 @media (max-width:600px){ .fl{width:11px;height:14px} .fl-fire,.fl-dim{clip-path:path("M5.5 0C6.6 3.3 11 4.9 11 8.8a5.5 5 0 0 1-11 0C0 6 2.2 4.9 2.7 2.2c1.1 2.2 1.7 2.7 2.8 3.3C5.5 3.3 4.9 1.6 5.5 0z")} .fl-empty,.fl-none,.fl-today,.fl-future{width:9px;height:9px} .fireline{gap:3px} }
+.savebox{display:flex;flex-direction:column;gap:6px;margin-top:8px;padding:10px;border:1.5px solid var(--line);border-radius:10px;background:var(--card);font-size:14px}
+.savebox label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.savebox textarea{font:inherit;padding:8px;border-radius:8px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);resize:vertical}
+.memonote{font-size:14px;margin:8px 0;padding:8px 10px;border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0}

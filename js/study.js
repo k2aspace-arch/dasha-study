@@ -411,7 +411,7 @@ async function finishCut(me){
 /* ================= ПАМЯТКИ ================= */
 function renderMemos(){
   const d = Draw.memos(), memo = d.list.filter(x=>x.kind==="memo"), task = d.list.filter(x=>x.kind!=="memo");
-  const fig = x => `<figure class="memo-card"><figcaption>${esc(x.title)}</figcaption>${Draw.svg(x.spec)}<div class="chatrow"><button class="ibtn" type="button" data-png="${encodeURIComponent(JSON.stringify(x.spec))}" title="Скачать картинкой" aria-label="Скачать">⬇</button><button class="ibtn" type="button" data-memodel="${x.id}" title="Удалить" aria-label="Удалить">✕</button></div></figure>`;
+  const fig = x => `<figure class="memo-card"><figcaption>${esc(x.title)}</figcaption>${Draw.svg(x.spec)}${x.note?`<div class="md memonote">${Draw.md(x.note)}</div>`:""}<div class="chatrow" data-said="${encodeURIComponent(x.note||"")}"><button class="ibtn" type="button" data-png="${encodeURIComponent(JSON.stringify(x.spec))}" title="Скачать картинкой" aria-label="Скачать">⬇</button><button class="ibtn" type="button" data-memodel="${x.id}" title="Удалить" aria-label="Удалить">✕</button></div></figure>`;
   $("main").innerHTML = `<div class="stack"><section class="panel"><h2>Памятки</h2><p class="hint" style="margin:6px 0 0">Рисунки учителя, которые ты сохранила звёздочкой ⭐. Памятки — для запоминания правил надолго, рисунки к задачам — чтобы вернуться к разбору.</p></section>
     ${d.list.length ? `${memo.length?`<section class="panel"><h3>Памятки к правилам · ${memo.length}</h3><div class="memogrid">${memo.map(fig).join("")}</div></section>`:""}
       ${task.length?`<section class="panel"><h3>Рисунки к задачам · ${task.length}</h3><div class="memogrid">${task.map(fig).join("")}</div></section>`:""}`
