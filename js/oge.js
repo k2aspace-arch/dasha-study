@@ -315,9 +315,9 @@ function renderMenu(only){
       </section>`; };
   $("main").innerHTML = `<div class="stack">
     <section class="panel"><h2>${only ? "ОГЭ: " + EXAMS[only].name.toLowerCase() : "ОГЭ"}</h2></section>
-    ${historyHtml(only)}
-    ${only ? achMap(only) : ""}
     ${only ? block(only) : block("math")+block("rus")}
+    ${only ? achMap(only) : ""}
+    ${historyHtml(only)}
     <details class="panel plain ogehelp"><summary class="sm">Как устроен этот раздел</summary><p class="hint" style="margin:6px 0 12px">Все задания экзамена по порядку, у каждого его вес в баллах. Задания с пометкой «с учителем» (развёрнутые, изложение, сочинение и те, что пока не генерируются) решаются с ИИ-учителем: он даёт условие или берёт его из сборника, а потом проверяет по критериям ФИПИ. Критерии спрятаны в шапке каждого задания.</p>
       <p class="hint">У каждого задания полоска из 33 последних решений: зелёные — верно, красные — ошибки (тренировки, задания с учителем и пробные вместе). Цель на ноутбук: у каждого задания 30 верных из 33 последних. Чем больше красного, тем дольше стоит решать.</p>
     </details></div>`;
@@ -337,18 +337,18 @@ function achMap(exam){
   let gen = 0; const cols = L.map(t=>t.variant ? { h:String(t.variant), tt:`Вариант ${t.variant} из сборника` } : { h:`П${++gen}`, tt:"Пробный из заданий сайта" });
   const D = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short"});
   const cell = (p, n) => { const v = p[n]; return v === undefined ? `<td class="am-none"></td>` : v === null ? `<td class="am-long" title="Развёрнутое: проверяет учитель">у</td>` : `<td class="${v>0?"am-ok":"am-bad"}">${v}</td>`; };
-  return `<section class="panel"><h3 class="amh">Карта индивидуальных достижений</h3><p class="hint" style="margin-top:0">Баллы за каждое задание во всех пробных, пройденных на сайте. Столбец — вариант (цифра — вариант из сборника, П — пробный из заданий сайта).</p>
+  return `<details class="panel plain ogehelp"><summary class="sm">Карта индивидуальных достижений</summary><p class="hint" style="margin-top:0">Баллы за каждое задание во всех пробных, пройденных на сайте. Столбец — вариант (цифра — вариант из сборника, П — пробный из заданий сайта).</p>
     <div class="tablewrap"><table class="achmap"><thead><tr><th class="am-corner"><span>Вариант</span><span>Задание</span></th>${cols.map((c,i)=>`<th title="${c.tt}, ${D.format(new Date(L[i].ts))}">${esc(c.h)}</th>`).join("")}</tr></thead>
     <tbody>${nums.map(n=>`<tr><th>${n}</th>${P.map(p=>cell(p, n)).join("")}</tr>`).join("")}</tbody>
-    <tfoot><tr><th>Баллы</th>${L.map((t,i)=>`<td><b>${Object.values(P[i]).reduce((a,v)=>a+(v||0),0)}</b></td>`).join("")}</tr></tfoot></table></div></section>`;
+    <tfoot><tr><th>Баллы</th>${L.map((t,i)=>`<td><b>${Object.values(P[i]).reduce((a,v)=>a+(v||0),0)}</b></td>`).join("")}</tr></tfoot></table></div></details>`;
 }
 function historyHtml(only){
   const L = (Object.assign({list:[]}, Store.get("ogeTests", {})).list||[]).filter(t=>(!only || t.exam===only) && !t.pending).slice().reverse();
   if(!L.length) return "";
   const D = new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
-  return `<section class="panel"><h3>Мои пробные</h3><div class="tablewrap"><table class="grades ogehist"><thead><tr><th>Когда</th><th>Экзамен</th><th>Баллы вовремя</th><th>Время</th><th>Сделано</th><th>Повторить</th><th></th></tr></thead><tbody>
+  return `<details class="panel plain ogehelp"><summary class="sm">Мои пробные · ${L.length}</summary><div class="tablewrap"><table class="grades ogehist"><thead><tr><th>Когда</th><th>Экзамен</th><th>Баллы вовремя</th><th>Время</th><th>Сделано</th><th>Повторить</th><th></th></tr></thead><tbody>
     ${L.slice(0,15).map(t=>`<tr><td>${D.format(new Date(t.ts))}</td><td>${esc(exName(t.exam))}${t.variant?`, вариант ${esc(t.variant)}`:""}</td><td><b>${t.pts!==undefined?`${t.pts}/${t.ptsMax}`:`${t.ok}/${t.n}`}</b></td><td>${t.spent!==undefined?`${t.spent} из ${t.limit} мин`:"—"}</td><td>${t.answered!==undefined?`${t.answered}/${t.n}${t.late?`, ${t.late} после времени`:""}`:"—"}</td><td>${(t.wrong||[]).map(n=>`<a href="#oge/${t.exam}/${n}">№${n}</a>`).join(" ")||"—"}</td><td>${t.nb ? `<button class="btn" type="button" data-hdraft="${t.ts}">Черновики</button>` : ""}</td></tr>${t.nb ? `<tr hidden data-hrow="${t.ts}"><td colspan="7"><div data-hbox="${t.ts}"></div></td></tr>` : ""}`).join("")}
-    </tbody></table></div></section>`;
+    </tbody></table></div></details>`;
 }
 /* учитель под заданием: тетрадь, фото, чат */
 let teach = null;
@@ -447,7 +447,7 @@ function bindBookBlock(){
 function renderOther(exam){
   if(session && session.audio) session.audio.pause(); clearInterval(timer); session = null; dropTeacher();
   $("main").innerHTML = `<div class="stack"><section class="panel"><h2>ОГЭ: ${esc(exName(exam).toLowerCase())}</h2><p class="hint" style="margin:6px 0 0">Пробные варианты из загруженного сборника. Условия читаешь в сборнике, ответы вписываешь здесь, и они сразу сверяются с ответами сборника. Развёрнутые задания можно показать учителю.</p></section>
-    ${historyHtml(exam)}${achMap(exam)}<section class="panel oge-ex">${bookBlock(exam)}</section></div>`;
+    <section class="panel oge-ex">${bookBlock(exam)}</section>${achMap(exam)}${historyHtml(exam)}</div>`;
   bindBookBlock();
   $("main").querySelectorAll("[data-hdraft]").forEach(b=>b.addEventListener("click",()=>{ const ts = b.dataset.hdraft, row = $("main").querySelector(`[data-hrow="${ts}"]`); row.hidden = !row.hidden;
     if(!row.hidden){ const t = (Store.get("ogeTests",{list:[]}).list||[]).find(x=>String(x.ts)===ts); if(t) draftsInto($("main").querySelector(`[data-hbox="${ts}"]`), t); } }));
