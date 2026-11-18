@@ -227,6 +227,7 @@ function renderAccount(openId){
       ${shareLine(b)}
       <p class="status" id="status-${b.id}" aria-live="polite"></p>
       <details class="pages-ed" ${openId===b.id?"open":""}><summary class="btn" style="display:inline-block;margin-top:6px">Номера страниц параграфов</summary>
+        ${file && Store.aiAvailable() ? `<div class="editbar tocai"><span>Оглавление в PDF на страницах</span><input type="number" min="1" max="999" data-tocfrom="${b.id}" value="${(m.tocPdf||[])[0]||""}" placeholder="с" aria-label="Первая страница оглавления в файле"><span>по</span><input type="number" min="1" max="999" data-tocto="${b.id}" value="${(m.tocPdf||[])[1]||""}" placeholder="по" aria-label="Последняя страница оглавления в файле"><button class="btn primary" type="button" data-tocai="${b.id}">ИИ расставит страницы</button><span class="sm">Номера как в просмотрщике PDF (первая страница файла = 1). Учитель прочитает оглавление и сам впишет страницы глав и параграфов.</span></div>` : ""}
         <div class="editbar"><label for="offset-${b.id}">Страниц в файле до первой страницы учебника:</label><input type="number" id="offset-${b.id}" data-off="${b.id}" min="-50" max="300" value="${Number(m.offset)||0}"><span>Если в PDF есть обложка и титульные листы, впиши, сколько их. Тогда номера ниже совпадут с номерами в книге.</span></div>
         ${b.groups.map((g,gi)=>g.chapters.map((c,ci)=>`<div class="grade chrow" style="padding-left:0"><span style="flex:1;min-width:0">${esc(c.n)} ${esc(c.t)}</span><input class="pgin" type="number" min="1" max="999" data-cpk="${gi}.${ci}" value="${(m.chapterPages||{})[gi+"."+ci]||""}" placeholder="стр." aria-label="Страница главы: ${esc(c.t)}"></div><ol class="paras" style="padding:0 0 6px">${
           c.p.map((p,pi)=>{ const k=`${b.id}.${gi}.${ci}.${pi}`; return `<li><span class="pn">${ci+1}.${pi+1}</span><span class="pt" style="flex:1;min-width:0">${esc(p)}</span><input class="pgin" type="number" min="1" max="999" id="pg-${k.replace(/\./g,'-')}" data-pk="${k}" value="${m.pages[k]||""}" placeholder="стр." aria-label="Страница: ${esc(p)}"></li>`; }).join("")}</ol>`).join("")).join("")}
@@ -251,6 +252,9 @@ function renderAccount(openId){
   Study.bindAccount(main);
   main.querySelectorAll("[data-auto]").forEach(btn=>btn.addEventListener("click",()=>{ const b = BOOKS.find(x=>x.id===btn.dataset.auto); sayTarget = "status-"+b.id; btn.disabled = true; autoPages(b).catch(e=>{ console.error(e); say("Не получилось прочитать учебник: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
   main.querySelectorAll("[data-open]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(BOOKS.find(x=>x.id===btn.dataset.open), 0, "")));
+  main.querySelectorAll("[data-tocai]").forEach(btn=>btn.addEventListener("click",()=>{ const b = BOOKS.find(x=>x.id===btn.dataset.tocai); sayTarget = "status-"+b.id; btn.disabled = true;
+    tocPagesAi(b, parseInt(main.querySelector(`[data-tocfrom="${b.id}"]`).value,10), parseInt(main.querySelector(`[data-tocto="${b.id}"]`).value,10))
+      .catch(e=>{ console.error(e); say("Не получилось: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
   main.querySelectorAll("section[data-book]").forEach(sec=>{ const id = sec.dataset.book;
     const save = () => { const m = S.book(id); m.pages = Object.assign({}, m.pages);
       sec.querySelectorAll("input[data-pk]").forEach(i=>{ const v = parseInt(i.value,10); if(v>0) m.pages[i.dataset.pk] = v; else delete m.pages[i.dataset.pk]; });
@@ -278,6 +282,32 @@ async function autoPages(b){
   S.setBook(b.id, m);
   say(found ? `Нашёл страницы у ${found} из ${topics.length} тем. Проверь их в «Номера страниц параграфов»: если темы в учебнике называются иначе, часть страниц придётся вписать вручную.` : "Не нашёл ни одной темы: похоже, в этом издании темы называются иначе. Впиши страницы вручную.", !found);
   const keep = sayTarget, msg = $(keep) ? $(keep).textContent : ""; renderAccount(b.id); sayTarget = keep; say(msg, !found);
+}
+// страницы параграфов по оглавлению: картинки страниц оглавления из PDF + список тем сайта -> ИИ сопоставляет
+async function tocPagesAi(b, from, to){
+  const m0 = S.book(b.id), total = m0.totalPages || 999;
+  if(!(from > 0)) throw new Error("укажи, на какой странице файла начинается оглавление");
+  if(!(to >= from)) to = from;
+  if(to - from > 7) throw new Error("оглавление больше 8 страниц: укажи часть, например первые 8");
+  if(to > total) throw new Error(`в файле всего ${total} страниц`);
+  say(`Готовлю страницы оглавления ${from}–${to}…`);
+  const images = []; for(let n=from; n<=to; n++) images.push(await Reader.pageImage(b, n, 1300));
+  const chapters = [], topics = [];
+  b.groups.forEach((g,gi)=>g.chapters.forEach((c,ci)=>{ chapters.push({ key:`${gi}.${ci}`, title:`${c.n} ${c.t}` }); c.p.forEach((p,pi)=>topics.push({ key:`${b.id}.${gi}.${ci}.${pi}`, title:p })); }));
+  say("Учитель читает оглавление…");
+  const r = await Store.ask({ mode:"tocpages", images, text:`Учебник: ${b.subject}, ${b.title}. Первая присланная картинка — страница ${from} файла.\nГлавы (ключ: название): ${JSON.stringify(chapters)}\nТемы (ключ: название): ${JSON.stringify(topics)}` });
+  const t = String(r.text||""), a = t.indexOf("{"), z = t.lastIndexOf("}"); if(a<0 || z<a) throw new Error("учитель ответил не в том формате");
+  const j = JSON.parse(t.slice(a, z+1)), m = S.book(b.id);
+  m.pages = Object.assign({}, m.pages); m.chapterPages = Object.assign({}, m.chapterPages); m.tocPdf = [from, to];
+  let n = 0;
+  Object.entries(j.pages||{}).forEach(([k,v])=>{ const pg = parseInt(v,10); if(pg>0 && topics.some(x=>x.key===k)){ m.pages[k] = pg; n++; } });
+  Object.entries(j.chapters||{}).forEach(([k,v])=>{ const pg = parseInt(v,10); if(pg>0 && chapters.some(x=>x.key===k)) m.chapterPages[k] = pg; });
+  // сдвиг: номер файла минус напечатанный номер на первой странице оглавления
+  const printed = parseInt(j.printed,10); let offNote = "";
+  if(printed > 0 && from - printed >= 0 && from - printed < 300){ m.offset = from - printed; offNote = ` Сдвиг страниц файла: ${m.offset}.`; }
+  S.setBook(b.id, m);
+  const msg = n ? `Готово: страницы у ${n} из ${topics.length} тем.${offNote} Проверь их ниже.` : "В оглавлении не нашлось тем сайта. Проверь, те ли страницы указаны.";
+  renderAccount(b.id); sayTarget = "status-"+b.id; say(msg, !n);
 }
 function say(t, err){ const st = $(sayTarget); if(st){ st.textContent = t; st.classList.toggle("err", !!err); } }
 function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("script "+src)); document.head.appendChild(s); }); }
@@ -517,6 +547,7 @@ function drawChat(){
   const log = $("chatlog"); if(!log) return;
   log.innerHTML = chat.length ? chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"} ${m.err?"err":""}">${m.role==="user" ? esc(m.content) : Draw.html(m.content)}${m.img?`<img src="${m.img}" alt="Лист с доски">`:(m.board?`<br><small>📎 лист с доски</small>`:m.photo?`<br><small>📷 фото</small>`:"")}</div>`).join("")
     : `<p class="emptychat">Здесь появится разговор. Например: «Объясни, как решать квадратные неравенства методом интервалов».</p>`;
+  Draw.decorate(log, chat);
   log.scrollTop = log.scrollHeight;
 }
 async function toWhitePngBase64(blob){

@@ -112,10 +112,24 @@ function inline(t){
     .replace(/(^|[\s(«])\*(\S(?:[^*\n]*?\S)?)\*(?=[\s).,!?:;»]|$)/g, '$1<em>$2</em>');
 }
 function md(src){
-  const lines = esc(src).split("\n"), out = []; let list = null, para = [];
+  const lines = esc(src).split("\n"), out = []; let list = null, para = [], tbl = [];
   const flushP = () => { if(para.length){ out.push(`<p>${inline(para.join("<br>"))}</p>`); para = []; } };
+  // таблицы: строки «a | b | c» (с крайними | или без), строка из дефисов между шапкой и телом не обязательна
+  const cells = l => l.replace(/^\|/,"").replace(/\|$/,"").split("|").map(c=>c.trim());
+  const isRow = l => /\S\s*\|\s*\S|^\|.*\|$/.test(l) && cells(l).length >= 2;
+  const isSep = l => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(l);
+  const flushT = () => { if(!tbl.length) return;
+    const rows = tbl.filter(r=>!isSep(r)).map(cells); tbl = [];
+    if(rows.length < 2){ rows.forEach(r=>para.push(r.join(" | "))); return; }
+    const n = Math.max(...rows.map(r=>r.length)), pad = r => r.concat(Array(n - r.length).fill(""));
+    out.push(`<div class="tablewrap"><table class="md-table"><thead><tr>${pad(rows[0]).map(c=>`<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>${rows.slice(1).map(r=>`<tr>${pad(r).map(c=>`<td>${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`); };
   const flushL = () => { if(list){ out.push(`<${list.t}>${list.items.map(x=>`<li>${inline(x)}</li>`).join("")}</${list.t}>`); list = null; } };
-  lines.forEach(raw=>{ const l = raw.trim(); let m;
+  lines.forEach((raw, k)=>{ const l = raw.trim(); let m;
+    const nx = (lines[k+1]||"").trim(), pv = (lines[k-1]||"").trim();
+    if(isSep(l) && tbl.length){ tbl.push(l); return; }
+    const absv = /\|[^|\s][^|]*\|\s*[=<>≤≥+\-−·:]/.test(l), head = tbl.find(x=>!isSep(x));
+    if(isRow(l) && !absv && (head ? cells(head).length === cells(l).length : (isRow(nx) || isSep(nx)))){ flushP(); flushL(); tbl.push(l); return; }
+    flushT();
     if(!l){ flushP(); flushL(); return; }
     if((m = l.match(/^#{1,4}\s+(.*)$/))){ flushP(); flushL(); out.push(`<h4 class="md-h">${inline(m[1].replace(/\*\*/g,""))}</h4>`); return; }
     if((m = l.match(/^(?:[-•–]|\*(?!\*))\s+(.*)$/))){ flushP(); if(!list || list.t!=="ul"){ flushL(); list = {t:"ul", items:[]}; } list.items.push(m[1]); return; }
@@ -123,7 +137,7 @@ function md(src){
     if(/^(?:\*\*)?Ответ\s*:/i.test(l)){ flushP(); flushL(); out.push(`<p class="md-ans">${inline(l)}</p>`); return; }
     flushL(); para.push(l);
   });
-  flushP(); flushL(); return out.join("");
+  flushT(); flushP(); flushL(); return out.join("");
 }
 // текст ответа -> HTML: текст в лёгком Markdown, блоки <draw> становятся рисунками с кнопками «сохранить»
 function html(text){
@@ -180,5 +194,29 @@ document.addEventListener("click", e=>{
   try{ if(m) chooser(m, "memo"); if(p) chooser(p, "png"); }catch(err){ console.error(err); }
 });
 
-window.Draw = { html, svg, compile, md, memos };
+/* памятки другого вида: сообщение учителя, весь диалог, свой рисунок (лист тетради), свой файл */
+function addMemo(item){ const d = memos(); d.list.unshift(Object.assign({ id:"m"+Date.now()+Math.random().toString(36).slice(2,6), ts:Date.now() }, item)); Store.set("memos", d, 0); }
+const firstLine = t => plainNote(t).replace(/<draw>[\s\S]*?<\/draw>/gi,"").split("\n").map(x=>x.trim()).filter(Boolean)[0] || "";
+const short = (t, n) => t.length > n ? t.slice(0, n-1).trim() + "…" : t;
+// кнопки под сообщениями учителя и «сохранить весь диалог» в конце чата
+function decorate(log, chat){
+  if(!log || !Array.isArray(chat)) return;
+  const els = log.querySelectorAll(":scope > .msg");
+  if(els.length !== chat.length) return;
+  chat.forEach((m,i)=>{ if(m.role==="user" || m.pending || m.err || !m.content) return;
+    const b = document.createElement("button"); b.type = "button"; b.className = "ibtn msgsave"; b.textContent = "⭐"; b.title = "Сохранить сообщение в памятки"; b.setAttribute("aria-label", b.title);
+    b.addEventListener("click", ()=>{ addMemo({ kind:"msg", title: short(firstLine(m.content) || "Сообщение учителя", 70), text: m.content }); b.textContent = "✓"; b.disabled = true; b.title = "Сохранено в памятки"; });
+    els[i].appendChild(b); });
+  const real = chat.filter(m=>!m.pending && !m.err && m.content);
+  if(real.length >= 2){
+    const row = document.createElement("div"); row.className = "dlgsave";
+    row.innerHTML = `<button class="btn" type="button">⭐ Сохранить весь диалог в памятки</button>`;
+    row.querySelector("button").addEventListener("click", e=>{ const firstQ = real.find(m=>m.role==="user");
+      addMemo({ kind:"chat", title: short(firstQ ? plainNote(firstQ.content).split("\n")[0] : "Разговор с учителем", 70), msgs: real.map(m=>({ role: m.role==="user" ? "user" : "assistant", content: String(m.content) })) });
+      e.target.textContent = "✓ Диалог сохранён в памятки"; e.target.disabled = true; });
+    log.appendChild(row);
+  }
+}
+
+window.Draw = { html, svg, compile, md, memos, addMemo, decorate };
 })();

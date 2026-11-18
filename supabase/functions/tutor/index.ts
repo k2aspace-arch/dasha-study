@@ -1,5 +1,5 @@
 // ИИ-учитель через OpenRouter: принимает вопрос с сайта и спрашивает Claude.
-// Версия функции: openrouter-5 (если в ответе ошибки нет слова OpenRouter, значит задеплоен старый код).
+// Версия функции: openrouter-6 (если в ответе ошибки нет слова OpenRouter, значит задеплоен старый код).
 // Ключ OpenRouter хранится в секретах Supabase (например, OPENROUTER_API_KEY), в браузер он не попадает.
 // Supabase сам проверяет, что запрос пришёл от вошедшего пользователя (JWT).
 
@@ -107,6 +107,11 @@ const TOC = `Тебе присылают фото страниц оглавле�
 Ответь ТОЛЬКО JSON без Markdown: {"chapters":[{"title":"Глава 1. ...","topics":[{"title":"§1. ...","page":<номер страницы как в оглавлении>}]}]}
 Сохраняй нумерацию и названия как в оглавлении. Ничего не выдумывай.`;
 
+const TOCPAGES = `Тебе присылают картинки страниц оглавления школьного учебника и список тем сайта с ключами.
+Для каждой темы из списка найди в оглавлении её страницу (номер, напечатанный в оглавлении). Темы на сайте могут называться чуть иначе или идти в другом порядке: сопоставляй по смыслу. Если темы в оглавлении нет, не включай её.
+Ещё посмотри, какой номер страницы напечатан на самой первой присланной странице (обычно внизу или вверху); если не видно, null.
+Ответь ТОЛЬКО JSON без Markdown: {"pages":{"<ключ темы>":<стр>},"chapters":{"<ключ главы>":<стр>},"printed":<номер или null>}`;
+
 const INDEX = `Тебе дают текст страниц одного параграфа школьного учебника. Составь короткую карточку параграфа для учителя-репетитора.
 Ответь ТОЛЬКО JSON без Markdown:
 {"summary":"2–3 предложения: о чём параграф",
@@ -116,6 +121,9 @@ const INDEX = `Тебе дают текст страниц одного пара
 level: 1 — базовое, 2 — среднее, 3 — трудное (обычно отмечено звёздочкой или в конце списка). Номера страниц бери из маркеров страниц. Ничего не выдумывай.`;
 
 const OGEGEN = `Ты составитель заданий ОГЭ (ФИПИ) 2027 года. Составь ОДНО новое задание указанного номера в формате открытого банка ФИПИ, по актуальной спецификации.
+Для изложения (русский язык, №1) в "text" дай только исходный текст для прослушивания (150–200 слов, публицистический или художественный, как в сборниках ФИПИ), без формулировки задания: его озвучат голосом.
+Для сочинения (русский язык, №13) включи в "text" исходный текст целиком и формулировки 13.1, 13.2 и 13.3.
+Таблицы оформляй строками вида «a | b | c», первая строка — шапка. Переносы строк в JSON пиши как \\n.
 Ответь ТОЛЬКО JSON без Markdown: {"text":"условие (если нужен текст для чтения, включи его целиком)","answer":"эталонный ответ или пусто для развёрнутых","criteria":"критерии оценивания кратко, если задание развёрнутое"}`;
 
 const QUIZ = `Ты учитель Клод. По страницам учебника ниже составь итоговые вопросы по главе для ученицы 9 класса.
@@ -248,13 +256,44 @@ async function admin(req: Request, body: Record<string, unknown>): Promise<Respo
   return json({ error: "Неизвестное действие" }, 400);
 }
 
+/* ---------- Озвучка (ElevenLabs) ----------
+   Секреты: ELEVENLABS_API_KEY (обязательно), ELEVENLABS_VOICE_ID (по желанию, иначе стандартный голос).
+   Отдаёт mp3 в base64, текст до 3000 символов. */
+async function tts(body: Record<string, unknown>): Promise<Response> {
+  const key = (Deno.env.get("ELEVENLABS_API_KEY") ?? Deno.env.get("ELEVENLABS_KEY") ?? Deno.env.get("XI_API_KEY") ?? "").trim();
+  if (!key) return json({ error: "На сервере нет ключа ElevenLabs. Добавь секрет ELEVENLABS_API_KEY в Supabase." }, 500);
+  const text = String(body.text ?? "").trim().slice(0, 3000);
+  if (!text) return json({ error: "Пустой текст" }, 400);
+  const voice = (Deno.env.get("ELEVENLABS_VOICE_ID") ?? "").trim() || "EXAVITQu4vr4xnSDxMaL";
+  const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}?output_format=mp3_44100_64`, {
+    method: "POST",
+    headers: { "xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/mpeg" },
+    body: JSON.stringify({ text, model_id: "eleven_multilingual_v2", language_code: "ru", voice_settings: { stability: 0.6, similarity_boost: 0.75, speed: Number(body.speed) || 0.9 } }),
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => "");
+    const st = r.status;
+    const msg = st === 401 ? "ElevenLabs не принял ключ. Проверь секрет ELEVENLABS_API_KEY."
+      : st === 402 || /quota|credits/i.test(t) ? "В ElevenLabs закончились символы на тарифе."
+      : `ElevenLabs ответил ошибкой: ${st} ${t.slice(0, 200)}`;
+    return json({ error: msg }, st >= 400 && st < 600 ? st : 500);
+  }
+  const buf = new Uint8Array(await r.arrayBuffer());
+  let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  return json({ audio: btoa(bin), type: "audio/mpeg" });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Нужен POST" }, 405);
+  let peekMode = "", peekBody: Record<string, unknown> = {};
   if (req.headers.get("content-type")?.includes("json")) {
     const peek = await req.clone().json().catch(() => null);
+    if (peek) { peekMode = String(peek.mode ?? ""); peekBody = peek; }
     if (peek && peek.admin) { try { return await admin(req, peek); } catch (e) { console.error(e); return json({ error: String((e as Error).message || e).slice(0, 300) }, 500); } }
   }
+  // озвучка изложения через ElevenLabs: ключ только в секрете ELEVENLABS_API_KEY
+  if (peekMode === "tts") { try { return await tts(peekBody); } catch (e) { console.error(e); return json({ error: String((e as Error).message || e).slice(0, 300) }, 500); } }
   const key = findKey();
   if (!key) return json({ error: "На сервере нет ключа OpenRouter. Добавь секрет OPENROUTER_API_KEY в Supabase." }, 500);
   try {
@@ -263,7 +302,7 @@ Deno.serve(async (req) => {
     let system = SYSTEM, maxTokens = 4000;
     let history: Msg[] = [];
 
-    const SYS: Record<string, string> = { report: REPORT, quiz: QUIZ, quizcheck: QUIZCHECK, fill: FILL, cut: CUT, toc: TOC, index: INDEX, ogegen: OGEGEN };
+    const SYS: Record<string, string> = { report: REPORT, quiz: QUIZ, quizcheck: QUIZCHECK, fill: FILL, cut: CUT, toc: TOC, index: INDEX, ogegen: OGEGEN, tocpages: TOCPAGES };
     if (SYS[mode]) system = SYS[mode];
     else {
       if (Array.isArray(pages) && pages.length) system += BOOK_RULES;
@@ -279,11 +318,11 @@ Deno.serve(async (req) => {
       maxTokens = 8000;
     } else if (mode === "index") {
       history = [{ role: "user", content: bookParts(pages ?? [], topic) }];
-    } else if (mode === "toc" || mode === "ogegen") {
-      const content: Part[] = [{ type: "text", text: String(body.text ?? "").slice(0, 4000) || "Вот страницы." }];
+    } else if (mode === "toc" || mode === "ogegen" || mode === "tocpages") {
+      const content: Part[] = [{ type: "text", text: String(body.text ?? "").slice(0, mode === "tocpages" ? 30000 : 4000) || "Вот страницы." }];
       for (const im of (Array.isArray(images) ? images : []).slice(0, 8)) content.push(img(String(im)));
       history = [{ role: "user", content }];
-      maxTokens = mode === "toc" ? 6000 : 3000;
+      maxTokens = mode === "ogegen" ? 8000 : 6000;
     } else if (mode === "fill") {
       const content: Part[] = [{ type: "text", text: `Сегодня: ${body.today ?? ""}. Предметы (id: название): ${JSON.stringify(body.subjects ?? [])}.\nТекст от пользователя:\n${String(body.text ?? "").slice(0, 20000)}` }];
       for (const im of (Array.isArray(images) ? images : []).slice(0, 8)) content.push(img(String(im)));

@@ -301,7 +301,7 @@ function stats(){
 }
 function renderMenu(only){
   if(typeof only !== "string" || !EXAMS[only]) only = null;
-  clearInterval(timer); session = null; dropTeacher();
+  if(session && session.audio) session.audio.pause(); clearInterval(timer); session = null; dropTeacher();
   const oc = Points.ogeCounts(), last = Points.ogeLast(), goal = 30;
   const bar = (id, n) => { const a = (last[id]||{})[n] || []; return `<span class="ogebar" title="Последние ${a.length} из 33: верно ${a.reduce((x,y)=>x+y,0)}">${Array.from({length:33},(_,i)=>`<i class="${i<a.length?(a[i]?"g":"r"):""}"></i>`).join("")}</span>`; };
   const block = (id) => { const E = EXAMS[id], C = CAT[id], total = Object.values(C).reduce((a,x)=>a+x[1],0);
@@ -335,7 +335,7 @@ function historyHtml(only){
 /* учитель под заданием: тетрадь, фото, чат */
 let teach = null;
 function dropTeacher(){ if(teach){ teach.destroy(); teach = null; } }
-const plain = h => { const d = document.createElement("div"); d.innerHTML = String(h).replace(/<span class="fr"><i>(.*?)<\/i><i>(.*?)<\/i><\/span>/g,"($1)/($2)").replace(/<sup>(.*?)<\/sup>/g,"^$1").replace(/<svg[\s\S]*?<\/svg>/g," [рисунок на клетчатой бумаге] "); return d.textContent.replace(/\s+/g," ").trim(); };
+const plain = h => { const d = document.createElement("div"); d.innerHTML = String(h).replace(/<\/tr>|<br\s*\/?>|<\/p>|<\/li>/gi,"$&\n").replace(/<\/t[dh]>/gi," | $&").replace(/<span class="fr"><i>(.*?)<\/i><i>(.*?)<\/i><\/span>/g,"($1)/($2)").replace(/<sup>(.*?)<\/sup>/g,"^$1").replace(/<svg[\s\S]*?<\/svg>/g," [рисунок на клетчатой бумаге] "); return d.textContent.replace(/[ \t\r]+/g," ").replace(/ ?\n ?/g,"\n").replace(/\n{3,}/g,"\n\n").trim(); };
 function mountTeacher(exam, num, ctx){
   dropTeacher();
   const host = $("ogeteach"); if(!host) return;
@@ -410,7 +410,7 @@ function openDraft(i){
   closeDraft();
   const host = $("main").querySelector(`[data-draft="${i}"]`); if(!host) return; host.classList.add("open");
   const t = s.list[i];
-  const nb = Notebook.mount(host, { bookId: s.nb, key: "t"+i, ruled: s.exam==="rus", title: `Черновик · задание ${t.num}`, sub: "Только для себя, на проверку не идёт", task: `№${t.num}. ${plain(t.q)}`.slice(0, 300) });
+  const nb = Notebook.mount(host, { bookId: s.nb, key: "t"+i, ruled: s.exam==="rus", title: `Черновик · задание ${t.num}`, sub: "Только для себя, на проверку не идёт", task: `№${t.num}. ${plain(t.q)}${t.opts?"\n"+t.opts.map((o,i)=>`${i+1}) ${plain(o)}`).join("\n"):""}` });
   s.draft = { i, nb }; s.drafts = (s.drafts||new Set()); s.drafts.add(i);
 }
 // черновики пробного: листы из тетради «trial-…»; хранятся 30 дней
@@ -476,27 +476,61 @@ function startPractice(exam, num){
   const book = Study.ogeBook(exam);
   $("main").innerHTML = `<div class="stack"><section class="panel oge-run"><div class="oge-top"><a href="#oge/${exam}" class="btn">← Все задания</a><b>${EXAMS[exam].name}, задание ${num}: ${esc(t)}</b><span class="chip ${max>1?"warn":""}">максимум ${pl(max,"балл","балла","баллов")}</span></div>
     ${critHtml(exam, num)}
-    <div class="btnrow">${Store.aiAvailable()?`<button class="btn primary" type="button" id="pgen">Дай задание</button>`:""}${book?`<button class="btn" type="button" id="pbook">Открыть сборник</button>`:""}</div>
+    <div class="btnrow">${Store.aiAvailable()?`<button class="btn primary" type="button" id="pgen">${exam==="rus"&&num===1?"Дай текст для изложения":"Дай задание"}</button>`:""}${book?`<button class="btn" type="button" id="pbook">Открыть сборник</button>`:""}</div>
     <div id="ptask" class="oge-text"></div>
     <label class="oge-ans" style="display:block"><span class="sm">${long ? (num===1 ? "Текст для изложения (если взят из сборника) и твоё изложение" : "Условие и твоё сочинение") : "Условие (вставь или опиши) и твой ответ"}</span>
-      <textarea id="pans" class="filltext" placeholder="${num===1 ? "Изложение пишется по аудио. Можно вставить текст из сборника, прочитать его вслух дважды (или попросить кого-то), а потом написать изложение в тетради ниже или здесь." : "Можно писать здесь, а решение — в тетради ниже или на фото."}"></textarea></label>
+      <textarea id="pans" class="filltext" placeholder="${num===1 ? "Нажми «Дай текст для изложения»: его прочитает голос, два раза. Или вставь текст из сборника. Изложение пиши здесь или в тетради ниже." : "Можно писать здесь, а решение — в тетради ниже или на фото."}"></textarea></label>
     <div class="btnrow"><button class="btn primary" type="button" id="pcheck" ${Store.aiAvailable()?"":"disabled"}>Сдать учителю на проверку</button><span class="sm" id="pstat" aria-live="polite"></span></div>
     </section><section class="panel" id="ogeteach"></section></div>`;
   mountTeacher(exam, num, () => `Условие: ${session && session.task ? session.task : "(ученица взяла задание из сборника, условие в её сообщении или на фото)"}`);
   if($("pbook")) $("pbook").addEventListener("click", ()=>Reader.open(book, 0, `Сборник: ${EXAMS[exam].name}`));
+  // изложение: текст не показываем, его читает голос (ElevenLabs), два раза, как на экзамене
+  const listen = exam==="rus" && num===1;
+  function listenPanel(){
+    const left = 2 - (session.plays||0);
+    $("ptask").innerHTML = `<div class="listen"><p>Текст для изложения готов. На экзамене его слушают два раза, между прослушиваниями можно делать записи.</p>
+      <div class="btnrow"><button class="btn primary" type="button" id="lplay" ${left<=0?"disabled":""}>${left===2?"▶ Слушать первый раз":left===1?"▶ Слушать второй раз":"Прослушано два раза"}</button>
+      <button class="btn" type="button" id="lstop" hidden>■ Стоп</button><span class="sm" id="lstat" aria-live="polite"></span></div>
+      <details class="pages-ed"><summary>Показать текст (лучше после того, как напишешь)</summary><div class="oge-text">${Draw.html(session.task)}</div></details></div>`;
+    $("lplay").addEventListener("click", async()=>{
+      const b = $("lplay"); b.disabled = true;
+      try{
+        if(!session.audio){ $("lstat").textContent = "Готовлю озвучку…";
+          const r = await Store.ask({ mode:"tts", text: plain(session.task) });
+          if(!r || !r.audio) throw new Error((r && r.error) || "нет звука");
+          const bin = atob(r.audio), u8 = new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i] = bin.charCodeAt(i);
+          session.audio = new Audio(URL.createObjectURL(new Blob([u8], { type: r.type || "audio/mpeg" }))); }
+        const a = session.audio; a.currentTime = 0; await a.play();
+        session.plays = (session.plays||0) + 1; $("lstat").textContent = "Слушай внимательно…"; $("lstop").hidden = false;
+        $("lstop").onclick = () => { a.pause(); a.onended(); };
+        a.onended = () => { if(!$("lplay")) return; const keep = session.plays; listenPanel(); $("lstat").textContent = keep>=2 ? "Теперь напиши сжатое изложение в тетради ниже или здесь." : "Запиши главное, потом послушай ещё раз."; };
+      }catch(e){ $("lstat").textContent = "Не получилось озвучить: " + e.message; b.disabled = false; }
+    });
+  }
   if($("pgen")) $("pgen").addEventListener("click", async()=>{
     $("pgen").disabled = true; $("pstat").textContent = "Учитель составляет задание…";
     try{ const r = await Store.ask({ mode:"ogegen", text:`Экзамен: ОГЭ, ${EXAMS[exam].name.toLowerCase()}. Задание №${num}: ${t}.` });
-      const j = JSON.parse(r.text.slice(r.text.indexOf("{"), r.text.lastIndexOf("}")+1));
+      const j = parseTask(r.text);
       session.task = String(j.text||""); session.answer = j.answer || ""; session.taskCrit = j.criteria || "";
-      $("ptask").innerHTML = Draw.html(session.task); $("pstat").textContent = ""; if(teach) teach.setTask(`№${num}. ${plain(session.task)}`);
+      if(listen){ session.audio = null; session.plays = 0; listenPanel(); $("pstat").textContent = ""; if(teach) teach.setTask(`№1. Сжатое изложение: прослушай текст два раза и напиши изложение (не менее 70 слов).`); }
+      else { $("ptask").innerHTML = Draw.html(session.task); $("pstat").textContent = ""; if(teach) teach.setTask(`№${num}. ${plain(session.task)}`); }
     }catch(e){ $("pstat").textContent = "Не получилось: " + e.message; }
-    $("pgen").disabled = false; $("pgen").textContent = "Другое задание";
+    $("pgen").disabled = false; $("pgen").textContent = listen ? "Другой текст" : "Другое задание";
   });
   $("pcheck").addEventListener("click", ()=>{ const v = $("pans").value.trim();
     if(teach) teach.check(`Проверь по критериям ФИПИ моё задание ${num}.${session.answer?` (Эталон для тебя: ${session.answer})`:""}${v?`\nМой текст или ответ:\n${v}`:" Решение в тетради или на фото."}`); });
 }
 
+// ответ составителя заданий: JSON {"text","answer","criteria"}; если JSON битый или обрезан, достаём поля сами
+function parseTask(raw){
+  const t = String(raw||"").replace(/^```(?:json)?|```$/gm,"").trim();
+  try{ const a = t.indexOf("{"), b = t.lastIndexOf("}"); if(a >= 0 && b > a) return JSON.parse(t.slice(a, b+1)); }catch(e){}
+  const field = k => { const m = t.match(new RegExp(`"${k}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)`)); if(!m) return ""; try{ return JSON.parse(`"${m[1]}"`); }catch(e){ return m[1].replace(/\\n/g,"\n").replace(/\\"/g,'"'); } };
+  const text = field("text");
+  if(text) return { text, answer: field("answer"), criteria: field("criteria") };
+  if(t && !t.startsWith("{")) return { text: t, answer:"", criteria:"" };
+  throw new Error("учитель прислал пустое задание, попробуй ещё раз");
+}
 function askTeacher(t, given, ok){
   const plain = h => { const d = document.createElement("div"); d.innerHTML = h.replace(/<span class="fr"><i>(.*?)<\/i><i>(.*?)<\/i><\/span>/g,"($1)/($2)").replace(/<sup>(.*?)<\/sup>/g,"^$1").replace(/<svg[\s\S]*?<\/svg>/g," [рисунок на клетчатой бумаге] "); return d.textContent.replace(/\s+/g," ").trim(); };
   const txt = `Задание ${t.num} ОГЭ (${t.exam==="math"?"математика":"русский язык"}): ${plain(t.q)}${t.opts?" Варианты: "+t.opts.map((o,i)=>`${i+1}) ${plain(o)}`).join(" "):""}\nМой ответ: ${given||"—"}. ${ok?"Ответ верный, но я хочу понять, как решать такие задания.":"Ответ неверный. Помоги понять, где ошибка, но не решай за меня: сначала задай наводящий вопрос."}`;
@@ -505,5 +539,5 @@ function askTeacher(t, given, ok){
 }
 // ссылка «← Все задания» ведёт на тот же адрес, что уже открыт: перерисовываем список сами
 document.addEventListener("click", e=>{ const a = e.target.closest('a[href^="#oge/"]'); if(a && a.getAttribute("href") === location.hash){ e.preventDefault(); window.dispatchEvent(new HashChangeEvent("hashchange")); } });
-window.Oge = { render: renderMenu, openTask(e, n){ if(!CAT[e] || !CAT[e][n]) return renderMenu(e); EXAMS[e].tasks[n] ? startTrain(e, n) : startPractice(e, n); }, make, check, EXAMS, CAT, leave(){ clearInterval(timer); session = null; dropTeacher(); } };
+window.Oge = { render: renderMenu, openTask(e, n){ if(!CAT[e] || !CAT[e][n]) return renderMenu(e); EXAMS[e].tasks[n] ? startTrain(e, n) : startPractice(e, n); }, make, check, EXAMS, CAT, leave(){ if(session && session.audio) session.audio.pause(); clearInterval(timer); session = null; dropTeacher(); } };
 })();

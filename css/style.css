@@ -844,3 +844,30 @@ body.is-login .layout{display:flex;justify-content:center}
 body.is-login #shelf{display:none}
 body.is-login .maincol{width:100%;max-width:440px}
 body.is-login #main .panel{margin:6vh auto 0}
+/* таблицы в заданиях и ответах учителя */
+.md-table{border-collapse:collapse;margin:8px 0;font-variant-numeric:tabular-nums;min-width:50%}
+.md-table th,.md-table td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+.md-table th{background:var(--accent-soft);font-weight:600}
+.md-table td:first-child,.md-table th:first-child{text-align:left}
+.listen{display:flex;flex-direction:column;gap:6px}
+/* памятки: сообщения, диалоги, свои рисунки и файлы */
+.msg{position:relative}
+.msg .msgsave{position:absolute;right:4px;bottom:4px;width:28px;height:28px;font-size:14px;opacity:.55}
+.msg .msgsave:hover,.msg .msgsave:focus-visible{opacity:1}
+.msg.ai{padding-bottom:28px}
+.dlgsave{display:flex;justify-content:center;margin:8px 0 2px}
+.memoimg{display:block;width:100%;border-radius:8px;border:1px solid var(--line);background:#fffefa;min-height:60px}
+.memo-card .memobody{font-size:14px;max-height:340px;overflow:auto}
+.memo-log{max-height:420px;overflow:auto;margin-top:8px}
+.memo-log .msg.ai{padding-bottom:10px}
+/* настройка наград */
+.rcfgbox form{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.rcfg{display:flex;flex-wrap:wrap;gap:8px 14px;border:1.5px solid var(--line);border-radius:10px;padding:8px 12px 12px;margin:0}
+.rcfg legend{font-weight:700;padding:0 6px}
+.rcfg label{display:flex;flex-direction:column;gap:4px;flex:1 1 180px;min-width:0}
+.rcfg .rcfg-wide{flex-basis:100%}
+.rcfg input{width:100%}
+.tocai{flex-wrap:wrap;align-items:center}
+.tocai input{width:72px}
+.memo-chat summary{display:block;cursor:pointer;padding:4px 0}
+.rcfg input{padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit}

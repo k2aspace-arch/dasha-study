@@ -112,6 +112,7 @@ const Teacher = { mount(nbHost, o){
   const draw = () => { const log = q("[data-log]"); if(!log) return;
     log.innerHTML = st.chat.length ? st.chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"} ${m.err?"err":""}">${m.tag?`<small class="tag">${esc(m.tag)}</small>`:""}${m.role==="user" ? esc(m.content) : Draw.html(m.content)}${m.score?`<div><span class="chip ${m.score[0]>=m.score[1]?"ok":"warn"}">${m.score[0]} из ${m.score[1]} б.</span></div>`:""}</div>`).join("")
       : `<p class="emptychat">${ai ? "Застряла? Нажми «Подсказка» или «Нарисуй». Решила? «Проверь решение»." : "Учитель заработает, когда подключится ИИ."}</p>`;
+    Draw.decorate(log, st.chat);
     log.scrollTop = log.scrollHeight; };
   const drawPhoto = () => { const el = q("[data-prev]"); if(!el) return; el.innerHTML = st.photo ? `<span class="photochip"><img src="${st.photo.url}" alt="Фото"><button class="pg" type="button" data-rmph aria-label="Убрать фото">✕</button></span>` : "";
     const rm = q("[data-rmph]"); if(rm) rm.addEventListener("click", ()=>{ st.photo = null; drawPhoto(); }); };
@@ -296,26 +297,6 @@ function bindOgeBooks(root, after){
     fi.addEventListener("change", ()=>{ const f = fi.files && fi.files[0]; fi.value = ""; App.uploadPdf(b, f, "status-"+b.id, after || (()=>Oge.render())); }); });
 }
 
-/* ================= БОНУСЫ ================= */
-function bonusPanel(){
-  const sq = Points.squares(), free = sq.filter(x=>x.state==="avail");
-  const group = (kind, h) => `<h4 class="sm" style="margin:14px 0 6px">${h}</h4><div class="rwgrid">${sq.filter(x=>x.kind===kind).map(x=>{
-    const u = x.used, note = { fut:"впереди", used:`использован${u && u.date ? " "+DM.format(new Date(u.date+"T12:00")) : ""}${u && u.how ? ": "+esc(u.how) : ""}`, avail:"можно использовать", miss:x.byAvg?"средний балл не выше 4,9":"не набрано", now:x.byAvg?(x.avg!==null&&x.avg!==undefined?`средний балл ${x.avg.toFixed(2).replace(".",",")}, нужно выше 4,9`:"нужен средний балл выше 4,9"):`${x.pts} из ${x.goal} очков` }[x.state];
-    return `<div class="rsq rsq-${x.state}"><b>${esc(x.label)}</b>${x.state==="now"&&!x.byAvg?`<div class="bar"><i style="width:${Math.min(100,Math.round(100*x.pts/x.goal))}%"></i></div>`:""}<span class="sm">${note}</span>
-      ${x.state==="avail" ? `<details class="more"><summary class="btn">Использовать</summary><form class="morebox bonusform" data-bonus="${x.id}">
-          <label class="sm">Когда<input type="date" value="${iso(new Date())}" data-bdate></label>
-          <label class="sm">Как${x.choices.length?`<input list="bl-${x.id}" data-bhow placeholder="например: ${esc(x.choices[0])}"><datalist id="bl-${x.id}">${x.choices.map(c=>`<option value="${esc(c)}">`).join("")}</datalist>`:`<input data-bhow>`}</label>
-          <button class="btn primary" type="submit">Закрыть бонус</button></form></details>` : ""}</div>`; }).join("")}</div>`;
-  return `<section class="panel" id="bonusp"><h3>Мои бонусы ${free.length?`<span class="chip ok">${free.length} можно использовать</span>`:""}</h3>
-    <p class="hint">Яркие — заработаны и ждут, зелёные — использованы, бледные — впереди. Очки не тратятся никогда, бонусы копятся.</p>
-    ${group("twoWeeks","Каждые 2 недели: подписка на фильмы и сериалы")}${group("month","Каждый месяц: выход на выбор")}${group("quarter","Каждый триместр: абонемент (средний балл выше 4,9)")}</section>`;
-}
-function bindBonus(root){
-  root.querySelectorAll("[data-bonus]").forEach(f=>f.addEventListener("submit", e=>{ e.preventDefault();
-    const d = Object.assign({u:{}}, Store.get("bonuses", {})); d.u = Object.assign({}, d.u, {[f.dataset.bonus]: { date: f.querySelector("[data-bdate]").value, how: f.querySelector("[data-bhow]").value.trim(), ts:Date.now() }});
-    Store.set("bonuses", d, 0); const el = $("bonusp"); if(el){ el.outerHTML = bonusPanel(); bindBonus(root); } }));
-}
-
 /* ================= ЗНАНИЯ ПО УЧЕБНИКАМ (кабинет) ================= */
 function knowPanel(){
   const kd = Topic.know().k;
@@ -410,13 +391,37 @@ async function finishCut(me){
 
 /* ================= ПАМЯТКИ ================= */
 function renderMemos(){
-  const d = Draw.memos(), memo = d.list.filter(x=>x.kind==="memo"), task = d.list.filter(x=>x.kind!=="memo");
+  const d = Draw.memos(), FIGS = ["memo","task"];
+  const memo = d.list.filter(x=>x.kind==="memo"), task = d.list.filter(x=>x.spec && x.kind!=="memo"),
+    imgs = d.list.filter(x=>x.kind==="img"), msgs = d.list.filter(x=>x.kind==="msg"), chats = d.list.filter(x=>x.kind==="chat"), files = d.list.filter(x=>x.kind==="file");
   const fig = x => `<figure class="memo-card"><figcaption>${esc(x.title)}</figcaption>${Draw.svg(x.spec)}${x.note?`<div class="md memonote">${Draw.md(x.note)}</div>`:""}<div class="chatrow" data-said="${encodeURIComponent(x.note||"")}"><button class="ibtn" type="button" data-png="${encodeURIComponent(JSON.stringify(x.spec))}" title="Скачать картинкой" aria-label="Скачать">⬇</button><button class="ibtn" type="button" data-memodel="${x.id}" title="Удалить" aria-label="Удалить">✕</button></div></figure>`;
-  $("main").innerHTML = `<div class="stack"><section class="panel"><h2>Памятки</h2><p class="hint" style="margin:6px 0 0">Рисунки учителя, которые ты сохранила звёздочкой ⭐. Памятки — для запоминания правил надолго, рисунки к задачам — чтобы вернуться к разбору.</p></section>
-    ${d.list.length ? `${memo.length?`<section class="panel"><h3>Памятки к правилам · ${memo.length}</h3><div class="memogrid">${memo.map(fig).join("")}</div></section>`:""}
-      ${task.length?`<section class="panel"><h3>Рисунки к задачам · ${task.length}</h3><div class="memogrid">${task.map(fig).join("")}</div></section>`:""}`
-      : `<section class="panel"><p class="hint">Пока пусто. Когда учитель что-то нарисует, нажми ⭐ на рисунке.</p></section>`}</div>`;
-  $("main").querySelectorAll("[data-memodel]").forEach(b=>b.addEventListener("click", ()=>{ const dd = Draw.memos(); dd.list = dd.list.filter(x=>x.id!==b.dataset.memodel); Store.set("memos", dd, 0); renderMemos(); }));
+  const when = x => x.ts ? `<span class="sm">${new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long"}).format(new Date(x.ts))}</span>` : "";
+  const del = x => `<button class="ibtn" type="button" data-memodel="${x.id}" title="Удалить" aria-label="Удалить">🗑</button>`;
+  const imgCard = x => `<figure class="memo-card"><figcaption>${esc(x.title||"Мой рисунок")}</figcaption><a data-mfile="${esc(x.path)}" data-mname="${esc((x.title||"рисунок").replace(/[\\/:*?"<>|]/g,""))}.jpg" href="#memos"><img class="memoimg" data-mimg="${esc(x.path)}" alt="${esc(x.title||"Мой рисунок")}"></a><div class="chatrow">${when(x)}<span style="flex:1"></span>${del(x)}</div></figure>`;
+  const msgCard = x => `<figure class="memo-card memo-msg"><figcaption>${esc(x.title)}</figcaption><div class="memobody">${Draw.html(x.text||"")}</div><div class="chatrow">${when(x)}<span style="flex:1"></span>${del(x)}</div></figure>`;
+  const chatCard = x => `<figure class="memo-card memo-chat"><figcaption>💬 ${esc(x.title)}</figcaption><details><summary class="sm">${pl((x.msgs||[]).length,"сообщение","сообщения","сообщений")}, открыть</summary><div class="chatlog memo-log">${(x.msgs||[]).map(m=>`<div class="msg ${m.role==="user"?"me":"ai"}">${m.role==="user" ? esc(m.content) : Draw.html(m.content)}</div>`).join("")}</div></details><div class="chatrow">${when(x)}<span style="flex:1"></span>${del(x)}</div></figure>`;
+  const fileCard = x => `<figure class="memo-card"><figcaption>📎 ${esc(x.name||x.title)}</figcaption>${/^image\//.test(x.type||"") ? `<img class="memoimg" data-mimg="${esc(x.path)}" alt="${esc(x.name||"")}">` : ""}${x.note?`<div class="md memonote">${esc(x.note)}</div>`:""}<div class="chatrow"><button class="btn" type="button" data-mfile="${esc(x.path)}" data-mname="${esc(x.name||"файл")}">⬇ Открыть</button>${when(x)}<span style="flex:1"></span>${del(x)}</div></figure>`;
+  const sec = (h, arr, f) => arr.length ? `<section class="panel"><h3>${h} · ${arr.length}</h3><div class="memogrid">${arr.map(f).join("")}</div></section>` : "";
+  $("main").innerHTML = `<div class="stack"><section class="panel"><h2>Памятки</h2><p class="hint" style="margin:6px 0 0">Сюда попадает всё, что сохранено звёздочкой ⭐: рисунки и сообщения учителя, целые диалоги, листы из тетради. Можно добавить и свои файлы: конспекты, фото, PDF.</p>
+    <div class="btnrow"><button class="btn primary" type="button" id="memoup">📎 Добавить свой файл</button><input type="file" id="memofile" multiple hidden><span class="sm" id="memost" aria-live="polite"></span></div></section>
+    ${d.list.length ? sec("Памятки к правилам", memo, fig) + sec("Рисунки к задачам", task, fig) + sec("Сообщения учителя", msgs, msgCard) + sec("Диалоги с учителем", chats, chatCard) + sec("Мои рисунки", imgs, imgCard) + sec("Мои файлы", files, fileCard)
+      : `<section class="panel"><p class="hint">Пока пусто. Нажми ⭐ на рисунке или сообщении учителя, «Сохранить весь диалог» под чатом или «⭐ В памятки» в тетради.</p></section>`}</div>`;
+  const main = $("main");
+  main.querySelectorAll("[data-memodel]").forEach(b=>b.addEventListener("click", ()=>{ const dd = Draw.memos(), x = dd.list.find(y=>y.id===b.dataset.memodel); dd.list = dd.list.filter(y=>y.id!==b.dataset.memodel); Store.set("memos", dd, 0); if(x && x.path) Store.removeFile(x.path).catch(()=>{}); renderMemos(); }));
+  main.querySelectorAll("[data-mimg]").forEach(async im=>{ try{ const blob = await Store.getFile(im.dataset.mimg); if(blob) im.src = URL.createObjectURL(blob); }catch(e){ im.alt = "Не загрузилось"; } });
+  main.querySelectorAll("[data-mfile]").forEach(a=>a.addEventListener("click", async e=>{ e.preventDefault();
+    try{ const blob = await Store.getFile(a.dataset.mfile); if(!blob) return; const u = URL.createObjectURL(blob);
+      if(/^(image\/|application\/pdf)/.test(blob.type)) window.open(u, "_blank", "noopener"); else { const l = document.createElement("a"); l.href = u; l.download = a.dataset.mname; document.body.appendChild(l); l.click(); l.remove(); }
+    }catch(err){ $("memost").textContent = "Не получилось открыть файл"; } }));
+  $("memoup").addEventListener("click", ()=>$("memofile").click());
+  $("memofile").addEventListener("change", async()=>{ const fs = [...($("memofile").files||[])]; $("memofile").value = ""; if(!fs.length) return;
+    for(const f of fs){
+      if(f.size > 45*1024*1024){ $("memost").textContent = `«${f.name}» больше 45 МБ`; continue; }
+      $("memost").textContent = `Загружаю «${f.name}»…`;
+      try{ const path = `memos/files/${Date.now()}-${f.name.replace(/[^\wа-яё.\-]+/gi,"_").slice(-80)}`; await Store.putFile(path, f);
+        Draw.addMemo({ kind:"file", title:f.name, name:f.name, type:f.type||"", size:f.size, path });
+      }catch(e){ $("memost").textContent = `Не получилось загрузить «${f.name}»`; return; } }
+    renderMemos(); $("memost").textContent = "Готово"; });
 }
 
 /* ================= ВСЁ ВМЕСТЕ ================= */
@@ -533,8 +538,8 @@ async function renderAdmin(){
   }
 }
 
-function accountPanels(){ return profilePanel() + bonusPanel() + knowPanel() + tocPanel() + `<section class="panel"><h3>Сборники ОГЭ</h3><p class="hint">Загрузи сборник ФИПИ в PDF, и его можно открыть рядом с любым заданием ОГЭ, а учитель проверит решение по критериям.</p>${ogeBooksHtml()}</section>` + themePanel(); }
-function bindAccount(root){ bindProfile(root); bindBonus(root); bindKnow(root); bindToc(root); bindOgeBooks(root, ()=>{ location.hash = "#account"; window.dispatchEvent(new HashChangeEvent("hashchange")); }); bindTheme(root); }
+function accountPanels(){ return profilePanel() + knowPanel() + tocPanel() + `<section class="panel"><h3>Сборники ОГЭ</h3><p class="hint">Загрузи сборник ФИПИ в PDF, и его можно открыть рядом с любым заданием ОГЭ, а учитель проверит решение по критериям.</p>${ogeBooksHtml()}</section>` + themePanel(); }
+function bindAccount(root){ bindProfile(root); bindKnow(root); bindToc(root); bindOgeBooks(root, ()=>{ location.hash = "#account"; window.dispatchEvent(new HashChangeEvent("hashchange")); }); bindTheme(root); }
 function apply(){ applyTheme(); applyToc(); drawMe(); }
 
 window.Study = { drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };

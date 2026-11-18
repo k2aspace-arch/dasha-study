@@ -82,7 +82,7 @@ function render(arg){
     <div class="crumbs"><a href="#${b.id}">${esc(b.subject)}</a> · ${esc(t.c.n)} ${esc(t.c.t)}</div>
     <h2>${t.ci+1}.${t.pi+1}. ${esc(t.title)}</h2>
     <div class="topic-row">
-      ${rg ? `<button class="btn primary" type="button" id="topen" ${file?"":"disabled"}>Открыть учебник на стр. ${rg[0]}</button>` : `<span class="chip warn">Страница темы не указана</span> <a href="#account">Указать в личном кабинете</a>`}
+      ${rg && file ? `<button class="btn primary" type="button" id="topen">Открыть учебник на стр. ${rg[0]}</button>` : file ? `<button class="btn primary" type="button" id="tbook">Открыть учебник</button><span class="sm">Страница темы не указана, <a href="#account">указать</a></span>` : `<a class="btn" href="#account">Загрузить учебник</a>`}
       <label class="ck"><input type="checkbox" id="tdone" ${App.done[t.key]?"checked":""}> Тема пройдена</label>
       <span class="knchip kn${k===undefined?"":k}" id="tknow" title="Заполняется по твоим ответам учителю, итоговым вопросам и срезу знаний">${k===undefined?"Знание: пока не проверено":"Знание: "+KNOW[k].toLowerCase()}</span>
     </div>
@@ -99,6 +99,7 @@ function render(arg){
   draw();
   if(rg && file && window.innerWidth >= 1000) Reader.open(b, rg[0], `${t.ci+1}.${t.pi+1}. ${t.title}`);
   $("topen") && $("topen").addEventListener("click", ()=>Reader.open(b, rg[0], `${t.ci+1}.${t.pi+1}. ${t.title}`));
+  $("tbook") && $("tbook").addEventListener("click", ()=>Reader.open(b, 0, ""));
   $("tdone").addEventListener("change", e=>{ App.setDone(t.key, e.target.checked); if(window.Points) Points.renderBar(); });
   $("tphoto").addEventListener("click", async()=>{ const got = await Photo.pick(false); if(got[0]){ cur.photo = got[0]; drawPhoto(); say("Фото приложено. Нажми «Проверь моё решение», «Подсказка» или просто отправь вопрос."); } });
   $("tnew").addEventListener("click", ()=>{ cur.chat = []; cur.level = 0; persist(); draw(); });
@@ -122,6 +123,7 @@ function draw(){
   const log = $("tlog"); if(!log) return;
   log.innerHTML = cur.chat.length ? cur.chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"} ${m.err?"err":""}">${m.tag?`<small class="tag">${esc(m.tag)}</small>`:""}${m.role==="user" ? esc(m.content) : Draw.html(m.content)}${m.know?`<div><span class="knchip kn${m.know}">${KNOW[m.know]}</span></div>`:""}</div>`).join("")
     : `<p class="emptychat">Нажми «Объясни тему», выдели непонятное место в учебнике или реши задачу в тетради и попроси проверить.</p>`;
+  Draw.decorate(log, cur.chat);
   log.scrollTop = log.scrollHeight;
   $("tlevels").innerHTML = cur.level ? `<span class="sm">Ступень объяснения:</span> ${[1,2,3].map(l=>`<span class="chip ${l===cur.level?"":"dim"}">${l}. ${LEVELS[l]}</span>`).join(" ")}` : "";
 }

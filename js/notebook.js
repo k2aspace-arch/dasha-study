@@ -30,6 +30,7 @@ function mount(host, opts){
       ${COLORS.map(([c,n],i)=>`<button class="swatch sm-sw" type="button" data-nbcolor="${c}" style="background:${c}" aria-label="${n}" aria-pressed="${i===0}"></button>`).join("")}
       <button class="vbtn" type="button" data-nb="undo">Отменить</button>
       <button class="vbtn" type="button" data-nb="clear">Очистить лист</button>
+      <button class="vbtn" type="button" data-nb="memo" title="Сохранить этот лист в памятки">⭐ В памятки</button>
     </div>
     <div class="nb-sheet"><canvas class="nb-bg" width="${W}" height="${H}"></canvas><canvas class="nb-ink" width="${W}" height="${H}"></canvas></div>
   </div>`;
@@ -38,10 +39,20 @@ function mount(host, opts){
   let task = opts.task || "";
   function paintBg(){ const b = bg.getContext("2d"); drawPaper(b, ruled); if(!task) return;
     b.save(); b.fillStyle = "#1d3fbf"; b.font = `700 40px "Caveat", "Segoe Print", cursive`; b.textBaseline = "alphabetic";
-    const maxW = W - 160, lh = ruled ? 56 : 48, words = String(task).replace(/\s+/g," ").trim().split(" "), lines = []; let line = "";
-    words.forEach(w=>{ const t = line ? line+" "+w : w; if(b.measureText(t).width > maxW && line){ lines.push(line); line = w; } else line = t; }); if(line) lines.push(line);
-    const show = lines.slice(0, 8); if(lines.length > 8) show[7] += " …";
-    show.forEach((l,i)=>b.fillText(l, 40, (ruled ? 150 - 10 : 40) + (ruled ? i*lh : (i+1)*lh - 8)));
+    // условие целиком: если длинное, шрифт мельче; переносы строк (таблицы, списки) сохраняются
+    const maxW = W - 160, top = ruled ? 140 : 32;
+    const wrap = size => { b.font = `700 ${size}px "Caveat", "Segoe Print", cursive`; const lines = [];
+      String(task).split("\n").map(x=>x.replace(/\s+/g," ").trim()).filter(Boolean).forEach(par=>{ let line = "";
+        par.split(" ").forEach(w=>{ const t = line ? line+" "+w : w; if(b.measureText(t).width > maxW && line){ lines.push(line); line = w; } else line = t; }); if(line) lines.push(line); });
+      return lines; };
+    let size = 40, lines = wrap(size), lh;
+    if(ruled){ // в линейку: строки ложатся на линейки; если не влезает, пишем мельче, по две строки на линейку
+      lh = 56; if(lines.length * 56 > H - 260){ size = 24; lh = 28; lines = wrap(size); if(lines.length * 28 > H - 260){ size = 20; lines = wrap(size); } }
+      lines.forEach((l,i)=>b.fillText(l, 40, 150 - 6 + (lh===56 ? i*56 : (i%2 ? 0 : -28) + Math.floor(i/2)*56 + 28)));
+    } else {
+      while(size > 22 && lines.length * size * 1.2 > H * 0.45){ size -= 2; lines = wrap(size); }
+      lh = Math.round(size * 1.2); lines.forEach((l,i)=>b.fillText(l, 40, top + (i+1)*lh - 8));
+    }
     b.restore(); }
   paintBg(); if(document.fonts && document.fonts.load) Promise.all([document.fonts.load('700 40px "Caveat"', "Задание решите"), document.fonts.load('700 40px "Caveat"', "Abc 0123456789 +-=()?!.,:")]).then(paintBg).catch(()=>{});
   const info = host.querySelector("[data-nb-info]");
@@ -84,19 +95,31 @@ function mount(host, opts){
     ta.addEventListener("blur", commit); ta.addEventListener("keydown", e=>{ if(e.key==="Escape"){ ta.value = ""; ta.blur(); } if(e.key==="Enter" && (e.ctrlKey||e.metaKey)) ta.blur(); });
   }
   cv.addEventListener("pointerdown", ev=>{
-    // стилус: как только им начали писать, пальцем лист только листается (защита от ладони)
-    if(ev.pointerType==="pen" && !st.pen){ st.pen = true; cv.style.touchAction = "pan-y pinch-zoom"; }
-    if(st.pen && ev.pointerType==="touch") return;
+    // стилус: как только им начали писать, палец и ладонь не рисуют, а пальцем лист прокручивается вручную
+    // (touch-action у холста всегда none: на iPad стилус иначе прокручивает страницу вместо рисования)
+    if(ev.pointerType==="pen") st.pen = true;
+    if(st.pen && ev.pointerType==="touch"){ st.pan = { id:ev.pointerId, y:ev.clientY }; return; }
     if(st.tool==="text"){ ev.preventDefault(); const p = pos(ev); setTimeout(()=>placeText(p), 0); return; }
     ev.preventDefault(); drawing = ev.pointerId; st.press = ev.pointerType==="pen" && ev.pressure ? ev.pressure : 0; snap(); cv.setPointerCapture(ev.pointerId); pts = [pos(ev)]; redraw(); });
-  cv.addEventListener("pointermove", ev=>{ if(drawing===false || ev.pointerId!==drawing) return; (ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev]).forEach(e=>pts.push(pos(e))); redraw(); });
+  cv.addEventListener("pointermove", ev=>{ if(st.pan && ev.pointerId===st.pan.id){ window.scrollBy(0, st.pan.y - ev.clientY); st.pan.y = ev.clientY; return; } if(drawing===false || ev.pointerId!==drawing) return; (ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev]).forEach(e=>pts.push(pos(e))); redraw(); });
   const end = ev => { if(drawing!==false && (!ev || ev.pointerId===drawing)){ drawing = false; changed(); } };
-  cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
+  cv.addEventListener("pointerup", ev=>{ if(st.pan && ev.pointerId===st.pan.id) st.pan = null; end(ev); }); cv.addEventListener("pointercancel", ev=>{ if(st.pan && ev.pointerId===st.pan.id) st.pan = null; end(ev); });
+  // iPad: касание стилусом не должно прокручивать страницу ни при каких условиях
+  const noScroll = e => { if([...e.touches].some(t=>t.touchType==="stylus") || drawing!==false) e.preventDefault(); };
+  cv.addEventListener("touchstart", noScroll, { passive:false }); cv.addEventListener("touchmove", noScroll, { passive:false });
 
   host.querySelectorAll("[data-nbtool]").forEach(b=>b.addEventListener("click",()=>{ st.tool = b.dataset.nbtool; host.querySelectorAll("[data-nbtool]").forEach(x=>x.setAttribute("aria-pressed", x===b)); cv.classList.toggle("texting", st.tool==="text"); }));
   host.querySelectorAll("[data-nbcolor]").forEach(b=>b.addEventListener("click",()=>{ st.color = b.dataset.nbcolor; host.querySelectorAll("[data-nbcolor]").forEach(x=>x.setAttribute("aria-pressed", x===b)); if(st.tool==="eraser") host.querySelector('[data-nbtool="pen"]').click(); }));
   host.querySelector('[data-nb="undo"]').addEventListener("click",()=>{ const s = st.undo.pop(); if(s){ ctx.putImageData(s,0,0); changed(); } });
   host.querySelector('[data-nb="clear"]').addEventListener("click",()=>{ snap(); ctx.clearRect(0,0,W,H); changed(); });
+  host.querySelector('[data-nb="memo"]').addEventListener("click", async e=>{ const b = e.currentTarget;
+    if(!ctx.getImageData(0,0,W,H).data.some((v,i)=>i%4===3 && v)){ info.textContent = "Лист пустой, нечего сохранять"; return; }
+    b.disabled = true;
+    try{ const c = document.createElement("canvas"), k = 0.75; c.width = W*k; c.height = H*k; const x = c.getContext("2d"); x.drawImage(bg,0,0,c.width,c.height); x.drawImage(cv,0,0,c.width,c.height);
+      const blob = await new Promise(r=>c.toBlob(r, "image/jpeg", 0.85)), path = `memos/${Date.now()}.jpg`;
+      await Store.putFile(path, blob); Draw.addMemo({ kind:"img", title: `${opts.title}${opts.sub ? " · "+opts.sub.split(".")[0] : ""}`.slice(0, 90), path });
+      b.textContent = "✓ В памятках"; setTimeout(()=>{ if(b.isConnected){ b.textContent = "⭐ В памятки"; b.disabled = false; } }, 2500);
+    }catch(err){ console.warn(err); info.textContent = "Не сохранилось, проверь интернет"; b.disabled = false; } });
   const go = async i => { await save(); st.i = i; load(); };
   host.querySelector('[data-nb="prev"]').addEventListener("click",()=>{ if(st.i>0) go(st.i-1); });
   host.querySelector('[data-nb="next"]').addEventListener("click",()=>{ const n = idx().c[key].sheets.length; if(st.i < n-1) go(st.i+1); });
