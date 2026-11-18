@@ -124,6 +124,7 @@
       if(error){
         let msg = "";
         try{ const j = await error.context.json(); msg = j.error || ""; }catch(e){}
+        if(msg === "Пустой вопрос" && ["tts","tocpages"].includes(payload.mode)) msg = "на сервере старая версия функции tutor. Замени её код на новый (в начале строка openrouter-6) и нажми Deploy";
         throw new Error(msg || error.message || "Ошибка ИИ");
       }
       return data;
