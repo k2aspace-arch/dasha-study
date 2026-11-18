@@ -223,7 +223,7 @@ function renderRewards(){
       <div class="count"><div class="big">${c.total}</div><div class="lbl">очков всего</div><div class="sm">считаются с ${DM.format(day(RULES.start))}</div></div>
       <div class="count"><div class="big">${c.state==="out"?0:c.streak}</div><div class="lbl">дней серия</div><div class="sm">лучшая: ${c.best}</div></div>
     </div></section>
-  <section class="panel goalp"><div class="goalart"><svg viewBox="0 0 160 120" aria-hidden="true"><rect x="28" y="14" width="104" height="70" rx="6" fill="var(--card)" stroke="currentColor" stroke-width="4"/><rect x="36" y="22" width="88" height="54" rx="2" fill="var(--accent-soft)"/><path d="M50 60 l14-14 10 10 18-20 14 14" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="56" cy="36" r="5" fill="var(--accent)"/><path d="M12 88 h136 l-8 14 a6 6 0 0 1-5 3 H25 a6 6 0 0 1-5-3 Z" fill="var(--card)" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="66" y="92" width="28" height="5" rx="2.5" fill="currentColor"/></svg></div><div class="goaltxt"><h3>Главная цель: ${esc(REWARDS.laptop.title.toLowerCase())}</h3>
+  <section class="panel goalp"><div class="goalart">${gArt("laptop", `<svg viewBox="0 0 160 120" aria-hidden="true"><rect x="28" y="14" width="104" height="70" rx="6" fill="var(--card)" stroke="currentColor" stroke-width="4"/><rect x="36" y="22" width="88" height="54" rx="2" fill="var(--accent-soft)"/><path d="M50 60 l14-14 10 10 18-20 14 14" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="56" cy="36" r="5" fill="var(--accent)"/><path d="M12 88 h136 l-8 14 a6 6 0 0 1-5 3 H25 a6 6 0 0 1-5-3 Z" fill="var(--card)" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="66" y="92" width="28" height="5" rx="2.5" fill="currentColor"/></svg>`)}</div><div class="goaltxt"><h3>Главная цель: ${esc(REWARDS.laptop.title.toLowerCase())}</h3>
     <div class="subjrows">
       ${goalRow("Очки", c.total, RULES.goals.final)}
       ${goalRow("Пройдено программы", Math.round(prog*100), Math.round(G.program*100), Math.round(prog*100)+"% из "+Math.round(G.program*100)+"%")}
@@ -234,10 +234,12 @@ function renderRewards(){
       ${[["math","Математика"],["rus","Русский"]].map(([e,n])=>`<div class="ogecnt"><b class="sm">${n}</b>${Object.entries(oc[e]).map(([k,v])=>`<span class="ogec ${v>=RULES.goals.ogeTask?"ok":""}" title="Задание ${k}: верно ${v} из последних 33"><i>${k}</i>${v}</span>`).join("")}</div>`).join("")}
     </details>
     <p class="hint">${esc(REWARDS.laptop.title)}: аттестат с отличием (все пятёрки), ${G.final} очков, ${Math.round(G.program*100)}% программы и у КАЖДОГО задания ОГЭ не меньше ${RULES.goals.ogeTask} верных из 33 последних решений (тренировки и пробные считаются вместе).</p>
+    ${gMedia("laptop")}
   </div></section>
-  <section class="panel goalp"><div class="goalart"><svg viewBox="0 0 160 140" aria-hidden="true"><path d="M80 8 v10" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M80 18 c-10 0-14 8-14 8 h28 s-4-8-14-8z" fill="currentColor"/><path d="M62 26 l-6 4 6 30 h36 l6-30 -6-4 c-4 8-12 12-18 12 s-14-4-18-12z" fill="var(--accent-soft)" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M60 60 h40" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"/><circle cx="80" cy="60" r="5" fill="var(--accent)"/><path d="M62 64 C50 90 34 112 24 128 h112 C126 112 110 90 98 64 z" fill="var(--accent-soft)" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M70 70 C64 92 56 110 50 126 M90 70 C96 92 104 110 110 126 M80 68 v58" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" opacity=".7"/><path d="M118 30 l3 7 7 3 -7 3 -3 7 -3-7 -7-3 7-3z M36 40 l2 5 5 2 -5 2 -2 5 -2-5 -5-2 5-2z" fill="var(--accent)"/></svg></div><div class="goaltxt"><h3>Цель: платье на выпускной</h3>
+  <section class="panel goalp"><div class="goalart">${gArt("dress", `<svg viewBox="0 0 160 140" aria-hidden="true"><path d="M80 8 v10" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M80 18 c-10 0-14 8-14 8 h28 s-4-8-14-8z" fill="currentColor"/><path d="M62 26 l-6 4 6 30 h36 l6-30 -6-4 c-4 8-12 12-18 12 s-14-4-18-12z" fill="var(--accent-soft)" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M60 60 h40" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"/><circle cx="80" cy="60" r="5" fill="var(--accent)"/><path d="M62 64 C50 90 34 112 24 128 h112 C126 112 110 90 98 64 z" fill="var(--accent-soft)" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M70 70 C64 92 56 110 50 126 M90 70 C96 92 104 110 110 126 M80 68 v58" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" opacity=".7"/><path d="M118 30 l3 7 7 3 -7 3 -3 7 -3-7 -7-3 7-3z M36 40 l2 5 5 2 -5 2 -2 5 -2-5 -5-2 5-2z" fill="var(--accent)"/></svg>`)}</div><div class="goaltxt"><h3>Цель: платье на выпускной</h3>
     <div class="subjrows">${goalRow("Средний балл аттестата", avg ? Math.round(avg*100) : 0, Math.round(G.dressAvg*100)+1, avg ? avg.toFixed(2).replace(".",",") + (avg>G.dressAvg?" · есть!":` нужно выше ${avgTxt(G.dressAvg)}`) : "—")}</div>
     <p class="hint">${esc(REWARDS.dress.title)}: средний балл аттестата выше ${avgTxt(G.dressAvg)}. Считается по годовым оценкам из таблицы на главной.</p>
+    ${gMedia("dress")}
   </div></section>
   <section class="panel"><h3>Каждые 2 недели: ${esc(REWARDS.twoWeeks.title.toLowerCase())}</h3><p class="hint" style="margin-top:0">Нужно ${G.twoWeeks} очков за две недели.</p><div class="rwgrid">${by("twoWeeks").map(card).join("")}</div></section>
   <section class="panel"><h3>Каждый месяц: ${esc(REWARDS.month.title.toLowerCase())}</h3><p class="hint" style="margin-top:0">Нужно ${G.month} очков за месяц.</p><div class="rwgrid">${by("month").map(card).join("")}</div></section>
@@ -255,6 +257,20 @@ function renderRewards(){
   bindRewards();
 }
 let cfgOpen = false;
+/* фото и ссылка для главной цели и большой награды: Store "goalMedia" */
+const gm = () => Object.assign({}, Store.get("goalMedia", {}) || {});
+function gArt(k, svg){ const m = gm()[k] || {}; return m.photo ? `<img class="goalphoto" src="${m.photo}" alt="${esc(REWARDS[k].title)}">` : svg; }
+function gMedia(k){ const m = gm()[k] || {}, safe = /^https?:\/\//i.test(m.link||"");
+  return `<div class="goalmedia">${safe ? `<a class="btn" href="${esc(m.link)}" target="_blank" rel="noopener noreferrer">🔗 Открыть ссылку</a>` : ""}
+    <button class="btn" type="button" data-gphoto="${k}">📷 ${m.photo ? "Сменить фото" : "Добавить фото"}</button>${m.photo ? `<button class="btn" type="button" data-gnophoto="${k}">Убрать фото</button>` : ""}
+    <form class="chatrow glink" data-glink="${k}"><input type="text" inputmode="url" placeholder="Ссылка на награду (магазин, фото, сайт)" value="${esc(m.link||"")}" aria-label="Ссылка: ${esc(REWARDS[k].title)}"><button class="btn" type="submit">${m.link ? "Сохранить ссылку" : "Добавить ссылку"}</button></form></div>`; }
+function bindMedia(){
+  const save = (k, patch) => { const d = gm(); d[k] = Object.assign({}, d[k]||{}, patch); Store.set("goalMedia", d, 0); renderRewards(); };
+  document.querySelectorAll("[data-gphoto]").forEach(b=>b.addEventListener("click", async()=>{ const got = await Photo.pick(false); if(!got[0]) return;
+    const f = await (await fetch(got[0].url)).blob(), sm = await Photo.shrink(f, 700); save(b.dataset.gphoto, { photo: sm.url }); }));
+  document.querySelectorAll("[data-gnophoto]").forEach(b=>b.addEventListener("click", ()=>save(b.dataset.gnophoto, { photo:"" })));
+  document.querySelectorAll("[data-glink]").forEach(f=>f.addEventListener("submit", e=>{ e.preventDefault(); let v = f.querySelector("input").value.trim(); if(v && !/^https?:\/\//i.test(v)) v = "https://" + v; save(f.dataset.glink, { link: v }); }));
+}
 function cfgPanel(cfg){
   const when = cfg.ts ? new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(cfg.ts)) : "";
   const row = (k, head, goalLbl, step, choices) => `<fieldset class="rcfg"><legend>${head}</legend>
@@ -273,6 +289,7 @@ function bindRewards(){
   main.querySelectorAll("[data-bonus]").forEach(f=>f.addEventListener("submit", e=>{ e.preventDefault();
     const d = Object.assign({u:{}}, Store.get("bonuses", {})); d.u = Object.assign({}, d.u, {[f.dataset.bonus]: { date: f.querySelector("[data-bdate]").value, how: f.querySelector("[data-bhow]").value.trim(), ts:Date.now() }});
     Store.set("bonuses", d, 0); renderRewards(); }));
+  bindMedia();
   const gear = $("rgear"); if(gear) gear.addEventListener("click", e=>{ e.preventDefault(); e.stopPropagation(); cfgOpen = !cfgOpen; gear.setAttribute("aria-pressed", cfgOpen); const sec = $("rcfgsec"); if(sec){ sec.hidden = !cfgOpen; if(cfgOpen) sec.scrollIntoView({ behavior:"smooth", block:"start" }); } });
   const form = $("rcfgform"); if(!form) return;
   form.addEventListener("submit", async e=>{ e.preventDefault();

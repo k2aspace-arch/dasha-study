@@ -959,3 +959,17 @@ details.rulesbox>summary::-webkit-details-marker{display:none}
 .gearbtn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
 .gearbtn svg{width:24px;height:24px}
 .rulesbox .rules{font-size:13px;color:var(--muted)}
+.goalphoto{width:100%;max-width:220px;aspect-ratio:1;object-fit:cover;border-radius:16px;display:block;margin:0 auto}
+.goalmedia{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.goalmedia .glink{flex:1 1 280px;margin:0}
+.goalmedia .glink input{flex:1;min-width:0}
+/* ход проверки пробного */
+.ogeprog{display:flex;gap:14px;align-items:flex-start;padding:14px 16px;margin:10px 0;border:1.5px solid var(--accent);border-radius:14px;background:var(--accent-soft)}
+.ogeprog .spin{flex:none;width:26px;height:26px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:ogespin 1s linear infinite;margin-top:2px}
+@keyframes ogespin{to{transform:rotate(360deg)}}
+.ogeprog .pbody{flex:1;min-width:0}
+.ogeprog .pbar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin:8px 0}
+.ogeprog .pbar i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .6s}
+.ogeprog .psteps{display:flex;flex-wrap:wrap;gap:4px 16px;margin:0;padding:0;list-style:none;font-size:.85em;color:var(--muted,#777)}
+.ogeprog .psteps li.now{color:var(--accent);font-weight:600}
+.ogeprog .psteps li.done{color:#1f8a5a}
