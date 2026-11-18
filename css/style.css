@@ -829,7 +829,7 @@ table.grades .gcell.gcalc{color:var(--muted);opacity:.75;border-style:dashed}
 .savebox label{display:flex;gap:6px;align-items:center;cursor:pointer}
 .savebox textarea{font:inherit;padding:8px;border-radius:8px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);resize:vertical}
 .memonote{font-size:14px;margin:8px 0;padding:8px 10px;border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0}
-.ogeq{cursor:pointer}
+.ogeq{scroll-margin-top:12px}
 .ogedraft.open{margin-top:10px;cursor:default}
 .draftgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:8px 0}
 .draftcard{position:relative;margin:0;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;background:#fffefa}
@@ -930,3 +930,4 @@ body.is-login #main .panel{margin:6vh auto 0}
 .colsw{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .colsw input[type=color]{width:34px;height:30px;padding:0;border:1.5px solid var(--line);border-radius:8px;background:none}
 #tprev>.av-stage{flex:1;min-width:220px}
+.draftclose{margin-left:auto}
