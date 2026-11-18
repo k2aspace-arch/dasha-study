@@ -1058,3 +1058,10 @@ body.dock-open.nb-side{padding-right:calc((100vw - var(--dockw)) / 2 + var(--doc
 .solvefrag figcaption{margin-top:8px}
 .solvenum input{width:64px;font:inherit;font-family:var(--f-mono);text-align:center;padding:4px;border-radius:8px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink)}
 .rsolve[aria-pressed="true"]{background:#e6f6ec;color:#1d6b43;border-color:#2ea36b}
+/* сборник: два отдельных блока — пробный и самостоятельная работа */
+.ogecard{border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 12px;background:var(--paper)}
+.ogecard h4{margin:0 0 8px;font-size:15px}
+.ogecard .btn.primary{margin:0}
+.ogecard .selfbook{margin:0}
+.ogecard .selflist{margin:10px 0 0}
+.ogecard>.hint:last-child{margin-bottom:0}

@@ -479,7 +479,7 @@ const hasBookTrial = e => { const b = bookOf(e); return !!(b && Study.ogeBook(e)
 const hasBook = e => !!Study.ogeBook(e);
 // «учиться самой по сборнику»: сборник открывается как учебник, задачу выделяешь рамкой и решаешь
 const selfHtml = exam => { const b = bookOf(exam); if(!b || !Study.ogeBook(exam)) return "";
-  return `<div class="selfbook"><button class="btn" type="button" data-selfbook="${exam}">✍ Учиться самой по сборнику</button><span class="sm">Листай сборник как учебник. Выбрала задачу — нажми в нём «✍ Выделить и решить» и обведи её рамкой.</span></div>${window.Solve ? Solve.listHtml(b.id, 10) : ""}`; };
+  return `<div class="ogecard"><h4>Учиться самой по сборнику</h4><div class="selfbook"><button class="btn" type="button" data-selfbook="${exam}">✍ Открыть сборник</button><span class="sm">Листай сборник как учебник. Выбрала задачу — нажми в нём «✍ Выделить и решить» и обведи её рамкой.</span></div>${window.Solve ? Solve.listHtml(b.id, 10) : ""}</div>`; };
 function bindSelf(){ $("main").querySelectorAll("[data-selfbook]").forEach(x=>x.addEventListener("click", ()=>{ const b = bookOf(x.dataset.selfbook); Reader.open(b, 0, "Сборник");
   Study.Dock.tip(`Сборник открыт как учебник. Нашла задачу — нажми в нём <b>«✍ Выделить и решить»</b> и обведи её рамкой: задача встанет над черновиком, а учитель поможет и проверит. Решённые задачи запишутся со страницей и номером.`); })); }
 function bookBlock(exam){
@@ -489,9 +489,9 @@ function bookBlock(exam){
   if(!vs.length) return `<p class="hint">Сборник загружен. Чтобы решать из него пробные, в <a href="#account/books">профиле</a> у сборника нажми «Взять главы и страницы из оглавления»: сайт найдёт варианты и ответы к ним.</p>`;
   const noKey = vs.some(x=>!x.hasKey);
   const done = new Set((Store.get("ogeTests",{list:[]}).list||[]).filter(t=>t.exam===exam && t.variant).map(t=>String(t.variant)));
-  return `<div class="chatrow booktrial"><label class="sm">Вариант из сборника <select data-bvar="${exam}">${vs.map(x=>`<option value="${x.v}">Вариант ${x.v}${done.has(String(x.v))?" ✓ решён":""}</option>`).join("")}</select></label>
-    <button class="btn primary" type="button" data-btest="${exam}">Пробный вариант из сборника, ${FULL_MIN[exam]||180} минут</button></div>
-    ${noKey ? `<p class="hint">Ответы сборника ещё не прочитаны${vs.some(x=>x.hasKey)?" для части вариантов":""}: такие варианты можно решать, но ответы проверятся, когда учитель прочитает ответы (кнопка оглавления в профиле).</p>` : ""}`;
+  return `<div class="ogecard"><h4>Пробный вариант из сборника</h4><div class="chatrow booktrial"><label class="sm">Вариант из сборника <select data-bvar="${exam}">${vs.map(x=>`<option value="${x.v}">Вариант ${x.v}${done.has(String(x.v))?" ✓ решён":""}</option>`).join("")}</select></label>
+    <button class="btn primary" type="button" data-btest="${exam}">Начать пробный, ${FULL_MIN[exam]||180} минут</button></div>
+    ${noKey ? `<p class="hint">Ответы сборника ещё не прочитаны${vs.some(x=>x.hasKey)?" для части вариантов":""}: такие варианты можно решать, но ответы проверятся, когда учитель прочитает ответы (кнопка оглавления в профиле).</p>` : ""}</div>`;
 }
 function bindBookBlock(){
   $("main").querySelectorAll("[data-btest]").forEach(b=>b.addEventListener("click",()=>{ const e = b.dataset.btest; startBookTest(e, $("main").querySelector(`[data-bvar="${e}"]`).value); }));
