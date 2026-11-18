@@ -229,7 +229,7 @@ function renderAccount(openId){
         <input type="file" id="file-${b.id}" accept="application/pdf,.pdf" hidden>
       </div>
       ${shareLine(b)}
-      ${b.exam ? Study.ogeKeyRow(b) : ""}
+      ${b.exam ? Study.ogeKeyRow(b) + (hasFile(b) ? Study.ogeInfoRows(b) : "") : ""}
       <p class="status" id="status-${b.id}" aria-live="polite"></p>
       <details class="pages-ed" ${openId===b.id?"open":""}><summary class="btn ${file && total && keysOf(b).every(k=>(m.pages||{})[k]) ? "pgok" : ""}" style="display:inline-block;margin-top:6px" title="${file && total && keysOf(b).every(k=>(m.pages||{})[k]) ? "Страницы указаны у всех параграфов" : `Страницы указаны у ${set} из ${total}`}">${file && total && keysOf(b).every(k=>(m.pages||{})[k]) ? "✓ " : ""}Номера страниц параграфов</summary>
         ${file && Store.aiAvailable() ? `<div class="editbar tocai"><span>Оглавление на страницах учебника</span><input type="number" min="1" max="999" data-tocfrom="${b.id}" value="${(m.tocPdf||[])[0]||""}" placeholder="с" aria-label="Первая страница оглавления"><span>по</span><input type="number" min="1" max="999" data-tocto="${b.id}" value="${(m.tocPdf||[])[1]||""}" placeholder="по" aria-label="Последняя страница оглавления"><button class="btn primary" type="button" data-tocai="${b.id}">Взять главы и страницы из оглавления</button><span class="sm">Номера как «стр.» в учебнике на сайте. ИИ прочитает оглавление: главы и параграфы станут точно как в книге, страницы впишутся сами. Отметки «пройдено» по старым темам могут сбиться.</span></div>` : ""}
@@ -255,6 +255,7 @@ function renderAccount(openId){
   Study.bindAccount(main);
   Study.bindOgeAdd(main, id=>{ renderShelf("account"); renderAccount(id); });
   Study.bindOgeKey(main, id=>renderAccount(id));
+  Study.bindOgeInfo(main, id=>renderAccount(id));
   main.querySelectorAll("[data-auto]").forEach(btn=>btn.addEventListener("click",()=>{ const b = ACCB().find(x=>x.id===btn.dataset.auto); sayTarget = "status-"+b.id; btn.disabled = true; autoPages(b).catch(e=>{ console.error(e); say("Не получилось прочитать учебник: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
   main.querySelectorAll("[data-open]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(ACCB().find(x=>x.id===btn.dataset.open), 0, "")));
   main.querySelectorAll("[data-tocai]").forEach(btn=>btn.addEventListener("click",()=>{ const b = ACCB().find(x=>x.id===btn.dataset.tocai); sayTarget = "status-"+b.id; btn.disabled = true;

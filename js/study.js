@@ -308,6 +308,33 @@ function bindOgeAdd(root, after){
   root.querySelectorAll("[data-ogedrop]").forEach(b=>b.addEventListener("click", async()=>{ const id = b.dataset.ogedrop, d = Object.assign({list:[]}, Store.get("ogeExtra", {}));
     d.list = d.list.filter(x=>x!==id); await Store.set("ogeExtra", d, 0); syncOge(); after && after(); }));
 }
+// инструкция по выполнению работы и справочные материалы сборника: ИИ переписывает их один раз в текст
+const INFO_KINDS = { instr:"Инструкция по выполнению работы", ref:"Справочные материалы" };
+const ogeInfo = b => Object.assign({}, Store.get("oinfo-"+b.id, {}) || {});
+function ogeInfoRows(b){
+  const inf = ogeInfo(b);
+  return Object.entries(INFO_KINDS).map(([k,h])=>{ const x = inf[k] || {};
+    return `<div class="editbar tocai okeyrow"><b class="sm">${h}</b><span>на страницах</span><input type="number" min="1" max="999" data-oifrom="${b.id}:${k}" value="${(x.pages||[])[0]||""}" placeholder="с" aria-label="${h}: первая страница"><span>по</span><input type="number" min="1" max="999" data-oito="${b.id}:${k}" value="${(x.pages||[])[1]||""}" placeholder="по" aria-label="${h}: последняя страница">
+      <button class="btn ${x.text?"pgok":"primary"}" type="button" data-oiread="${b.id}:${k}" ${Store.aiAvailable()?"":"disabled"}>${x.text?"✓ Прочитано, обновить":"Прочитать"}</button>
+      <span class="sm">${x.text ? "Учитель знает её при любом задании, а в заданиях она открывается значком." : "Номера как «стр.» в сборнике."}</span><p class="status" id="status-oi-${b.id}-${k}" aria-live="polite" style="flex-basis:100%;margin:0"></p></div>`; }).join("");
+}
+function bindOgeInfo(root, after){
+  root.querySelectorAll("[data-oiread]").forEach(btn=>btn.addEventListener("click", async()=>{ const [id, k] = btn.dataset.oiread.split(":"), b = OGE_BOOKS.find(x=>x.id===id), st = $(`status-oi-${id}-${k}`), say = t => { if(st) st.textContent = t; };
+    let from = parseInt(root.querySelector(`[data-oifrom="${id}:${k}"]`).value,10), to = parseInt(root.querySelector(`[data-oito="${id}:${k}"]`).value,10);
+    btn.disabled = true;
+    try{ if(!(from > 0)) throw new Error("укажи страницы"); if(!(to >= from)) to = from; if(to - from > 11) throw new Error("не больше 12 страниц");
+      const m = S.book(b.id), total = m.totalPages || 999, off = Number(m.offset)||0, parts = [];
+      for(let a = from; a <= to; a += 4){ const z = Math.min(to, a+3), images = [];
+        say(`Учитель читает страницы ${a}–${z}…`);
+        for(let n = a; n <= z; n++) images.push(await Reader.pageImage(b, Math.max(1, Math.min(total, n + off)), 1400));
+        const r = await Store.ask({ mode:"transcribe", images, text:`${INFO_KINDS[k]} из сборника «${b.title}». Страницы ${a}–${z}.` });
+        parts.push(String(r.text||"").trim()); }
+      const inf = ogeInfo(b); inf[k] = { text: parts.join("\n\n"), pages:[from, to], ts:Date.now() }; await Store.set("oinfo-"+b.id, inf, 0);
+      after && after(b.id); }
+    catch(e){ say("Не получилось: " + e.message); btn.disabled = false; } }));
+}
+// для заданий: текст инструкции/справки по экзамену
+function ogeInfoFor(exam){ const b = OGE_BOOKS.find(x=>x.exam===exam); if(!b) return {}; const inf = ogeInfo(b); return { b, instr: inf.instr, ref: inf.ref }; }
 // ответы сборника: ИИ один раз читает страницы с ответами, по ним сверяется пробный вариант
 const ogeKey = b => Object.assign({ v:{} }, Store.get("okey-"+b.id, {}) || {});
 function ogeVariants(b){
@@ -615,5 +642,5 @@ function accountPanels(){ return profilePanel() + themePanel(); }
 function bindAccount(root){ bindProfile(root); bindTheme(root); }
 function apply(){ applyTheme(); syncOge(); applyToc(); drawMe(); }
 
-window.Study = { ogePage, syncOge, ogeAddHtml, bindOgeAdd, ogeKey, ogeVariants, ogeKeyRow, bindOgeKey, ogeSubjects, tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
+window.Study = { ogeInfoRows, bindOgeInfo, ogeInfoFor, ogePage, syncOge, ogeAddHtml, bindOgeAdd, ogeKey, ogeVariants, ogeKeyRow, bindOgeKey, ogeSubjects, tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
 })();
