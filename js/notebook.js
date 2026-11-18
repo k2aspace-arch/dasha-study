@@ -17,6 +17,30 @@ function drawPaper(ctx, ruled){
   ctx.strokeStyle = "#e46a6a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(W-100,0); ctx.lineTo(W-100,H); ctx.stroke();
 }
 
+// чистовик: лист как бланк ответов №2 ОГЭ (шапка с полями, номер задания, поле в клетку или в линейку)
+function drawBlank(ctx, ruled, o){
+  o = o || {}; ctx.fillStyle = "#ffffff"; ctx.fillRect(0,0,W,H);
+  const ink = "#1b2333", soft = "#8a93a6", cell = (x,y,w,h)=>{ ctx.strokeRect(x,y,w,h); };
+  ctx.strokeStyle = ink; ctx.lineWidth = 3; cell(30, 24, W-60, H-48);
+  ctx.fillStyle = ink; ctx.textAlign = "center"; ctx.font = `700 46px Arial, sans-serif`; ctx.fillText("БЛАНК ОТВЕТОВ № 2", W/2, 88);
+  ctx.font = `400 24px Arial, sans-serif`; ctx.fillStyle = soft; ctx.fillText("Основной государственный экзамен · лист для заданий с развёрнутым ответом", W/2, 124);
+  ctx.textAlign = "left"; ctx.lineWidth = 2; ctx.strokeStyle = ink; ctx.font = `400 22px Arial, sans-serif`; ctx.fillStyle = ink;
+  const boxes = (label, x, n, val) => { ctx.fillText(label, x, 166); for(let i=0;i<n;i++){ cell(x + i*40, 176, 40, 48); } if(val){ ctx.font = `700 30px "Courier New", monospace`; String(val).split("").slice(0,n).forEach((ch,i)=>ctx.fillText(ch, x + i*40 + 11, 211)); ctx.font = `400 22px Arial, sans-serif`; } };
+  boxes("Код региона", 60, 2, ""); boxes("Код предмета", 220, 2, o.code || ""); boxes("Лист №", 400, 2, o.sheet ? String(o.sheet).padStart(2,"0") : "");
+  ctx.fillText("Название предмета", 540, 166); cell(540, 176, W-600, 48); ctx.font = `400 26px Arial, sans-serif`; ctx.fillText(o.subject || "", 556, 210);
+  ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(30, 250); ctx.lineTo(W-30, 250); ctx.stroke();
+  ctx.font = `400 20px Arial, sans-serif`; ctx.fillStyle = soft; ctx.fillText("Пиши чётко и разборчиво. Сначала номер задания, потом решение и ответ. Черновик здесь не нужен: это чистовик.", 52, 284);
+  // номер задания
+  ctx.fillStyle = ink; ctx.font = `700 24px Arial, sans-serif`; ctx.fillText("Номер задания", 52, 336); ctx.lineWidth = 2; cell(240, 304, 100, 50);
+  if(o.num){ ctx.font = `700 36px "Courier New", monospace`; ctx.fillText(String(o.num), 260, 342); }
+  // поле ответа
+  const top = 380, bottom = H - 70; ctx.lineWidth = 1.2;
+  if(ruled){ ctx.strokeStyle = "#c5ccd8"; for(let y = top + 56; y < bottom; y += 56){ ctx.beginPath(); ctx.moveTo(52,y); ctx.lineTo(W-52,y); ctx.stroke(); } }
+  else { ctx.strokeStyle = "#dde2ea"; for(let x = 52; x <= W-52; x += 40){ ctx.beginPath(); ctx.moveTo(x,top); ctx.lineTo(x,bottom); ctx.stroke(); } for(let y = top; y <= bottom; y += 40){ ctx.beginPath(); ctx.moveTo(52,y); ctx.lineTo(W-52,y); ctx.stroke(); } }
+  ctx.strokeStyle = ink; ctx.lineWidth = 2; cell(52, top, W-104, bottom-top);
+  ctx.fillStyle = soft; ctx.font = `400 18px Arial, sans-serif`; ctx.textAlign = "right"; ctx.fillText("Пустой бланк — 0 баллов за задание", W-52, H-40); ctx.textAlign = "left";
+}
+
 function mount(host, opts){
   const bookId = opts.bookId, key = opts.key, ruled = !!opts.ruled, docKey = "nb-"+bookId;
   const idx = () => { const d = Object.assign({c:{}}, Store.get(docKey, {})); d.c = Object.assign({}, d.c); d.c[key] = Object.assign({sheets:[]}, d.c[key]); d.c[key].sheets = d.c[key].sheets.slice(); return d; };
@@ -28,7 +52,7 @@ function mount(host, opts){
     <div class="nb-tools" role="toolbar" aria-label="Инструменты тетради">
       ${[["pen","Ручка"],["marker","Маркер"],["text","Текст"],["eraser","Ластик"]].map(([t,n])=>`<button class="vbtn" type="button" data-nbtool="${t}" aria-pressed="${t==="pen"}">${n}</button>`).join("")}
       ${COLORS.map(([c,n],i)=>`<button class="swatch sm-sw" type="button" data-nbcolor="${c}" style="background:${c}" aria-label="${n}" aria-pressed="${i===0}"></button>`).join("")}
-      <button class="vbtn" type="button" data-nb="undo">Отменить</button>
+      <button class="vbtn" type="button" data-nb="undo" title="Отменить" aria-label="Отменить">↶</button>
       <button class="vbtn" type="button" data-nb="clear">Очистить лист</button>
       <button class="vbtn" type="button" data-nb="memo" title="Сохранить этот лист в памятки">⭐ В памятки</button>
     </div>
@@ -37,7 +61,7 @@ function mount(host, opts){
   const bg = host.querySelector(".nb-bg"), cv = host.querySelector(".nb-ink"), ctx = cv.getContext("2d"), sheetEl = host.querySelector(".nb-sheet");
   // условие задания вверху листа, «от руки» синей ручкой
   let task = opts.task || "";
-  function paintBg(){ const b = bg.getContext("2d"); drawPaper(b, ruled); if(!task) return;
+  function paintBg(){ const b = bg.getContext("2d"); if(opts.paper==="blank"){ drawBlank(b, ruled, Object.assign({ sheet: st.i+1 }, opts.blank)); return; } drawPaper(b, ruled); if(!task) return;
     b.save(); b.fillStyle = "#1d3fbf"; b.font = `700 40px "Caveat", "Segoe Print", cursive`; b.textBaseline = "alphabetic";
     // условие целиком: если длинное, шрифт мельче; переносы строк (таблицы, списки) сохраняются
     const maxW = W - 160, top = ruled ? 140 : 32;
@@ -61,7 +85,7 @@ function mount(host, opts){
     const tok = ++st.token, d = idx(), sh = d.c[key].sheets[st.i];
     ctx.clearRect(0,0,W,H); st.undo = [];
     const n = Math.max(1, d.c[key].sheets.length);
-    info.textContent = `Лист ${Math.min(st.i+1, n)} из ${n}`;
+    info.textContent = `Лист ${Math.min(st.i+1, n)} из ${n}`; if(opts.paper==="blank") paintBg();
     if(sh && sh.path){ try{ const blob = await Store.getFile(sh.path); if(blob && tok===st.token){ const img = await createImageBitmap(blob); ctx.drawImage(img,0,0,W,H); } }catch(e){} }
   }
   function changed(){ st.dirty = true; clearTimeout(st.timer); st.timer = setTimeout(save, 1500); }
@@ -143,7 +167,7 @@ function mount(host, opts){
 // небольшой холст в клетку для рисунка в итоговых вопросах
 function sketch(host){
   const w = 800, h = 500;
-  host.innerHTML = `<div class="nb-sketch"><canvas width="${w}" height="${h}" class="nb-bg"></canvas><canvas width="${w}" height="${h}" class="nb-ink"></canvas></div><div class="btnrow"><button class="btn" type="button" data-sk="undo">Отменить</button><button class="btn" type="button" data-sk="clear">Очистить</button></div>`;
+  host.innerHTML = `<div class="nb-sketch"><canvas width="${w}" height="${h}" class="nb-bg"></canvas><canvas width="${w}" height="${h}" class="nb-ink"></canvas></div><div class="btnrow"><button class="btn" type="button" data-sk="undo" title="Отменить" aria-label="Отменить">↶</button><button class="btn" type="button" data-sk="clear">Очистить</button></div>`;
   const [bg, cv] = host.querySelectorAll("canvas"), b = bg.getContext("2d"), ctx = cv.getContext("2d"), undo = [];
   b.fillStyle = "#fffefa"; b.fillRect(0,0,w,h); b.strokeStyle = "#cddaf0"; b.lineWidth = 1;
   for(let x=0;x<=w;x+=25){ b.beginPath(); b.moveTo(x,0); b.lineTo(x,h); b.stroke(); } for(let y=0;y<=h;y+=25){ b.beginPath(); b.moveTo(0,y); b.lineTo(w,y); b.stroke(); }

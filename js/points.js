@@ -61,7 +61,7 @@ const WD = new Intl.DateTimeFormat("ru-RU",{weekday:"long"});
 /* ---------- данные ---------- */
 const diary = () => Object.assign({days:{}}, Store.get("diary", {}));
 const tests = () => Object.assign({list:[]}, Store.get("tests", {}));
-const ogeLog = () => Object.assign({a:[]}, Store.get("oge", {}));   // a: [ts, exam, num, ok, part]
+const ogeLog = () => Object.assign({a:[]}, Store.get("oge", {}));   // a: [ts, exam, num, ok, src?] (src "p" — из пробного)
 const claims = () => Object.assign({c:{}}, Store.get("rewards", {}));
 
 /* ---------- расчёт очков по дням ---------- */
@@ -411,5 +411,5 @@ function openReport(){
   })(); else { draw(localReport()).then(finish); }
 }
 
-window.Points = { compute, bonuses, squares, ogeCounts, ogeLast, REWARDS, renderBar, renderRewards, logAct(){ const a = Object.assign({d:{}}, Store.get("act", {})); a.d = Object.assign({}, a.d); const t = todayIso(); a.d[t] = (a.d[t]||0)+1; Store.set("act", a, 2000); }, openReport, ogeLog, logOge(exam, num, ok){ const o = ogeLog(); o.a = o.a.concat([[Date.now(), exam, num, ok ? 1 : 0]]); Store.set("oge", o, 1500); renderBar(); } };
+window.Points = { compute, bonuses, squares, ogeCounts, ogeLast, REWARDS, renderBar, renderRewards, logAct(){ const a = Object.assign({d:{}}, Store.get("act", {})); a.d = Object.assign({}, a.d); const t = todayIso(); a.d[t] = (a.d[t]||0)+1; Store.set("act", a, 2000); }, openReport, ogeLog, logOge(exam, num, ok, src){ const o = ogeLog(); o.a = o.a.concat([src ? [Date.now(), exam, num, ok ? 1 : 0, src] : [Date.now(), exam, num, ok ? 1 : 0]]); Store.set("oge", o, 1500); renderBar(); } };
 })();

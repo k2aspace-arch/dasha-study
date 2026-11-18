@@ -723,7 +723,7 @@ async function routeInner(){
   if(window.Study) Study.leaveCut();
   if(eNb){ eNb.destroy(); eNb = null; }
   if(id.startsWith("t/")){ renderShelf(id.split("/")[1]); return Topic.render(id.slice(2)); }
-  if(id.startsWith("oge/")){ const [, e, n] = id.split("/"); renderShelf("oge-"+e); return n ? Oge.openTask(e, Number(n)) : Oge.render(e); }
+  if(id.startsWith("oge/")){ const [, e, n] = id.split("/"); renderShelf("oge-"+e); return n && n[0]==="r" ? Oge.review(e, n.slice(1)) : n ? Oge.openTask(e, Number(n)) : Oge.render(e); }
   if(id.startsWith("account/")){ renderShelf("account"); const sub = id.slice(8); if(window.Points) Points.renderBar();
     return sub==="books" ? renderAccount() : sub==="settings" ? renderAccountSettings() : sub==="profile" ? renderAccountProfile() : renderAccountHome(); }
   if(id.startsWith("cut/")){ renderShelf("account"); return Study.renderCut(id.slice(4)); }
