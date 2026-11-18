@@ -766,8 +766,12 @@ function review(exam, ts){
   const b = bookOf(exam), K = b && t.variant ? ((Study.ogeKey(b).v||{})[t.variant] || {}) : {};
   const vinfo = b && t.variant ? (Study.ogeVariants(b).find(x=>String(x.v)===String(t.variant)) || {}) : {}, page = vinfo.page || 0;
   let rows = (t.rows || []).map(r=>Object.assign({}, r));
-  if(!rows.length && t.answers) rows = Object.entries(t.answers).map(([num, v], i)=>{ const sc = (t.per||{})[num], long = sc===null || (K[num]!==undefined && !String(K[num]).trim()), val = String(v||"");
-    return { i, num:Number(num), v:val, right: K[num], score: sc===null ? undefined : sc, max: long ? (((CAT[exam]||{})[num]||[])[1] || 2) : 1, long, state: sc===null || sc===undefined ? (long ? "long" : "nokey") : sc > 0 ? "ok" : val.trim() ? "bad" : "empty", late:false }; });
+  if(!rows.length && t.answers) rows = Object.entries(t.answers).map(([num, v], i)=>{ const sc = (t.per||{})[num], val = String(v||""),
+      // развёрнутое: по ответам сборника (пустой ответ) или, если их нет, по весу задания ОГЭ
+      long = K[num]!==undefined ? !String(K[num]).trim() : (((CAT[exam]||{})[num]||[])[1] || 1) > 1;
+    return { i, num:Number(num), v:val, right: K[num], score: sc===null ? undefined : sc, max: long ? (((CAT[exam]||{})[num]||[])[1] || 2) : 1, long, state: sc===null || sc===undefined ? (long ? "long" : val.trim() ? "nokey" : "empty") : sc > 0 ? "ok" : val.trim() ? "bad" : "empty", late:false, old:true }; });
+  // старый пробный без проверки: если ответы сборника уже прочитаны, сверяем сейчас
+  rows.forEach(r=>{ if(r.old && r.state==="nokey" && K[r.num]){ const ok = matchKey(K[r.num], r.v); r.state = ok ? "ok" : "bad"; r.score = ok ? 1 : 0; } });
   // верный ответ: из сохранённого, иначе из ответов сборника (их могли прочитать позже)
   rows.forEach(r=>{ if((r.right===undefined || r.right==="") && K[r.num]!==undefined) r.right = K[r.num]; if(t.notes && t.notes[r.i] && !r.comment) r.comment = t.notes[r.i]; });
   const have = new Set(t.nb ? draftSheets(t.nb).map(x=>x.k) : []);
@@ -784,7 +788,7 @@ function review(exam, ts){
     ${page ? `<div class="vpages" id="vpages" aria-label="Листы варианта"><p class="sm">Загружаю листы сборника…</p></div>` : ""}
     <div class="revlist">${rows.map((r,k)=>`<div class="ogeq ${r.state==="ok"?"rv-ok":r.state==="bad"||r.state==="empty"?"rv-bad":""}"><div class="oge-num">Задание ${r.num}</div>
       ${r.q ? `<div class="oge-text">${r.q}</div>${r.opts ? `<ol class="oge-opts">${r.opts.map(o=>`<li>${o}</li>`).join("")}</ol>` : ""}` : ""}
-      <div class="revrow">${r.long ? `<span class="sm">Развёрнутый ответ</span><span class="revv">${r.blank ? "на бланке №2" : r.draft ? "только в черновике" : "бланк пустой"}</span>`
+      <div class="revrow">${r.long ? `<span class="sm">Развёрнутый ответ</span><span class="revv">${r.blank ? "на бланке №2" : r.draft ? "только в черновике" : r.old ? "—" : "бланк пустой"}</span>`
         : `<span class="sm">Твой ответ</span><span class="revv ${r.state==="ok"?"ok":r.state==="bad"?"bad":""}">${esc(r.v||"—")}</span>${r.late ? `<span class="chip">после времени</span>` : ""}<span class="sm">Верный</span><span class="revv ok">${r.right!==undefined && String(r.right).trim() ? esc(String(r.right)) : "—"}</span>`}
         ${chip(r)}</div>
       ${r.comment ? `<p class="hint revcomm">${esc(r.comment)}</p>` : ""}
