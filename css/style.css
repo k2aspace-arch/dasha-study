@@ -976,3 +976,12 @@ details.rulesbox>summary::-webkit-details-marker{display:none}
 .achmap .am-dates th{vertical-align:bottom;font-weight:500;font-size:11px;color:var(--muted,#777);padding:6px 2px}
 .achmap .am-dates th span{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;display:inline-block}
 .achmap .am-dates th:first-child{text-align:left;vertical-align:bottom}
+/* профиль */
+.profcard h3{margin:0 0 14px}
+.profrow{display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+.profform{flex:1;min-width:240px;display:flex;flex-direction:column;gap:12px}
+.proflabel{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted,#777);flex:1;min-width:200px}
+.proflabel input{font:inherit;font-size:16px;color:var(--ink);padding:10px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--paper)}
+.profline{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:0 0 14px}
+.profline .btn{flex:none}
+.profdanger{border-color:color-mix(in srgb, #d23c3c 30%, var(--line))}

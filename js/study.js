@@ -645,28 +645,31 @@ const WORK_PREFIX = /^(notes-|ink-|nb-|memos$|boards$|events$|classAt$)/;
 let isAdmin = null;
 function profilePanel(){
   const p = profile(), cloud = Store.mode==="cloud";
-  return `<section class="panel" id="profp"><h2>Личный кабинет</h2>
-    <div class="prof">
+  return `<div class="stack" id="profp">
+  <section class="panel profcard"><h3>Фото и имя</h3>
+    <div class="profrow">
       <button type="button" class="profpic" id="profpic" title="Загрузить фото">${p.photo?`<img src="${p.photo}" alt="Моё фото">`:`<span>${esc(((p.name||"Д")[0]||"Д").toUpperCase())}</span>`}<i>📷</i></button>
-      <div class="profinfo">
-        <label class="sm">Как тебя зовут<input id="profname" value="${esc(p.name)}" placeholder="Даша" maxlength="40"></label>
-        <p class="sm" style="margin:6px 0 0">${cloud ? `Вход: <b>${esc(Store.user.email)}</b>` : "Сайт работает без облака: всё хранится только в этом браузере."}</p>
-        <div class="btnrow"><button class="btn" type="button" id="profphoto">${p.photo?"Сменить фото":"Загрузить фото"}</button>${p.photo?`<button class="btn" type="button" id="profnophoto">Убрать фото</button>`:""}
-          ${cloud?`<button class="btn" id="acclogout" type="button">Выйти</button>`:""}<a class="btn" href="#admin" id="adminlink" hidden>Админка</a></div>
+      <div class="profform">
+        <label class="proflabel">Как тебя зовут<input id="profname" value="${esc(p.name)}" placeholder="Даша" maxlength="40"></label>
+        <div class="btnrow"><button class="btn" type="button" id="profphoto">${p.photo?"Сменить фото":"Загрузить фото"}</button>${p.photo?`<button class="btn" type="button" id="profnophoto">Убрать фото</button>`:""}</div>
+        <p class="sm muted" style="margin:0">Из имени складывается название сайта сверху.</p>
       </div>
     </div>
-    ${cloud ? `<details class="more"><summary class="btn">Сменить почту или пароль</summary><div class="morebox">
-      <form id="emailform" class="chatrow"><input type="email" id="newemail" placeholder="новая почта" autocomplete="email" required><button class="btn" type="submit">Сменить почту</button></form>
-      <form id="passform" class="chatrow"><input type="password" id="newpass" placeholder="новый пароль, от 6 символов" autocomplete="new-password" minlength="6" required><input type="password" id="newpass2" placeholder="ещё раз" autocomplete="new-password" minlength="6" required><button class="btn" type="submit">Сменить пароль</button></form>
-      <p class="status" id="authst" aria-live="polite"></p></div></details>` : ""}
-    <details class="more"><summary class="btn">Обнулить или очистить</summary><div class="morebox">
-      <p class="hint" style="margin-top:0">Перед очисткой сохраняется копия. ${cloud?"Администратор может вернуть всё в течение месяца.":"Копия хранится в этом браузере."}</p>
-      <div class="btnrow"><button class="btn" type="button" data-reset="results">Обнулить результаты</button><button class="btn" type="button" data-reset="all">Очистить всё, кроме учебников и настроек</button></div>
-      <p class="sm muted">Результаты: очки, оценки, дневник, ОГЭ, знания тем, бонусы. «Всё» — ещё и тетради, памятки, доски и расписание.</p>
-      <div class="chatrow" id="resetask" hidden><span class="sm">Точно? Напиши <b>да</b>:</span><input id="resetyes" style="max-width:80px"><button class="btn primary" type="button" id="resetgo">Очистить</button></div>
-      ${!cloud && Store.get("backup", null) ? `<button class="btn" type="button" id="resetundo">Вернуть копию от ${new Date(Store.get("backup").ts).toLocaleString("ru-RU")}</button>` : ""}
-      <p class="status" id="resetst" aria-live="polite"></p></div></details>
-  </section>`;
+  </section>
+  ${cloud ? `<section class="panel profcard"><h3>Почта и пароль</h3>
+    <p class="sm" style="margin:0 0 12px">Сейчас вход по почте <b>${esc(Store.user.email)}</b></p>
+    <form id="emailform" class="profline"><label class="proflabel">Новая почта<input type="email" id="newemail" placeholder="name@mail.ru" autocomplete="email" required></label><button class="btn" type="submit">Сменить почту</button></form>
+    <form id="passform" class="profline"><label class="proflabel">Новый пароль<input type="password" id="newpass" placeholder="от 6 символов" autocomplete="new-password" minlength="6" required></label><label class="proflabel">Ещё раз<input type="password" id="newpass2" placeholder="повтори пароль" autocomplete="new-password" minlength="6" required></label><button class="btn" type="submit">Сменить пароль</button></form>
+    <p class="status" id="authst" aria-live="polite"></p>
+  </section>` : `<section class="panel profcard"><p class="sm" style="margin:0">Сайт работает без облака: всё хранится только в этом браузере.</p></section>`}
+  <section class="panel profcard profdanger"><h3>Обнулить или очистить</h3>
+    <p class="hint" style="margin-top:0">Перед очисткой сохраняется копия. ${cloud?"Администратор может вернуть всё в течение месяца.":"Копия хранится в этом браузере."}</p>
+    <div class="btnrow"><button class="btn" type="button" data-reset="results">Обнулить результаты</button><button class="btn" type="button" data-reset="all">Очистить всё, кроме учебников и настроек</button></div>
+    <p class="sm muted">Результаты: очки, оценки, дневник, ОГЭ, знания тем, бонусы. «Всё» — ещё и тетради, памятки, доски и расписание.</p>
+    <div class="chatrow" id="resetask" hidden><span class="sm">Точно? Напиши <b>да</b>:</span><input id="resetyes" style="max-width:80px"><button class="btn primary" type="button" id="resetgo">Очистить</button></div>
+    ${!cloud && Store.get("backup", null) ? `<button class="btn" type="button" id="resetundo">Вернуть копию от ${new Date(Store.get("backup").ts).toLocaleString("ru-RU")}</button>` : ""}
+    <p class="status" id="resetst" aria-live="polite"></p>
+  </section></div>`;
 }
 function bindProfile(root){
   const save = p => { Store.set("profile", p, 0); drawMe(); };
