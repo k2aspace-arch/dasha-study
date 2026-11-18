@@ -133,27 +133,38 @@ function bonuses(){
 function programShare(){ const all = BOOKS.flatMap(keysOf); return all.length ? all.filter(k=>App.done[k]).length / all.length : 0; }
 function yearAvg(){ const g = S.grades().g; const v = GRADE_SUBJECTS.map(([id])=>Number((g[id]||{}).y)).filter(x=>x>=2); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; }
 
-/* ---------- линия огоньков: последние 14 дней ---------- */
-// fire — день засчитан; dim — серия не сломалась (выходной, каникулы, болезнь или первый день простоя); empty — пусто
-function fireLine(c){
-  const J = Object.assign({abs:[]}, Store.get("journal", {})), today = todayIso(), out = [];
-  let idle = 0;
-  // окно — текущие 2 недели (как период награды): прошедшие дни с огоньками, будущие — пустые кружки
-  let a0 = RULES.start; while(addDays(a0, 14) <= today) a0 = addDays(a0, 14);
-  const end = addDays(a0, 13);
-  for(let d = addDays(today, -40); d <= end; d = addDays(d, 1)){
+/* ---------- ударный режим: окошко из 7 дней (3 прошедших, сегодня, 3 следующих) ----------
+   Номера на кружках — дни серии. Огонёк — день засчитан. Тусклый — серия не сломалась (выходной, каникулы, болезнь, первый день простоя).
+   Пустой — день пропущен. Сегодня — с обводкой. Впереди — номера, до которых дорастёт серия. */
+const FLAME = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 3.5 5.5 5.5 5.5 11a5.5 5.5 0 0 1-11 0c0-2.6 1.3-4 2-5.8.9 1.6 1.6 2.3 2.6 2.8C11 7.6 10.9 5 12 2z" fill="currentColor"/><path d="M12 13c.6 1.6 2.4 2.3 2.4 4.3a2.4 2.4 0 0 1-4.8 0c0-1 .5-1.6.9-2.3.4.6.7.8 1.1 1-.1-1.1-.1-2 .4-3z" fill="#fff6c2"/></svg>`;
+function streakDays(c){
+  const J = Object.assign({abs:[]}, Store.get("journal", {})), today = todayIso(), map = {};
+  let n = 0, idle = 0;
+  for(let d = RULES.start; d <= today; d = addDays(d, 1)){
     const rec = c.byDay[d], sick = (J.abs||[]).some(a=>a.date===d && a.reason!=="absent" && !a.subj);
-    let st;
-    if(d < RULES.start) st = "none";
-    else if(d > today) st = "future";
-    else if(rec && rec.active){ st = "fire"; idle = 0; }
-    else if(d === today) st = "today";
-    else if(!isSchoolDay(d) || sick) st = "dim";
-    else { idle++; st = idle === 1 ? "dim" : "empty"; }
-    out.push([d, st]);
+    if(rec && rec.active){ n++; idle = 0; map[d] = { st:"fire", n }; }
+    else if(d === today) map[d] = { st:"today", n:n+1 };
+    else if(!isSchoolDay(d) || sick) map[d] = { st:"rest" };
+    else { idle++; if(idle === 1) map[d] = { st:"cool" }; else { map[d] = { st:"miss" }; n = 0; } }
   }
-  const TT = { fire:"огонь: день засчитан", dim:"тусклый: серия не сломалась", empty:"пусто: день без занятий", today:"сегодня: ещё можно позаниматься", none:"до старта", future:"впереди" };
-  return `<span class="fireline" aria-label="Огоньки за две недели">${out.filter(([d])=>d>=a0).map(([d,st])=>`<i class="fl fl-${st}" title="${DM.format(day(d))}: ${TT[st]}"></i>`).join("")}</span>`;
+  return map;
+}
+function streakStrip(c){
+  const today = todayIso(), map = streakDays(c), cur = c.state==="out" ? 0 : c.streak;
+  const cells = []; let next = (map[today] && map[today].st==="fire") ? map[today].n : cur;
+  for(let k=-3; k<=3; k++){
+    const d = addDays(today, k), wd = new Intl.DateTimeFormat("ru-RU",{weekday:"short"}).format(day(d));
+    let m = map[d];
+    if(k > 0){ if(isSchoolDay(d)){ next++; m = { st:"future", n:next }; } else m = { st:"futrest" }; }
+    if(!m) m = { st:"none" };
+    const TT = { fire:`день ${m.n} серии`, today:"сегодня: позанимайся, чтобы зажечь огонёк", rest:"выходной: серия не ломается", cool:"пропуск: серия остыла", miss:"пропуск: серия погасла", future:`будет день ${m.n}`, futrest:"выходной", none:"" }[m.st];
+    const inner = m.st==="fire" ? FLAME : m.st==="rest"||m.st==="futrest" ? "·" : m.st==="cool" ? FLAME : m.n ? m.n : "";
+    cells.push(`<span class="sk sk-${m.st}${k===0?" sk-now":""}" title="${DM.format(day(d))}: ${TT}"><i>${inner}</i><span class="sk-d">${m.st==="fire" ? m.n : wd}</span></span>`);
+  }
+  const done = map[today] && map[today].st==="fire";
+  return `<div class="skbox"><div class="skhead"><span class="skt"><span class="skf">${FLAME}</span>${cur} ${pl(cur,"день","дня","дней").split(" ").pop()} подряд</span>${c.best>1?`<span class="sm">рекорд ${c.best}</span>`:""}</div>
+    <div class="skrow">${cells.join("")}</div>
+    <p class="sm skmsg">${done ? "Сегодня огонёк горит! Так держать." : c.state==="cool" ? "Вчера без занятий, серия остывает. Позанимайся сегодня, чтобы её спасти." : c.state==="out" ? "Серия погасла. Позанимайся сегодня, и начнётся новая." : "Чтобы зажечь огонёк: домашка, параграф, вопросы по главе, учитель или 3 задания ОГЭ."}</p></div>`;
 }
 
 /* ---------- полоса сверху ---------- */
@@ -164,13 +175,10 @@ function renderBar(){
   const c = compute(), ps = periods(c), cur2w = ps.filter(p=>p.kind==="twoWeeks").pop();
   el.hidden = false;
   el.className = "streakbar st-" + c.state;
-  el.innerHTML = `<a href="#rewards" class="sb-fire" aria-label="${STATE_TXT[c.state]}"><span class="flame" aria-hidden="true"></span><b>${c.state==="out"?0:c.streak}</b><span class="sm">${c.state==="out"?"серия погасла":pl(c.streak,"день","дня","дней")+" подряд"}</span></a>
-    <a href="#rewards" class="sb-line">${fireLine(c)}</a>
-    <a href="#rewards" class="sb-pts"><b>${c.total}</b><span class="sm">очков</span></a>
+  el.innerHTML = `<a href="#rewards" class="sb-streak" aria-label="${STATE_TXT[c.state]}">${streakStrip(c)}</a>
+    <div class="sb-side"><a href="#rewards" class="sb-pts"><b>${c.total}</b><span class="sm">очков</span></a>
     ${cur2w?`<a href="#rewards" class="sb-next"><span class="sm">До подписки на кино: ${Math.max(0, cur2w.goal - cur2w.pts)} очков до ${DM.format(day(cur2w.b))}</span><span class="bar"><i style="width:${Math.min(100, Math.round(100*cur2w.pts/cur2w.goal))}%"></i></span></a>`:""}
-    <span class="sb-state sm">${STATE_TXT[c.state]}</span>
-    ${(()=>{ if(!window.Journal) return ""; const up = Journal.upcoming(3)[0]; return up ? `<a href="#diary" class="chip warn sb-soon">${Journal.TYPES[up.type]||"Событие"} ${Journal.when(up.date)}: ${esc(Journal.subjName(up.subj))}</a>` : Journal.importDue() ? `<a href="#diary" class="chip sb-soon">Пришли скрин оценок за неделю</a>` : ""; })()}
-    <a href="#diary" class="btn sb-diary">Дневник</a>`;
+    ${(()=>{ if(!window.Journal) return ""; const up = Journal.upcoming(3)[0]; return up ? `<a href="#diary" class="chip warn sb-soon">${Journal.TYPES[up.type]||"Событие"} ${Journal.when(up.date)}: ${esc(Journal.subjName(up.subj))}</a>` : Journal.importDue() ? `<a href="#diary" class="chip sb-soon">Пришли скрин оценок за неделю</a>` : ""; })()}</div>`;
 }
 
 /* ---------- дневник ---------- */
