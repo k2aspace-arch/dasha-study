@@ -950,3 +950,12 @@ body.is-login #main .panel{margin:6vh auto 0}
 .pminus{color:#d23c3c}
 .admtbl td.pm{font-family:var(--f-mono,monospace);letter-spacing:1px;white-space:nowrap}
 .admtbl tr.am-idle td{opacity:.6}
+/* награды: правила очков и шестерёнка настроек */
+details.rulesbox>summary.sm{display:flex;align-items:center;gap:10px;list-style:none}
+details.rulesbox>summary::-webkit-details-marker{display:none}
+.rulesbox>summary>span{flex:1}
+.gearbtn{flex:none;width:40px;height:40px;display:grid;place-items:center;border-radius:12px;border:1.5px solid var(--line);background:var(--paper);color:var(--accent);cursor:pointer;transition:transform .3s}
+.gearbtn:hover{transform:rotate(45deg)}
+.gearbtn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.gearbtn svg{width:24px;height:24px}
+.rulesbox .rules{font-size:13px;color:var(--muted)}

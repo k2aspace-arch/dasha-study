@@ -242,18 +242,19 @@ function renderRewards(){
   <section class="panel"><h3>Каждые 2 недели: ${esc(REWARDS.twoWeeks.title.toLowerCase())}</h3><p class="hint" style="margin-top:0">Нужно ${G.twoWeeks} очков за две недели.</p><div class="rwgrid">${by("twoWeeks").map(card).join("")}</div></section>
   <section class="panel"><h3>Каждый месяц: ${esc(REWARDS.month.title.toLowerCase())}</h3><p class="hint" style="margin-top:0">Нужно ${G.month} очков за месяц.</p><div class="rwgrid">${by("month").map(card).join("")}</div></section>
   <section class="panel"><h3>Каждый триместр: ${esc(REWARDS.quarter.title.toLowerCase())}</h3><p class="hint" style="margin-top:0">Если средний балл за триместр выше ${avgTxt(G.termAvg)}. Считается по итоговым оценкам за триместр из таблицы на главной.</p><div class="rwgrid">${by("quarter").map(card).join("")}</div></section>
-  ${cfgPanel(cfg)}
   <p class="hint rsq-legend"><span class="rsq-dot rsq-avail"></span>доступен <span class="rsq-dot rsq-used"></span>использован <span class="rsq-dot rsq-now"></span>идёт сейчас <span class="rsq-dot rsq-fut"></span>впереди</p>
-  <details class="plain rulesd"><summary class="sm">Как начисляются очки</summary><div class="rules">
+  <details class="panel plain ogehelp rulesbox"><summary class="sm"><span>Как начисляются очки</span><button type="button" class="gearbtn" id="rgear" aria-pressed="${cfgOpen}" title="Настроить награды и требования" aria-label="Настроить награды и требования"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M20.5 5h7l1.2 5.2a15 15 0 0 1 4 2.3l5.1-1.6 3.5 6-3.9 3.7a15 15 0 0 1 0 4.8l3.9 3.7-3.5 6-5.1-1.6a15 15 0 0 1-4 2.3L27.5 43h-7l-1.2-5.2a15 15 0 0 1-4-2.3l-5.1 1.6-3.5-6 3.9-3.7a15 15 0 0 1 0-4.8l-3.9-3.7 3.5-6 5.1 1.6a15 15 0 0 1 4-2.3z" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><circle cx="24" cy="24" r="6.5" fill="none" stroke="currentColor" stroke-width="3"/></svg></button></summary><div class="rules">
     <p>Очки только копятся и никогда не тратятся. Когда за период набрано нужное число очков, здесь появляется бонус-квадратик. Бонусы тоже копятся: используй, когда захочешь, и запиши, когда и как.</p>
     <p>Оценки и пропуски приходят только из электронного дневника через заполнялку. Текущая оценка: 5 → +5, 4 → +2, 3 → −3, 2 → −8. День с Н без причины: ${RULES.absent}. Болезнь (Б) и уважительная причина не снимают очки и не ломают серию. Скрин оценок за неделю: +${RULES.weekly}.</p>
     <p>Домашка: +${RULES.hw} за задание из учебника, +${RULES.hwOther} за своё (доклад, проект, задача). Пройденный параграф: +${RULES.paragraph}. Верное задание ОГЭ: +${RULES.ogeOk}. Пробный вариант ОГЭ: +${RULES.ogeTest}. Итоговые вопросы по главе: +${RULES.quiz}, без ошибок ещё +5.</p>
     <p>Контрольная: 5 → +20, 4 → +10, 3 → 0, 2 → −15. Итоговая за триместр: 5 → +80, 4 → +30, 3 → −30. Годовая: 5 → +120, 4 → +40, 3 → −40.</p>
     <p>Серия: день засчитывается, если сделана домашка, параграф, итоговые вопросы по главе или 3 задания ОГЭ. Каждый день серии даёт бонус +1, +2 … до +${RULES.streakMax}. Выходные и каникулы серию не ломают.</p>
     <p>Если в учебный день не было занятий, серия <b>остывает</b>. На второй день простоя она <b>гаснет</b>, и начиная с этого дня за каждый пустой учебный день снимается ${-RULES.idlePenalty} очков.</p>
-  </div></details></div>`;
+  </div></details>
+  ${cfgPanel(cfg)}</div>`;
   bindRewards();
 }
+let cfgOpen = false;
 function cfgPanel(cfg){
   const when = cfg.ts ? new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(cfg.ts)) : "";
   const row = (k, head, goalLbl, step, choices) => `<fieldset class="rcfg"><legend>${head}</legend>
@@ -262,7 +263,7 @@ function cfgPanel(cfg){
     ${choices ? `<label class="sm rcfg-wide">Варианты (через запятую)<input data-rk="${k}" data-rf="choices" value="${esc((cfg[k].choices||[]).join(", "))}"></label>` : ""}
     ${k==="laptop" ? `<label class="sm">Пройдено программы, %<input type="number" min="0" max="100" data-rk="laptop" data-rf="program" value="${cfg.laptop.program}"></label><label class="sm">Верных из 33 по каждому заданию ОГЭ<input type="number" min="0" max="33" data-rk="laptop" data-rf="ogeTask" value="${cfg.laptop.ogeTask}"></label>` : ""}
   </fieldset>`;
-  return `<section class="panel"><details class="pages-ed rcfgbox" id="rcfg"><summary class="btn" style="display:inline-block">Настроить награды и требования</summary>
+  return `<section class="panel" id="rcfgsec" ${cfgOpen?"":"hidden"}><h3>Настроить награды и требования</h3><details class="pages-ed rcfgbox" id="rcfg" open><summary hidden>Настроить</summary>
     <p class="sm">${when ? `Последнее изменение: <b>${when}</b>.` : "Пока стандартные награды, их никто не менял."} Уже полученные бонусы остаются.</p>
     <form id="rcfgform">${row("twoWeeks","Каждые 2 недели","Очков за 2 недели",1,true)}${row("month","Каждый месяц","Очков за месяц",1,true)}${row("quarter","Каждый триместр","Средний балл за триместр выше",0.01,true)}${row("dress","Большая награда","Средний балл аттестата выше",0.01,false)}${row("laptop","Главная цель","Очков всего",1,false)}
     <div class="btnrow"><button class="btn primary" type="submit">Сохранить</button><button class="btn" type="button" id="rcfgreset">Вернуть стандартные</button><span class="sm" id="rcfgst" aria-live="polite"></span></div></form></details></section>`;
@@ -272,6 +273,7 @@ function bindRewards(){
   main.querySelectorAll("[data-bonus]").forEach(f=>f.addEventListener("submit", e=>{ e.preventDefault();
     const d = Object.assign({u:{}}, Store.get("bonuses", {})); d.u = Object.assign({}, d.u, {[f.dataset.bonus]: { date: f.querySelector("[data-bdate]").value, how: f.querySelector("[data-bhow]").value.trim(), ts:Date.now() }});
     Store.set("bonuses", d, 0); renderRewards(); }));
+  const gear = $("rgear"); if(gear) gear.addEventListener("click", e=>{ e.preventDefault(); e.stopPropagation(); cfgOpen = !cfgOpen; gear.setAttribute("aria-pressed", cfgOpen); const sec = $("rcfgsec"); if(sec){ sec.hidden = !cfgOpen; if(cfgOpen) sec.scrollIntoView({ behavior:"smooth", block:"start" }); } });
   const form = $("rcfgform"); if(!form) return;
   form.addEventListener("submit", async e=>{ e.preventDefault();
     const out = { ts: Date.now() };
