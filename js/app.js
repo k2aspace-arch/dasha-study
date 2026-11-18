@@ -579,14 +579,25 @@ function renderGeneralChat(host){
     try{
       const msgs = chat.filter(m=>!m.pending && !m.err).slice(-16).map(m=>({role:m.role, content:m.content}));
       const subjName = (SUBJ_ALL.find(s=>s[0]===$("chatsubj").value)||[])[1] || "";
-      const r = await Store.ask({ mode: text.startsWith("Нарисуй") ? "draw" : image ? "check" : "chat", subject: subjName, messages: msgs, image, imageType });
+      const r = await Store.ask({ mode: text.startsWith("Нарисуй") ? "draw" : text.startsWith("Мне непонятно это место") ? "selection" : image ? "check" : "chat", subject: subjName, messages: msgs, image, imageType });
       thinking.content = Study.marks(r.text || "Пустой ответ.").text; delete thinking.pending;
     }catch(err){ thinking.content = "Не получилось получить ответ: " + err.message; thinking.err = true; delete thinking.pending; }
     Study.Dock.ping();
     if(tutorAv && tutorAv.el.isConnected){ tutorAv.setMood(thinking.err ? "squint" : "smile"); tutorAv.say(thinking.err ? "Ой, что-то пошло не так" : "Вот что я думаю!", 3000); setTimeout(()=>{ if(tutorAv){ tutorAv.setMood("idle"); tutorAv.start(); } }, 3000); }
     $("chatsend").disabled = false; saveChat(); drawChat();
   });
+  if(askAuto){ const d = askAuto; askAuto = null; fireAsk(d); }
 }
+// «❓ Непонятно» из учебника без темы (сборник ОГЭ, страница без параграфа): в общий чат учителя
+let askAuto = null;
+function fireAsk(d){
+  tutorPhoto = { b64:d.image, url:"data:image/jpeg;base64,"+d.image };
+  const sj = d.book.exam==="rus" ? "rus" : d.book.exam ? "algebra" : d.book.id;
+  if($("chatsubj") && $("chatsubj").querySelector(`option[value="${sj}"]`)) $("chatsubj").value = sj;
+  $("chatin").value = `Мне непонятно это место в «${d.book.title}», стр. ${d.bookPage} (на фото).${d.text ? ` Текст: «${d.text}».` : ""} Объясни, пожалуйста.`;
+  Study.Dock.open(); $("chatform").requestSubmit();
+}
+window.App.askGeneral = d => { if($("chatform")) fireAsk(d); else { askAuto = d; location.hash = "#tutor"; } };
 function drawChat(){
   const log = $("chatlog"); if(!log) return;
   log.innerHTML = chat.length ? chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"} ${m.err?"err":""}">${m.role==="user" ? esc(m.content) : Draw.html(m.content)}${m.img?`<img src="${m.img}" alt="Лист с доски">`:(m.board?`<br><small>📎 лист с доски</small>`:m.photo?`<br><small>📷 фото</small>`:"")}</div>`).join("")

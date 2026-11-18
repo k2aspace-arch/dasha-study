@@ -48,6 +48,7 @@
       <button class="vbtn" id="rclose" type="button" aria-label="Закрыть учебник">✕</button>
     </div>
     <div class="rgroup" role="toolbar" aria-label="Пометки">
+      <button class="vbtn rask" data-rtool="ask" type="button" aria-pressed="false" title="Обведи рамкой непонятное место, и учитель сразу его объяснит">❓ Непонятно</button>
       <button class="vbtn" data-rtool="view" type="button" aria-pressed="true">Листать</button>
       <button class="vbtn" data-rtool="pen" type="button" aria-pressed="false">Карандаш</button>
       <button class="vbtn" data-rtool="marker" type="button" aria-pressed="false">Маркер</button>
@@ -59,12 +60,13 @@
       <button class="vbtn" id="rnotebtn" type="button" aria-pressed="false">Заметки</button>
     </div>
   </div>
+  <p class="raskhint" id="raskhint" hidden>Обведи рамкой непонятное место на странице: текст, формулу или рисунок. Учитель сразу возьмёт его в работу.</p>
   <div class="rnotes" id="rnotes" hidden>
     <label for="rnote" id="rnotelabel" class="sm"></label>
     <textarea id="rnote" placeholder="Что важно запомнить на этой странице…"></textarea>
     <div id="rnotelist"></div>
   </div>
-  <div id="rscroll"><p id="rmsg"></p><div id="rpage" hidden><canvas id="rcanvas"></canvas><div id="rtext" class="textLayer"></div><canvas id="rink"></canvas></div></div>
+  <div id="rscroll"><p id="rmsg"></p><div id="rpage" hidden><canvas id="rcanvas"></canvas><div id="rtext" class="textLayer"></div><canvas id="rink"></canvas><div id="rrect" hidden></div></div></div>
 </aside>
 
 <script src="js/vendor/supabase.js"></script>

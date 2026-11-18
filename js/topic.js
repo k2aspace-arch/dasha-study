@@ -97,7 +97,8 @@ function render(arg){
   cur.av = Avatar.create($("tstage"), {compact:true}); cur.av.start();
   cur.av.say(cur.chat.length ? "Продолжим?" : ai ? `Тема «${t.title}». С чего начнём?` : "Я скоро подключусь", 5000);
   draw();
-  if(rg && file && window.innerWidth >= 1000) Reader.open(b, rg[0], `${t.ci+1}.${t.pi+1}. ${t.title}`);
+  const pend = pendingAsk && pendingAsk.book.id===b.id ? pendingAsk : null; pendingAsk = null;
+  if(rg && file && window.innerWidth >= 1000 && !pend) Reader.open(b, rg[0], `${t.ci+1}.${t.pi+1}. ${t.title}`);
   $("topen") && $("topen").addEventListener("click", ()=>Reader.open(b, rg[0], `${t.ci+1}.${t.pi+1}. ${t.title}`));
   $("tbook") && $("tbook").addEventListener("click", ()=>Reader.open(b, 0, ""));
   $("tdone").addEventListener("change", e=>{ App.setDone(t.key, e.target.checked); if(window.Points) Points.renderBar(); });
@@ -108,13 +109,30 @@ function render(arg){
   $("tform").addEventListener("submit", e=>{ e.preventDefault(); const v = $("tin").value.trim(); if(!v) return; $("tin").value = ""; send(lastMode(), v); });
   $("tin").addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); $("tform").requestSubmit(); } });
   if(!ai) document.querySelectorAll("#dockbody [data-act],#tsend").forEach(x=>{ if(x.dataset.act!=="got") x.disabled = true; });
+  if(pend){ askNow(pend); return; }
   if(ai && !cur.chat.length && q){ Study.Dock.open(); if(q.includes("scratch")) act("explain"); else if(q.includes("brief")) act("brief"); }
 }
+/* ---------- «❓ Непонятно» из учебника: учитель сразу берёт фрагмент в работу ---------- */
+let pendingAsk = null;
+function askNow(d){
+  Study.Dock.open();
+  send("selection", "Мне непонятно это место в учебнике. Объясни, пожалуйста.", { tag:`❓ Непонятно · стр. ${d.bookPage}`, selection: d.text || undefined, image: d.image, imageType:"jpeg" });
+}
+function topicAt(b, bookPage){ let best = null, bp = 0;
+  flat(b).forEach(([gi,ci,pi])=>{ const p = pageOf(b, gi, ci, pi); if(p && p <= bookPage && p >= bp){ bp = p; best = [gi,ci,pi]; } }); return best; }
+window.addEventListener("reader:ask", e=>{ const d = e.detail; if(!d || !d.book) return;
+  if(!Store.aiAvailable()){ alertSay("Учитель пока не подключён."); return; }
+  if(cur && !cur.quiz && cur.t.b.id===d.book.id){ if(cur.busy){ say("Учитель ещё отвечает. Дождись ответа и обведи место снова."); return; } return askNow(d); }
+  const b = BOOKS.find(x=>x.id===d.book.id), at = b && topicAt(b, d.bookPage);
+  if(at){ pendingAsk = d; const h = `#t/${b.id}/${at.join(".")}`; if(location.hash===h) window.dispatchEvent(new HashChangeEvent("hashchange")); else location.hash = h; return; }
+  App.askGeneral && App.askGeneral(d);
+});
+function alertSay(t){ if(cur) say(t); }
 function drawPhoto(){ const el = $("tphotoprev"); if(!el || !cur) return; el.innerHTML = cur.photo ? `<span class="photochip"><img src="${cur.photo.url}" alt="Приложенное фото"><button class="pg" type="button" id="tphotorm" aria-label="Убрать фото">✕</button></span>` : "";
   const rm = $("tphotorm"); if(rm) rm.addEventListener("click", ()=>{ cur.photo = null; drawPhoto(); }); }
 function selInfo(){
   if(!cur) return; const st = Reader.state(), el = $("tselinfo"); if(!el) return;
-  el.textContent = st.sel && st.book && st.book.id===cur.t.b.id ? `Выделено в учебнике: «${st.sel.text.slice(0,60)}${st.sel.text.length>60?"…":""}»` : st.open && st.book && st.book.id===cur.t.b.id ? "Можно выделить текст в учебнике и спросить о нём" : "";
+  el.textContent = st.sel && st.book && st.book.id===cur.t.b.id ? `Выделено в учебнике: «${st.sel.text.slice(0,60)}${st.sel.text.length>60?"…":""}»` : st.open && st.book && st.book.id===cur.t.b.id ? "Не понятно место в учебнике? Нажми там «❓ Непонятно» и обведи его рамкой" : "";
 }
 const lastMode = () => { const m = [...cur.chat].reverse().find(x=>x.role==="user" && x.mode); return m && ["check","hint","selection"].includes(m.mode) ? m.mode : "chat"; };
 function persist(){ lsSet("tchat:"+cur.t.key, { msgs: cur.chat.filter(m=>!m.pending).slice(-40), level: cur.level }); }
@@ -122,7 +140,7 @@ function say(text){ const h = $("thint"); if(h){ h.textContent = text; } }
 function draw(){
   const log = $("tlog"); if(!log) return;
   log.innerHTML = cur.chat.length ? cur.chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"} ${m.err?"err":""}">${m.tag?`<small class="tag">${esc(m.tag)}</small>`:""}${m.role==="user" ? esc(m.content) : Draw.html(m.content)}${m.know?`<div><span class="knchip kn${m.know}">${KNOW[m.know]}</span></div>`:""}</div>`).join("")
-    : `<p class="emptychat">Нажми «Объясни тему», выдели непонятное место в учебнике или реши задачу в тетради и попроси проверить.</p>`;
+    : `<p class="emptychat">Нажми «Объясни тему», обведи непонятное место в учебнике кнопкой «❓ Непонятно» или реши задачу в тетради и попроси проверить.</p>`;
   Draw.decorate(log, cur.chat);
   log.scrollTop = log.scrollHeight;
   $("tlevels").innerHTML = cur.level ? `<span class="sm">Ступень объяснения:</span> ${[1,2,3].map(l=>`<span class="chip ${l===cur.level?"":"dim"}">${l}. ${LEVELS[l]}</span>`).join(" ")}` : "";

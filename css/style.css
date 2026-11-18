@@ -897,3 +897,9 @@ body.is-login #main .panel{margin:6vh auto 0}
 .vpage{flex:0 0 auto;margin:0;background:#fff;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.12);overflow:hidden}
 .vpage img{display:block;width:100%;height:auto}
 .vpage figcaption{padding:4px 8px;text-align:right;color:#666}
+/* «❓ Непонятно» в учебнике */
+.vbtn.rask{border-color:#e0a100;background:#fff4cc;color:#6b4a00;font-weight:600}
+.vbtn.rask[aria-pressed="true"]{background:#e0a100;color:#fff}
+.raskhint{margin:0;padding:6px 12px;background:#fff4cc;color:#6b4a00;font-size:.9em;border-bottom:1px solid #e9d38a}
+#rink.asking{cursor:crosshair}
+#rrect{position:absolute;z-index:3;border:2px dashed #e0a100;background:rgba(255,212,0,.18);border-radius:4px;pointer-events:none}

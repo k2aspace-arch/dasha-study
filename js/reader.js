@@ -122,6 +122,22 @@ function setTool(t){
   R.tool = t;
   document.querySelectorAll("#reader [data-rtool]").forEach(x=>x.setAttribute("aria-pressed", x.dataset.rtool===t));
   $("rink").classList.toggle("drawing", t!=="view");
+  $("rink").classList.toggle("asking", t==="ask");
+  $("raskhint").hidden = t!=="ask";
+}
+// «❓ Непонятно»: рамка на странице → картинка фрагмента и текст из него уходят учителю
+async function askRect(a, b){
+  const page = $("rpage"), W = page.clientWidth, H = page.clientHeight;
+  const x0 = Math.max(0, Math.min(a.x, b.x)), y0 = Math.max(0, Math.min(a.y, b.y)), x1 = Math.min(W, Math.max(a.x, b.x)), y1 = Math.min(H, Math.max(a.y, b.y));
+  setTool("view");
+  if(x1 - x0 < 14 || y1 - y0 < 14) return;
+  const cv = $("rcanvas"), k = cv.width / W, pad = 6;
+  const sx = Math.max(0, (x0 - pad) * k), sy = Math.max(0, (y0 - pad) * k), sw = Math.min(cv.width - sx, (x1 - x0 + 2*pad) * k), sh = Math.min(cv.height - sy, (y1 - y0 + 2*pad) * k);
+  const f = Math.min(1, 1400 / sw), out = document.createElement("canvas"); out.width = Math.round(sw * f); out.height = Math.round(sh * f);
+  const c = out.getContext("2d"); c.fillStyle = "#fff"; c.fillRect(0, 0, out.width, out.height); c.drawImage(cv, sx, sy, sw, sh, 0, 0, out.width, out.height);
+  const pr = page.getBoundingClientRect(), text = [...$("rtext").querySelectorAll("span")].filter(sp=>{ const r = sp.getBoundingClientRect(), cx = r.left - pr.left + r.width/2, cy = r.top - pr.top + r.height/2; return cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1; }).map(sp=>sp.textContent).join(" ").replace(/\s+/g, " ").trim().slice(0, 2000);
+  const detail = { book: R.book, page: R.n, bookPage: toBook(R.book, R.n), image: out.toDataURL("image/jpeg", 0.85).split(",")[1], text };
+  window.dispatchEvent(new CustomEvent("reader:ask", { detail }));
 }
 function bindInk(){
   const cv = $("rink"); let drawing = false, last = null;
@@ -131,6 +147,14 @@ function bindInk(){
     else if(R.tool==="marker"){ c.globalCompositeOperation = "multiply"; c.globalAlpha = .35; c.lineWidth = 22; c.strokeStyle = R.color==="#d23c3c" ? "#ffd400" : R.color; }
     else { c.lineWidth = 3.5; c.strokeStyle = R.color; }
     c.beginPath(); c.moveTo(a.x,a.y); c.lineTo(b.x+0.01,b.y); c.stroke(); c.restore(); };
+  const rect = $("rrect"); let askFrom = null;
+  const ppos = ev => { const r = $("rpage").getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
+  const drawRect = (a, b) => { rect.hidden = false; Object.assign(rect.style, { left: Math.min(a.x,b.x)+"px", top: Math.min(a.y,b.y)+"px", width: Math.abs(b.x-a.x)+"px", height: Math.abs(b.y-a.y)+"px" }); };
+  cv.addEventListener("pointerdown", ev=>{ if(R.tool!=="ask") return; ev.preventDefault(); ev.stopImmediatePropagation(); askFrom = ppos(ev); cv.setPointerCapture(ev.pointerId); drawRect(askFrom, askFrom); });
+  cv.addEventListener("pointermove", ev=>{ if(R.tool!=="ask" || !askFrom) return; ev.stopImmediatePropagation(); drawRect(askFrom, ppos(ev)); });
+  const askEnd = ev => { if(R.tool!=="ask" || !askFrom) return; ev.stopImmediatePropagation(); const a = askFrom; askFrom = null; const b = ppos(ev);
+    setTimeout(()=>{ rect.hidden = true; }, ev.type==="pointercancel" ? 0 : 1200); if(ev.type!=="pointercancel") askRect(a, b); };
+  cv.addEventListener("pointerup", askEnd); cv.addEventListener("pointercancel", askEnd);
   cv.addEventListener("pointerdown", ev=>{ if(R.tool==="view") return; ev.preventDefault(); drawing = true; last = pos(ev);
     R.undo.push(cv.getContext("2d").getImageData(0,0,INK_W,R.inkH)); if(R.undo.length>20) R.undo.shift();
     cv.setPointerCapture(ev.pointerId); pts = [last]; if(R.tool==="marker") markerRedraw(); else seg(last,last); });
