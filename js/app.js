@@ -210,13 +210,15 @@ function shareLine(b){
   return `<p class="hint sm"><span class="chip warn">своя версия</span> У остальных общий учебник.
     <button class="btn" type="button" data-useshared="${b.id}">Вернуть общий</button> <button class="btn" type="button" data-pubshared="${b.id}">Сделать мою версию общей</button></p>`;
 }
+// учебники и сборники ОГЭ в одном списке кабинета
+const ACCB = () => BOOKS.concat(window.Study && Study.OGE_BOOKS ? Study.OGE_BOOKS : []);
 function renderAccount(openId){
   curBook = null;
   const who = Store.mode==="cloud" ? `Ты вошла как <b>${esc(Store.user.email)}</b>.` : "Сайт работает без облака: всё хранится только в этом браузере.";
   $("main").innerHTML = `<div class="stack">
   ${Study.accountPanels()}
-  <section class="panel"><h3>Учебники: PDF и страницы</h3><p class="hint" style="margin:0">Загрузи PDF каждого учебника и проверь страницы параграфов.</p></section>
-  ${BOOKS.map(b=>{ const m = S.book(b.id), file = hasFile(b), set = Object.keys(m.pages||{}).length, total = keysOf(b).length;
+  <section class="panel"><h3>Учебники: PDF и страницы</h3><p class="hint" style="margin:0">Загрузи PDF каждого учебника и сборников ОГЭ и проверь страницы параграфов.</p></section>
+  ${ACCB().map(b=>{ const m = S.book(b.id), file = hasFile(b), set = Object.keys(m.pages||{}).length, total = keysOf(b).length;
     return `<section class="panel acc-book" style="border-left:5px solid ${b.color}" data-book="${b.id}">
       <h2>${esc(b.subject)}</h2><p class="meta" style="margin:0">${esc(b.title)}</p>
       ${b.note && b.approx ? `<p class="note"><b>Приблизительно.</b> ${esc(b.note)}</p>` : ""}
@@ -243,15 +245,15 @@ function renderAccount(openId){
   main.querySelectorAll("[data-pubshared]").forEach(btn=>btn.addEventListener("click", async()=>{ const id = btn.dataset.pubshared;
     for(const k of ["book-","toc-","idx-"]) if(Store.hasOwn(k+id)) await Store.setShared(k+id, Store.get(k+id));
     renderAccount(id); }));
-  main.querySelectorAll("[data-up]").forEach(btn=>{ const id = btn.dataset.up, b = BOOKS.find(x=>x.id===id), fi = $("file-"+id);
+  main.querySelectorAll("[data-up]").forEach(btn=>{ const id = btn.dataset.up, b = ACCB().find(x=>x.id===id), fi = $("file-"+id);
     btn.addEventListener("click",()=>fi.click());
     fi.addEventListener("change",()=>{ const f = fi.files && fi.files[0]; fi.value = ""; sayTarget = "status-"+id;
       handleFile(b, f).catch(e=>{ console.error(e); say("Не получилось загрузить файл: " + upErr(e), true); }); });
   });
   Study.bindAccount(main);
-  main.querySelectorAll("[data-auto]").forEach(btn=>btn.addEventListener("click",()=>{ const b = BOOKS.find(x=>x.id===btn.dataset.auto); sayTarget = "status-"+b.id; btn.disabled = true; autoPages(b).catch(e=>{ console.error(e); say("Не получилось прочитать учебник: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
-  main.querySelectorAll("[data-open]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(BOOKS.find(x=>x.id===btn.dataset.open), 0, "")));
-  main.querySelectorAll("[data-tocai]").forEach(btn=>btn.addEventListener("click",()=>{ const b = BOOKS.find(x=>x.id===btn.dataset.tocai); sayTarget = "status-"+b.id; btn.disabled = true;
+  main.querySelectorAll("[data-auto]").forEach(btn=>btn.addEventListener("click",()=>{ const b = ACCB().find(x=>x.id===btn.dataset.auto); sayTarget = "status-"+b.id; btn.disabled = true; autoPages(b).catch(e=>{ console.error(e); say("Не получилось прочитать учебник: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
+  main.querySelectorAll("[data-open]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(ACCB().find(x=>x.id===btn.dataset.open), 0, "")));
+  main.querySelectorAll("[data-tocai]").forEach(btn=>btn.addEventListener("click",()=>{ const b = ACCB().find(x=>x.id===btn.dataset.tocai); sayTarget = "status-"+b.id; btn.disabled = true;
     tocPagesAi(b, parseInt(main.querySelector(`[data-tocfrom="${b.id}"]`).value,10), parseInt(main.querySelector(`[data-tocto="${b.id}"]`).value,10))
       .catch(e=>{ console.error(e); say("Не получилось: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
   main.querySelectorAll("section[data-book]").forEach(sec=>{ const id = sec.dataset.book;

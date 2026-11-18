@@ -235,11 +235,11 @@ async function buildIndex(b, status, onlyMissing){
 /* ================= ОГЛАВЛЕНИЕ ПО ФОТО ================= */
 const ALLSUBJ = () => BOOKS.map(b=>[b.id,b.subject]).concat(EMPTY.map(e=>[e.id,e.subject]));
 function applyToc(){
-  ALLSUBJ().forEach(([id])=>{
+  ALLSUBJ().map(x=>x[0]).concat(OGE_BOOKS.map(b=>b.id)).forEach(id=>{
     const toc = Store.get("toc-"+id, null); if(!toc || !Array.isArray(toc.chapters) || !toc.chapters.length) return;
     const chapters = toc.chapters.map(c=>({ n:"", t:String(c.title||""), p:(c.topics||[]).map(t=>String(t.title||"")).filter(Boolean) })).filter(c=>c.p.length);
     if(!chapters.length) return;
-    let b = BOOKS.find(x=>x.id===id);
+    let b = BOOKS.find(x=>x.id===id) || OGE_BOOKS.find(x=>x.id===id);
     if(!b){ const e = EMPTY.find(x=>x.id===id); if(!e) return; EMPTY.splice(EMPTY.indexOf(e), 1);
       b = { id, subject:e.subject, color:e.color, title:`${e.subject}. 9 класс`, authors:"Оглавление по фото" }; BOOKS.push(b); }
     // оглавление из PDF учебника: заменяем только группу текущего класса, повторение прошлых лет остаётся
@@ -287,6 +287,15 @@ const OGE_BOOKS = [
   { id:"oge-math", exam:"math", subject:"Сборник ОГЭ: математика", title:"Сборник ОГЭ по математике", color:"#2a4fd6", groups:[] },
   { id:"oge-rus", exam:"rus", subject:"Сборник ОГЭ: русский язык", title:"Сборник ОГЭ по русскому языку", color:"#8a6d1f", groups:[] }
 ];
+// страница сборника для задания N: по оглавлению сборника (глава или раздел, где есть «задание N» или «№N»)
+function ogePage(exam, num){
+  const b = OGE_BOOKS.find(x=>x.exam===exam), m = S.book(b.id), re = new RegExp(`(задани[еяй]|№)\\s*${num}(?!\\d)`, "i");
+  let pg = 0;
+  (b.groups||[]).forEach((g,gi)=>g.chapters.forEach((c,ci)=>{ if(pg) return;
+    if(re.test(c.t)) pg = (m.chapterPages||{})[`${gi}.${ci}`] || (m.pages||{})[`${b.id}.${gi}.${ci}.0`] || 0;
+    c.p.forEach((p,pi)=>{ if(!pg && re.test(p)) pg = (m.pages||{})[`${b.id}.${gi}.${ci}.${pi}`] || 0; }); }));
+  return pg;
+}
 const ogeBook = exam => { const b = OGE_BOOKS.find(x=>x.exam===exam), m = S.book(b.id); return m.chunks && m.chunks.length ? b : null; };
 function ogeBooksHtml(){
   return `<div class="ogebooks">${OGE_BOOKS.map(b=>{ const m = S.book(b.id), has = m.chunks && m.chunks.length;
@@ -541,9 +550,9 @@ async function renderAdmin(){
   }
 }
 
-function accountPanels(){ return profilePanel() + `<section class="panel"><h3>Сборники ОГЭ</h3><p class="hint">Загрузи сборник ФИПИ в PDF, и его можно открыть рядом с любым заданием ОГЭ, а учитель проверит решение по критериям.</p>${ogeBooksHtml()}</section>` + themePanel(); }
-function bindAccount(root){ bindProfile(root); bindOgeBooks(root, ()=>{ location.hash = "#account"; window.dispatchEvent(new HashChangeEvent("hashchange")); }); bindTheme(root); }
+function accountPanels(){ return profilePanel() + themePanel(); }
+function bindAccount(root){ bindProfile(root); bindTheme(root); }
 function apply(){ applyTheme(); applyToc(); drawMe(); }
 
-window.Study = { tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
+window.Study = { ogePage, tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
 })();

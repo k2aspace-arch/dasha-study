@@ -483,7 +483,7 @@ function startPractice(exam, num){
     <div class="btnrow"><button class="btn primary" type="button" id="pcheck" ${Store.aiAvailable()?"":"disabled"}>Сдать учителю на проверку</button><span class="sm" id="pstat" aria-live="polite"></span></div>
     </section><section class="panel" id="ogeteach"></section></div>`;
   mountTeacher(exam, num, () => `Условие: ${session && session.task ? session.task : "(ученица взяла задание из сборника, условие в её сообщении или на фото)"}`);
-  if($("pbook")) $("pbook").addEventListener("click", ()=>Reader.open(book, 0, `Сборник: ${EXAMS[exam].name}`));
+  if($("pbook")) $("pbook").addEventListener("click", ()=>Reader.open(book, Study.ogePage(exam, num) || 0, `Сборник: ${EXAMS[exam].name}`));
   // изложение: текст не показываем, его читает голос (ElevenLabs), два раза, как на экзамене
   const listen = exam==="rus" && num===1;
   function listenPanel(){
