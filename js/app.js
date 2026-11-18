@@ -225,7 +225,7 @@ function renderAccount(openId){
       <p class="fileline">${file?`Файл: <b>${esc(m.fileName||"учебник.pdf")}</b>, ${pl(m.totalPages||0,"страница","страницы","страниц")}. Страницы указаны у ${set} из ${total} параграфов и у ${Object.keys(m.chapterPages||{}).length} глав.`:"PDF ещё не загружен."}</p>
       <div class="btnrow">
         <button class="btn ${file?"":"primary"}" data-up="${b.id}" type="button">${file?"Заменить PDF":"Загрузить PDF"}</button>
-        ${file?`<button class="btn" data-open="${b.id}" type="button">Открыть учебник</button><button class="btn" data-auto="${b.id}" type="button">Найти страницы тем автоматически</button>`:""}
+        ${file?`<button class="btn" data-open="${b.id}" type="button">Открыть учебник</button><button class="btn" data-auto="${b.id}" type="button">Найти страницы тем автоматически</button>${b.exam?"":Study.idxButton(b)}`:""}
         <input type="file" id="file-${b.id}" accept="application/pdf,.pdf" hidden>
       </div>
       ${shareLine(b)}
@@ -261,6 +261,7 @@ function renderAccount(openId){
     if(off === null){ say("Не получилось определить: на страницах не видно номеров. Впиши сдвиг вручную.", true); return; }
     const m = S.book(b.id); m.offset = off; await S.setBook(b.id, m); renderAccount(b.id); sayTarget = "status-"+b.id; say(`Сдвиг страниц: ${off}. Номера «стр.» теперь совпадают с книгой.`); }));
   main.querySelectorAll("[data-auto]").forEach(btn=>btn.addEventListener("click",()=>{ const b = ACCB().find(x=>x.id===btn.dataset.auto); sayTarget = "status-"+b.id; btn.disabled = true; autoPages(b).catch(e=>{ console.error(e); say("Не получилось прочитать учебник: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
+  Study.bindKnow(main);
   main.querySelectorAll("[data-open]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(ACCB().find(x=>x.id===btn.dataset.open), 0, "")));
   main.querySelectorAll("[data-tocai]").forEach(btn=>btn.addEventListener("click",()=>{ const b = ACCB().find(x=>x.id===btn.dataset.tocai); sayTarget = "status-"+b.id; btn.disabled = true;
     tocPagesAi(b, parseInt(main.querySelector(`[data-tocfrom="${b.id}"]`).value,10), parseInt(main.querySelector(`[data-tocto="${b.id}"]`).value,10))
