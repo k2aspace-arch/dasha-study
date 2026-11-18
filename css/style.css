@@ -871,3 +871,5 @@ body.is-login #main .panel{margin:6vh auto 0}
 .tocai input{width:72px}
 .memo-chat summary{display:block;cursor:pointer;padding:4px 0}
 .rcfg input{padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit}
+.btn.pgok{background:#1f8a5a;border-color:#1f8a5a;color:#fff}
+.btn.pgok:hover{background:#18744b}
