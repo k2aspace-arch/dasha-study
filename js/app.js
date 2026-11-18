@@ -319,8 +319,10 @@ async function tocPagesAi(b, from, to){
   chapters.forEach((c,ci)=>c.topics.forEach((x,pi)=>{ const pg = parseInt(x.page,10); if(pg>0){ m.pages[`${b.id}.${gi}.${ci}.${pi}`] = pg; n++; if(pi===0) m.chapterPages[`${gi}.${ci}`] = pg; } }));
   await S.setBook(b.id, m);
   const all = chapters.reduce((s,c)=>s+c.topics.length,0);
+  let extra = "";
+  if(b.exam){ say("Оглавление готово. Ищу в нём ответы, инструкцию и справочные материалы…"); const done = await Study.ogeAutoPrep(b, say); if(done.length) extra = ` Ещё прочитано: ${done.join(", ")}.`; }
   renderAccount(b.id); sayTarget = "status-"+b.id;
-  say(`Готово: ${pl(chapters.length,"глава","главы","глав")} и ${pl(all,"параграф","параграфа","параграфов")} как в учебнике, страницы у ${n}. Проверь их ниже.`);
+  say(`Готово: ${pl(chapters.length,"глава","главы","глав")} и ${pl(all,"параграф","параграфа","параграфов")} как в учебнике, страницы у ${n}.${extra} Проверь их ниже.`);
 }
 // сдвиг «страниц в файле до первой страницы книги»: берём страницы из середины файла и сравниваем номер в файле с напечатанным
 async function detectOffset(b){
