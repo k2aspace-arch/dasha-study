@@ -639,7 +639,7 @@ function openDraft(i){
   const t = s.list[i];
   const nb = Notebook.mount(host, { bookId: s.nb, key: "t"+i, ruled: s.exam==="rus", title: `Черновик · задание ${t.num}`, sub: "Только для себя, на проверку не идёт", task: `№${t.num}. ${plain(t.q)}${t.opts?"\n"+t.opts.map((o,i)=>`${i+1}) ${plain(o)}`).join("\n"):""}` });
   s.draft = { i, nb }; s.drafts = (s.drafts||new Set()); s.drafts.add(i);
-  const head = host.querySelector(".nb-head"); if(head){ head.insertAdjacentHTML("beforeend", `<button class="btn draftclose" type="button">✕ Скрыть черновик</button>`);
+  const head = host.querySelector(".nb-head"); if(head){ head.insertAdjacentHTML("beforeend", `<button class="btn draftclose" type="button" title="Черновик сохранится, его можно снова открыть">▴ Свернуть черновик</button>`);
     head.querySelector(".draftclose").addEventListener("click", ()=>{ const q = host.closest(".ogeq"); closeDraft(); if(q) q.scrollIntoView({ block:"nearest", behavior:"smooth" }); }); }
   requestAnimationFrame(()=>placeDraft(i));
 }
