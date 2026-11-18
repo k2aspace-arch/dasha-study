@@ -356,7 +356,14 @@ function ogeVariants(b){
   (b.groups||[]).forEach((g,gi)=>g.chapters.forEach((c,ci)=>{ const mm = String(c.t).match(/вариант\s*№?\s*(\d+)/i);
     if(mm) out[mm[1]] = (m.chapterPages||{})[`${gi}.${ci}`] || (m.pages||{})[`${b.id}.${gi}.${ci}.0`] || 0;
     c.p.forEach((p,pi)=>{ const t = String(p).match(/вариант\s*№?\s*(\d+)/i); if(t && !out[t[1]]) out[t[1]] = (m.pages||{})[`${b.id}.${gi}.${ci}.${pi}`] || 0; }); }));
-  return Object.keys(key.v).sort((a,b)=>a-b).map(v=>({ v, page: out[v] || 0, n: Object.keys(key.v[v]).length }));
+  // страницы варианта: от его начала до начала следующего раздела оглавления
+  const starts = [];
+  (b.groups||[]).forEach((g,gi)=>g.chapters.forEach((c,ci)=>{ const cp = (m.chapterPages||{})[`${gi}.${ci}`]; if(cp) starts.push(cp); c.p.forEach((x,pi)=>{ const pg = (m.pages||{})[`${b.id}.${gi}.${ci}.${pi}`]; if(pg) starts.push(pg); }); }));
+  starts.sort((a,c)=>a-c);
+  const last = (m.totalPages||0) - (Number(m.offset)||0);
+  const ids = [...new Set(Object.keys(out).concat(Object.keys(key.v)))].sort((a,c)=>a-c);
+  return ids.map(v=>{ const page = out[v] || 0, nx = page ? starts.find(x=>x > page) : 0;
+    return { v, page, end: page ? Math.min(page + 15, Math.max(page, (nx || last || page+1) - 1)) : 0, n: key.v[v] ? Object.keys(key.v[v]).length : 0, hasKey: !!key.v[v] }; });
 }
 // строка-статус у сборника: что взято из оглавления (ответы, инструкция, справочные материалы читаются сами вместе с оглавлением)
 function ogeKeyRow(b){
@@ -379,6 +386,7 @@ async function readKey(b, from, to, say){
     Object.entries(j.variants||{}).forEach(([v, ans])=>{ const vv = String(v).replace(/\D/g,""); if(!vv) return; key.v[vv] = Object.assign({}, key.v[vv], ...Object.entries(ans||{}).map(([n,x])=>({ [String(n).replace(/\D/g,"")]: String(x ?? "").trim() }))); });
   }
   key.ts = Date.now(); await Store.set("okey-"+b.id, key, 0);
+  if(window.Oge && Oge.recheck) Oge.recheck(b.exam);
   return Object.keys(key.v).length;
 }
 function bindOgeKey(root, after){

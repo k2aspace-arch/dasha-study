@@ -892,3 +892,8 @@ body.is-login #main .panel{margin:6vh auto 0}
 .am-bad{color:#d23c3c;font-weight:700}
 .am-long{color:var(--muted)}
 .amh{text-transform:uppercase;letter-spacing:.04em}
+/* листы варианта из сборника */
+.vpages{display:flex;flex-direction:column;gap:10px;max-height:75vh;overflow:auto;padding:8px;border:1.5px solid var(--line);border-radius:12px;background:#f4f1ea;margin-bottom:12px}
+.vpage{margin:0;background:#fff;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.12);overflow:hidden}
+.vpage img{display:block;width:100%;height:auto}
+.vpage figcaption{padding:4px 8px;text-align:right;color:#666}

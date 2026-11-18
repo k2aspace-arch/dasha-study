@@ -309,7 +309,7 @@ function renderMenu(only){
     return `<section class="panel oge-ex"><h3>${E.name} <span class="sm">· ${Object.keys(C).length} заданий, максимум ${total} баллов${id==="rus"?" + грамотность за изложение и сочинение":""}</span></h3>
       ${E.scale ? `<div class="ogescale"><span class="chip ok">«5» от ${E.scale[2][1]} баллов</span></div>` : ""}
       ${bookBlock(id)}
-      <button class="btn ${hasBookTrial(id)?"":"primary"}" type="button" data-test="${id}">${hasBookTrial(id)?"Короткий тренировочный вариант (задания сайта)":E.test.title}, ${E.test.min} минут</button>
+      ${hasBook(id) ? "" : `<button class="btn primary" type="button" data-test="${id}">${E.test.title}, ${E.test.min} минут</button>`}
       <div class="oge-types">${Object.entries(C).map(([n,[t,max]])=>{ const auto = !!E.tasks[n], c = (oc[id]||{})[n] || 0;
         return `<div class="ogetype"><span class="num">${n}</span><span class="nm">${esc(t)} <span class="chip ${max>1?"warn":""}">${pl(max,"балл","балла","баллов")}</span>${auto?"":` <span class="chip">с учителем</span>`}</span>${bar(id,n)}<span class="sm ${c>=goal?"okc":""}" title="Цель: 30 верных из 33 последних">${c}/30</span><button class="btn" type="button" data-train="${id}:${n}">${auto?"Тренировать":"Решать"}</button></div>`; }).join("")}</div>
       </section>`; };
@@ -429,14 +429,17 @@ const FULL_MIN = { math:235, rus:235, lit:235, phys:180, chem:180, bio:180, hist
 const exName = e => EXAMS[e] ? EXAMS[e].name : ((Study.OGE_BOOKS.find(b=>b.exam===e)||{}).name || e);
 const bookOf = e => Study.OGE_BOOKS.find(b=>b.exam===e);
 const hasBookTrial = e => { const b = bookOf(e); return !!(b && Study.ogeBook(e) && Study.ogeVariants(b).length); };
+const hasBook = e => !!Study.ogeBook(e);
 function bookBlock(exam){
   const b = bookOf(exam); if(!b) return "";
   if(!Study.ogeBook(exam)) return `<p class="hint">Загрузи сборник ОГЭ в <a href="#account">профиле</a>: пробные варианты будут из него, а учитель будет сверять ответы с ответами сборника.</p>`;
   const vs = Study.ogeVariants(b);
-  if(!vs.length) return `<p class="hint">Сборник загружен. Чтобы решать из него пробные, в <a href="#account">профиле</a> у сборника укажи страницы с ответами и нажми «Прочитать ответы». Для удобства там же можно взять оглавление: тогда вариант откроется сразу на своей странице.</p>`;
+  if(!vs.length) return `<p class="hint">Сборник загружен. Чтобы решать из него пробные, в <a href="#account">профиле</a> у сборника нажми «Взять главы и страницы из оглавления»: сайт найдёт варианты и ответы к ним.</p>`;
+  const noKey = vs.some(x=>!x.hasKey);
   const done = new Set((Store.get("ogeTests",{list:[]}).list||[]).filter(t=>t.exam===exam && t.variant).map(t=>String(t.variant)));
   return `<div class="chatrow booktrial"><label class="sm">Вариант из сборника <select data-bvar="${exam}">${vs.map(x=>`<option value="${x.v}">Вариант ${x.v}${done.has(String(x.v))?" ✓ решён":""}</option>`).join("")}</select></label>
-    <button class="btn primary" type="button" data-btest="${exam}">Пробный вариант из сборника, ${FULL_MIN[exam]||180} минут</button></div>`;
+    <button class="btn primary" type="button" data-btest="${exam}">Пробный вариант из сборника, ${FULL_MIN[exam]||180} минут</button></div>
+    ${noKey ? `<p class="hint">Ответы сборника ещё не прочитаны${vs.some(x=>x.hasKey)?" для части вариантов":""}: такие варианты можно решать, но ответы проверятся, когда учитель прочитает ответы (кнопка оглавления в профиле).</p>` : ""}`;
 }
 function bindBookBlock(){
   $("main").querySelectorAll("[data-btest]").forEach(b=>b.addEventListener("click",()=>{ const e = b.dataset.btest; startBookTest(e, $("main").querySelector(`[data-bvar="${e}"]`).value); }));
@@ -454,14 +457,18 @@ function matchKey(k, v){ const y = nk(v); if(!y) return false;
   return String(k).split(/\s*(?:\||;|\bили\b)\s*/i).some(a=>{ const x = nk(a); if(!x) return false; if(x===y) return true; const nx = Number(x), ny = Number(y); return Number.isFinite(nx) && Number.isFinite(ny) && Math.abs(nx-ny) < 1e-9; }); }
 function startBookTest(exam, v){
   clearInterval(timer);
-  const b = bookOf(exam), key = (Study.ogeKey(b).v||{})[v] || {}, vinfo = Study.ogeVariants(b).find(x=>String(x.v)===String(v)) || {}, page = vinfo.page || 0;
-  const nums = Object.keys(key).map(Number).filter(n=>n>0).sort((a,c)=>a-c), min = FULL_MIN[exam] || 180;
-  if(!nums.length){ renderMenu(exam); return; }
-  try{ Reader.open(b, page || 0, `Вариант ${v}`); }catch(e){}
-  const list = nums.map(n=>({ num:n, long: !String(key[n]||"").trim(), q:`Задание ${n} варианта ${v}: условие в сборнике${page?`, вариант начинается на стр. ${page}`:""}.` }));
-  session = { mode:"btest", exam, v, key, list, ans:list.map(()=>""), at:list.map(()=>0), start:Date.now(), end:Date.now() + min*60e3, nb:"trial-"+Date.now(), draft:null };
+  const b = bookOf(exam), hasKey = !!(Study.ogeKey(b).v||{})[v], key = (Study.ogeKey(b).v||{})[v] || {}, vinfo = Study.ogeVariants(b).find(x=>String(x.v)===String(v)) || {}, page = vinfo.page || 0;
+  // номера заданий: из ответов сборника, а если их ещё нет — полный список заданий экзамена
+  let nums = Object.keys(key).map(Number).filter(n=>n>0);
+  if(!nums.length) nums = CAT[exam] ? Object.keys(CAT[exam]).map(Number) : Array.from({length:25},(_,i)=>i+1);
+  nums.sort((a,c)=>a-c);
+  const min = FULL_MIN[exam] || 180;
+  const isLong = n => hasKey ? !String(key[n]||"").trim() : !!(CAT[exam] && CAT[exam][n] && CAT[exam][n][1] > 1);
+  const list = nums.map(n=>({ num:n, long: isLong(n), q:`Задание ${n} варианта ${v} — условие и рисунок на листах сборника выше${page?` (вариант с стр. ${page})`:""}.` }));
+  session = { mode:"btest", exam, v, key, hasKey, list, ans:list.map(()=>""), at:list.map(()=>0), start:Date.now(), end:Date.now() + min*60e3, nb:"trial-"+Date.now(), draft:null };
   $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><b>${esc(exName(exam))}: вариант ${esc(v)} из сборника</b><span class="timer" id="ogetimer" role="timer"></span><button class="btn" type="button" id="ogeopenbk">Открыть сборник</button><button class="btn" type="button" id="ogequit">Выйти без оценки</button></div>
-    <p class="hint" style="margin:0 0 8px">Условия читай в сборнике${page?` (стр. ${page})`:""}, ответы вписывай сюда. Нажми на задание, и под ним откроется листок-черновик.</p>
+    <p class="hint" style="margin:0 0 8px">Ниже листы варианта прямо из сборника, со всеми рисунками. Ответы вписывай в поля под ними. Нажми на задание, и под ним откроется листок-черновик.</p>
+    ${page ? `<div class="vpages" id="vpages" aria-label="Листы варианта ${esc(v)}"><p class="sm">Загружаю листы сборника…</p></div>` : `<p class="note">В оглавлении сборника не нашлась страница варианта ${esc(v)}. Открой сборник кнопкой сверху.</p>`}
     <form id="ogeform">${list.map((t,i)=>`<div class="ogeq"><div class="oge-num">Задание ${t.num}</div>${t.long ? `<p class="hint" style="margin:4px 0">Развёрнутый ответ: реши в черновике, после проверки покажи учителю.</p>` : `<label class="oge-ans"><span class="sm">Ответ</span><input type="text" autocomplete="off" data-ans="${i}"></label>`}<div class="ogedraft" data-draft="${i}"></div></div>`).join("")}
     <div class="btnrow"><button class="btn primary" type="submit">Завершить и проверить</button></div></form></section>`;
   const mmss = ms => `${Math.floor(ms/60e3)}:${String(Math.floor(ms/1e3)%60).padStart(2,"0")}`;
@@ -471,6 +478,13 @@ function startBookTest(exam, v){
   $("main").querySelectorAll("[data-ans]").forEach(inp=>inp.addEventListener("input",()=>{ const i = Number(inp.dataset.ans); session.ans[i] = inp.value; session.at[i] = Date.now(); }));
   $("main").querySelectorAll(".ogeq").forEach((q, i)=>q.addEventListener("click", e=>{ if(!session || e.target.closest("input, .ogedraft, button, a")) return; openDraft(i); }));
   $("ogeopenbk").addEventListener("click", ()=>Reader.open(b, page || 0, `Вариант ${v}`));
+  if(page) (async()=>{ const box = $("vpages"), m = App.S.book(b.id), off = Number(m.offset)||0, total = m.totalPages || 999, end = vinfo.end || page; let html = "";
+    if(!box) return; box.innerHTML = "";
+    for(let pg = page; pg <= end && pg + off <= total; pg++){
+      if(!session || session.mode!=="btest") return;
+      try{ const b64 = await Reader.pageImage(b, pg + off, 1300); const fig = document.createElement("figure"); fig.className = "vpage";
+        fig.innerHTML = `<img alt="Сборник, стр. ${pg}" src="data:image/jpeg;base64,${b64}"><figcaption class="sm">стр. ${pg}</figcaption>`; box.appendChild(fig); }catch(e){ break; } }
+    if(!box.children.length) box.innerHTML = `<p class="note">Не получилось показать листы. Открой сборник кнопкой сверху.</p>`; })();
   $("ogequit").addEventListener("click", ()=>{ closeDraft(); clearInterval(timer); session = null; renderMenu(exam); });
   $("ogeform").addEventListener("submit", e=>{ e.preventDefault(); const empty = session.list.filter((t,i)=>!t.long && !session.ans[i].trim()).length;
     if(empty && !confirmInline(empty)) return; submitBookTest(); });
@@ -478,19 +492,20 @@ function startBookTest(exam, v){
 async function submitBookTest(){
   clearInterval(timer); confirmArmed = false;
   const s = session; if(!s) return; await closeDraft(); session = null;
-  const now = Date.now(), res = s.list.map((t,i)=>({ t, v:s.ans[i], right:String(s.key[t.num]||""), ok: !t.long && matchKey(s.key[t.num], s.ans[i]), inTime: !!s.ans[i].trim() && s.at[i] <= s.end }));
-  if(EXAMS[s.exam]) res.forEach(r=>{ if(!r.t.long && r.v.trim() && CAT[s.exam] && CAT[s.exam][r.t.num]) Points.logOge(s.exam, r.t.num, r.ok); });
+  const now = Date.now(), res = s.list.map((t,i)=>({ t, v:s.ans[i], right:String(s.key[t.num]||""), ok: !t.long && s.hasKey && matchKey(s.key[t.num], s.ans[i]), inTime: !!s.ans[i].trim() && s.at[i] <= s.end }));
+  if(EXAMS[s.exam] && s.hasKey) res.forEach(r=>{ if(!r.t.long && r.v.trim() && CAT[s.exam] && CAT[s.exam][r.t.num]) Points.logOge(s.exam, r.t.num, r.ok); });
   const auto = res.filter(r=>!r.t.long), okIn = auto.filter(r=>r.ok && r.inTime), okAll = auto.filter(r=>r.ok).length, answered = auto.filter(r=>r.v.trim()).length, late = auto.filter(r=>r.v.trim() && !r.inTime).length;
   const spent = Math.round((now - s.start)/60e3), limit = FULL_MIN[s.exam] || 180, wrong = auto.filter(r=>!r.ok).map(r=>r.t.num), longs = res.filter(r=>r.t.long).map(r=>r.t.num);
-  const tl = Object.assign({list:[]}, Store.get("ogeTests", {})); tl.list = tl.list.concat([{ ts:now, exam:s.exam, variant:s.v, src:"book", per: Object.fromEntries(res.map(r=>[r.t.num, r.t.long ? null : (r.ok && r.inTime ? 1 : 0)])), ok:okIn.length, okAll, n:auto.length, answered, late, pts:okIn.length, ptsMax:auto.length, spent, limit, wrong, longs, nb: draftSheets(s.nb).length ? s.nb : null }]); Store.set("ogeTests", tl, 0);
+  const tl = Object.assign({list:[]}, Store.get("ogeTests", {})); tl.list = tl.list.concat([{ ts:now, exam:s.exam, variant:s.v, src:"book", answers: Object.fromEntries(res.map(r=>[r.t.num, r.v])), unchecked: !s.hasKey, per: Object.fromEntries(res.map(r=>[r.t.num, r.t.long || !s.hasKey ? null : (r.ok && r.inTime ? 1 : 0)])), ok:okIn.length, okAll, n:auto.length, answered, late, pts:okIn.length, ptsMax:auto.length, spent, limit, wrong, longs, nb: draftSheets(s.nb).length ? s.nb : null }]); Store.set("ogeTests", tl, 0);
   const entry = tl.list[tl.list.length-1], teach = EXAMS[s.exam];
-  $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><a href="#oge/${s.exam}" class="btn">← К ОГЭ</a><b>${esc(exName(s.exam))}, вариант ${esc(s.v)}: верно ${okIn.length} из ${auto.length} с кратким ответом</b></div>
+  $("main").innerHTML = `<section class="panel oge-run"><div class="oge-top"><a href="#oge/${s.exam}" class="btn">← К ОГЭ</a><b>${esc(exName(s.exam))}, вариант ${esc(s.v)}: ${s.hasKey ? `верно ${okIn.length} из ${auto.length} с кратким ответом` : "ответы сохранены, проверка после чтения ответов сборника"}</b></div>
     <p>Время: ${spent} мин из ${limit}${spent>limit?` (сверх времени ${spent-limit} мин)`:""}. Сделано ${answered} из ${auto.length}${late?`, после звонка ${late}`:""}, верно всего ${okAll}.${longs.length?` Развёрнутые (${longs.join(", ")}) проверяет учитель.`:""}</p>
     <div class="tablewrap"><table class="grades ogeres"><thead><tr><th>№</th><th>Твой ответ</th><th>Ответ сборника</th><th></th></tr></thead><tbody>
-    ${res.map(r=>`<tr><td>${r.t.num}</td><td>${r.t.long?"—":esc(r.v||"—")}${!r.t.long&&r.v.trim()&&!r.inTime?` <span class="chip">после времени</span>`:""}</td><td>${r.t.long?"развёрнутый":esc(r.right)}</td><td>${r.t.long ? (teach && CAT[s.exam][r.t.num] ? `<a class="btn" href="#oge/${s.exam}/${r.t.num}">Показать учителю</a>` : `<a class="btn" href="#tutor">Показать учителю</a>`) : r.ok?`<span class="chip ok">верно</span>`:`<span class="chip warn">ошибка</span>`}</td></tr>`).join("")}
+    ${res.map(r=>`<tr><td>${r.t.num}</td><td>${r.t.long?"—":esc(r.v||"—")}${!r.t.long&&r.v.trim()&&!r.inTime?` <span class="chip">после времени</span>`:""}</td><td>${r.t.long?"развёрнутый":s.hasKey?esc(r.right):"ещё не прочитан"}</td><td>${r.t.long ? (teach && CAT[s.exam][r.t.num] ? `<a class="btn" href="#oge/${s.exam}/${r.t.num}">Показать учителю</a>` : `<a class="btn" href="#tutor">Показать учителю</a>`) : !s.hasKey ? `<span class="chip">не проверено</span>` : r.ok?`<span class="chip ok">верно</span>`:`<span class="chip warn">ошибка</span>`}</td></tr>`).join("")}
     </tbody></table></div>
     ${entry.nb ? `<details class="pages-ed" open><summary>Мои черновики (хранятся 30 дней)</summary><div id="drafts"></div></details>` : ""}</section>`;
   if(entry.nb && $("drafts")) draftsInto($("drafts"), entry);
+  if(!s.hasKey) return;
   await finish(`btest:${s.exam}`, okIn.length, auto.length || 1, `Вариант ${s.v} из сборника, ${exName(s.exam).toLowerCase()}`);
 }
 function startTest(exam){
@@ -652,5 +667,13 @@ function askTeacher(t, given, ok){
 }
 // ссылка «← Все задания» ведёт на тот же адрес, что уже открыт: перерисовываем список сами
 document.addEventListener("click", e=>{ const a = e.target.closest('a[href^="#oge/"]'); if(a && a.getAttribute("href") === location.hash){ e.preventDefault(); window.dispatchEvent(new HashChangeEvent("hashchange")); } });
-window.Oge = { render: renderMenu, openTask(e, n){ if(!CAT[e] || !CAT[e][n]) return renderMenu(e); EXAMS[e].tasks[n] ? startTrain(e, n) : startPractice(e, n); }, make, check, EXAMS, CAT, leave(){ if(session && session.audio) session.audio.pause(); clearInterval(timer); session = null; dropTeacher(); } };
+// пробные из сборника, решённые до того, как прочитаны ответы: проверяем, когда ответы появились
+function recheck(exam){
+  const b = bookOf(exam); if(!b) return 0; const K = Study.ogeKey(b).v || {}, tl = Object.assign({list:[]}, Store.get("ogeTests", {})); let n = 0;
+  tl.list = tl.list.map(t=>{ if(t.exam!==exam || !t.unchecked || !K[t.variant] || !t.answers) return t; const key = K[t.variant], per = {}; let ok = 0, all = 0;
+    Object.entries(t.answers).forEach(([num, v])=>{ const long = !String(key[num]||"").trim(); if(long){ per[num] = null; return; } all++; const good = matchKey(key[num], v); per[num] = good ? 1 : 0; if(good) ok++; if(EXAMS[exam] && CAT[exam] && CAT[exam][num] && String(v).trim()) Points.logOge(exam, Number(num), good); });
+    n++; return Object.assign({}, t, { unchecked:false, per, ok, okAll:ok, pts:ok, ptsMax:all, n:all }); });
+  if(n) Store.set("ogeTests", tl, 0); return n;
+}
+window.Oge = { recheck, render: renderMenu, openTask(e, n){ if(!CAT[e] || !CAT[e][n]) return renderMenu(e); EXAMS[e].tasks[n] ? startTrain(e, n) : startPractice(e, n); }, make, check, EXAMS, CAT, leave(){ if(session && session.audio) session.audio.pause(); clearInterval(timer); session = null; dropTeacher(); } };
 })();
