@@ -233,7 +233,7 @@ function renderAccount(openId){
       <p class="status" id="status-${b.id}" aria-live="polite"></p>
       <details class="pages-ed" ${openId===b.id?"open":""}><summary class="btn ${file && total && keysOf(b).every(k=>(m.pages||{})[k]) ? "pgok" : ""}" style="display:inline-block;margin-top:6px" title="${file && total && keysOf(b).every(k=>(m.pages||{})[k]) ? "Страницы указаны у всех параграфов" : `Страницы указаны у ${set} из ${total}`}">${file && total && keysOf(b).every(k=>(m.pages||{})[k]) ? "✓ " : ""}Номера страниц параграфов</summary>
         ${file && Store.aiAvailable() ? `<div class="editbar tocai"><span>Оглавление на страницах учебника</span><input type="number" min="1" max="999" data-tocfrom="${b.id}" value="${(m.tocPdf||[])[0]||""}" placeholder="с" aria-label="Первая страница оглавления"><span>по</span><input type="number" min="1" max="999" data-tocto="${b.id}" value="${(m.tocPdf||[])[1]||""}" placeholder="по" aria-label="Последняя страница оглавления"><button class="btn primary" type="button" data-tocai="${b.id}">Взять главы и страницы из оглавления</button><span class="sm">Номера как «стр.» в учебнике на сайте. ИИ прочитает оглавление: главы и параграфы станут точно как в книге, страницы впишутся сами. Отметки «пройдено» по старым темам могут сбиться.</span></div>` : ""}
-        <div class="editbar"><label for="offset-${b.id}">Страниц в файле до первой страницы учебника:</label><input type="number" id="offset-${b.id}" data-off="${b.id}" min="-50" max="300" value="${Number(m.offset)||0}"><span>Если в PDF есть обложка и титульные листы, впиши, сколько их. Тогда номера ниже совпадут с номерами в книге.</span></div>
+        <div class="editbar"><label for="offset-${b.id}">Страниц в файле до первой страницы учебника:</label><input type="number" id="offset-${b.id}" data-off="${b.id}" min="-50" max="300" value="${Number(m.offset)||0}">${file?`<button class="btn" type="button" data-detoff="${b.id}">Определить сам</button>`:""}<span>Если в PDF есть обложка и титульные листы, впиши, сколько их. Тогда номера ниже совпадут с номерами в книге.</span></div>
         ${b.groups.map((g,gi)=>g.chapters.map((c,ci)=>`<div class="grade chrow" style="padding-left:0"><span style="flex:1;min-width:0">${esc(c.n)} ${esc(c.t)}</span><input class="pgin" type="number" min="1" max="999" data-cpk="${gi}.${ci}" value="${(m.chapterPages||{})[gi+"."+ci]||""}" placeholder="стр." aria-label="Страница главы: ${esc(c.t)}"></div><ol class="paras" style="padding:0 0 6px">${
           c.p.map((p,pi)=>{ const k=`${b.id}.${gi}.${ci}.${pi}`; return `<li><span class="pn">${ci+1}.${pi+1}</span><span class="pt" style="flex:1;min-width:0">${esc(p)}</span><input class="pgin" type="number" min="1" max="999" id="pg-${k.replace(/\./g,'-')}" data-pk="${k}" value="${m.pages[k]||""}" placeholder="стр." aria-label="Страница: ${esc(p)}"></li>`; }).join("")}</ol>`).join("")).join("")}
       </details>
@@ -256,6 +256,10 @@ function renderAccount(openId){
   Study.bindOgeAdd(main, id=>{ renderShelf("account"); renderAccount(id); });
   Study.bindOgeKey(main, id=>renderAccount(id));
   Study.bindOgeInfo(main, id=>renderAccount(id));
+  main.querySelectorAll("[data-detoff]").forEach(btn=>btn.addEventListener("click", async()=>{ const b = ACCB().find(x=>x.id===btn.dataset.detoff); sayTarget = "status-"+b.id; btn.disabled = true; say("Сравниваю номера страниц в середине файла…");
+    const off = await detectOffset(b).catch(()=>null); btn.disabled = false;
+    if(off === null){ say("Не получилось определить: на страницах не видно номеров. Впиши сдвиг вручную.", true); return; }
+    const m = S.book(b.id); m.offset = off; await S.setBook(b.id, m); renderAccount(b.id); sayTarget = "status-"+b.id; say(`Сдвиг страниц: ${off}. Номера «стр.» теперь совпадают с книгой.`); }));
   main.querySelectorAll("[data-auto]").forEach(btn=>btn.addEventListener("click",()=>{ const b = ACCB().find(x=>x.id===btn.dataset.auto); sayTarget = "status-"+b.id; btn.disabled = true; autoPages(b).catch(e=>{ console.error(e); say("Не получилось прочитать учебник: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
   main.querySelectorAll("[data-open]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(ACCB().find(x=>x.id===btn.dataset.open), 0, "")));
   main.querySelectorAll("[data-tocai]").forEach(btn=>btn.addEventListener("click",()=>{ const b = ACCB().find(x=>x.id===btn.dataset.tocai); sayTarget = "status-"+b.id; btn.disabled = true;
@@ -297,7 +301,8 @@ async function tocPagesAi(b, from, to){
   if(to - from > 7) throw new Error("оглавление больше 8 страниц: укажи часть, например первые 8");
   const bookFrom = from, bookTo = to;
   // номера как «стр.» в учебнике -> номера страниц в файле (со сдвигом); если вышли за файл, прижимаем к краю
-  from = Math.max(1, Math.min(total, from + off0)); to = Math.max(from, Math.min(total, to + off0));
+  // на страницу шире с каждой стороны: если сдвиг страниц указан неточно, начало и конец оглавления не потеряются
+  from = Math.max(1, Math.min(total, from + off0 - 1)); to = Math.max(from, Math.min(total, to + off0 + 1));
   say(`Готовлю страницы оглавления ${bookFrom}–${bookTo}…`);
   const images = []; for(let n=from; n<=to; n++) images.push(await Reader.pageImage(b, n, 1300));
   say("Учитель читает оглавление…");
@@ -305,8 +310,9 @@ async function tocPagesAi(b, from, to){
   const t = String(r.text||""), a = t.indexOf("{"), z = t.lastIndexOf("}"); if(a<0 || z<a) throw new Error("учитель ответил не в том формате");
   const chapters = (JSON.parse(t.slice(a, z+1)).chapters||[]).map(c=>({ title:String(c.title||"").trim(), topics:(c.topics||[]).filter(x=>x && String(x.title||"").trim()).map(x=>({ title:String(x.title).trim(), page:x.page })) })).filter(c=>c.title && c.topics.length);
   if(!chapters.length) throw new Error("на этих страницах не нашлось оглавления. Проверь номера страниц");
-  const orig = b._orig || b.groups || [], gi = orig.length > 1 ? Math.max(0, orig.findIndex(g=>g.now)) : 0;
-  await Store.set("toc-"+b.id, { chapters, ts:Date.now(), keep:true, src:"pdf" }, 0);
+  // главы строго как в книге: вся структура учебника заменяется оглавлением
+  const gi = 0;
+  await Store.set("toc-"+b.id, { chapters, ts:Date.now(), src:"pdf" }, 0);
   Study.applyToc();
   const m = S.book(b.id); m.pages = {}; m.chapterPages = {}; m.tocPdf = [bookFrom, bookTo];
   let n = 0;
@@ -315,6 +321,26 @@ async function tocPagesAi(b, from, to){
   const all = chapters.reduce((s,c)=>s+c.topics.length,0);
   renderAccount(b.id); sayTarget = "status-"+b.id;
   say(`Готово: ${pl(chapters.length,"глава","главы","глав")} и ${pl(all,"параграф","параграфа","параграфов")} как в учебнике, страницы у ${n}. Проверь их ниже.`);
+}
+// сдвиг «страниц в файле до первой страницы книги»: берём страницы из середины файла и сравниваем номер в файле с напечатанным
+async function detectOffset(b){
+  const m = S.book(b.id), total = m.totalPages || 0; if(total < 6) return null;
+  const mid = Math.max(2, Math.floor(total/2)), pages = [mid, mid+1, mid+2, mid+5].filter(n=>n<=total), votes = {};
+  // 1) по тексту страницы: номер стоит отдельной строкой в начале или в конце
+  for(const n of pages){ let t = ""; try{ t = await Reader.pageText(b, n); }catch(e){}
+    const lines = t.split("\n").map(x=>x.trim()).filter(Boolean), edge = lines.slice(0,3).concat(lines.slice(-3));
+    new Set(edge.filter(x=>/^\d{1,3}$/.test(x)).map(Number)).forEach(c=>{ const off = n - c; if(off > -30 && off < 200) votes[off] = (votes[off]||0) + 1; }); }
+  let best = Object.entries(votes).sort((a,c)=>c[1]-a[1])[0];
+  if(best && best[1] >= 2) return Number(best[0]);
+  // 2) если текста нет (скан): ИИ смотрит на картинки двух страниц и читает напечатанный номер
+  if(!Store.aiAvailable()) return null;
+  try{ const two = pages.slice(0,2), images = [];
+    for(const n of two) images.push(await Reader.pageImage(b, n, 900));
+    const r = await Store.ask({ mode:"pagenum", images, text:`Картинок: ${images.length}.` });
+    const t = String(r.text||""), a = t.indexOf("{"), z = t.lastIndexOf("}"), j = JSON.parse(t.slice(a, z+1)), offs = (j.pages||[]).map((p,i)=>parseInt(p,10) > 0 ? two[i] - parseInt(p,10) : null).filter(x=>x!==null);
+    if(offs.length && offs.every(x=>x===offs[0]) && offs[0] > -30 && offs[0] < 200) return offs[0];
+  }catch(e){ console.warn("offset", e); }
+  return null;
 }
 function upErr(e){ const m = String((e && (e.message || e.error)) || e || "");
   if(/row-level security|policy|403|Unauthorized/i.test(m)) return "облако не разрешило сохранить файл (нужно заново запустить SQL из файла all-sql)";
@@ -366,8 +392,11 @@ async function handleFile(b, file, after){
   const inShared = ((Store.getShared && Store.getShared("book-"+b.id)) || {}).chunks || [];
   for(const c of old){ if(inShared.some(x=>x.path===c.path)) continue; try{ await Store.removeFile(c.path) }catch(e){} }
   if(window.Reader) Reader.clearCache();
+  say("Определяю, с какой страницы файла начинается нумерация книги…");
+  let offNote = "";
+  try{ const off = await detectOffset(b); if(off !== null){ const m2 = S.book(b.id); m2.offset = off; await S.setBook(b.id, m2); offNote = ` Сдвиг страниц определён сам: ${off}.`; } else offNote = " Сдвиг страниц определить не вышло, проверь его в «Номерах страниц параграфов»."; }catch(e){}
   if(after) after(); else renderAccount();
-  say(`Готово: ${pl(n,"страница","страницы","страниц")}. ${Store.mode==="cloud"?"Учебник откроется на любом устройстве после входа.":"Учебник сохранён в этом браузере."}`);
+  say(`Готово: ${pl(n,"страница","страницы","страниц")}.${offNote} ${Store.mode==="cloud"?"Учебник откроется на любом устройстве после входа.":"Учебник сохранён в этом браузере."}`);
 }
 
 /* ================= ДОСКА ================= */

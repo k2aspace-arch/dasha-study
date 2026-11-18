@@ -1,5 +1,5 @@
 // ИИ-учитель через OpenRouter: принимает вопрос с сайта и спрашивает Claude.
-// Версия функции: openrouter-8 (если в ответе ошибки нет слова OpenRouter, значит задеплоен старый код).
+// Версия функции: openrouter-9 (если в ответе ошибки нет слова OpenRouter, значит задеплоен старый код).
 // Ключ OpenRouter хранится в секретах Supabase (например, OPENROUTER_API_KEY), в браузер он не попадает.
 // Supabase сам проверяет, что запрос пришёл от вошедшего пользователя (JWT).
 
@@ -105,7 +105,7 @@ const CUT = `Ты учитель Клод. Составь «срез знани�
 
 const TOC = `Тебе присылают фото страниц оглавления школьного учебника. Извлеки структуру.
 Ответь ТОЛЬКО JSON без Markdown: {"chapters":[{"title":"Глава 1. ...","topics":[{"title":"§1. ...","page":<номер страницы как в оглавлении>}]}]}
-Сохраняй нумерацию и названия как в оглавлении. Ничего не выдумывай.`;
+Сохраняй нумерацию и названия как в оглавлении, все главы с первой до последней, по всем присланным страницам. Если среди картинок есть страницы не из оглавления, пропусти их. Пункты внутри параграфа (подпункты) не выписывай, только параграфы. Ничего не выдумывай.`;
 
 const TOCPAGES = `Тебе присылают картинки страниц оглавления школьного учебника и список тем сайта с ключами.
 Для каждой темы из списка найди в оглавлении её страницу (номер, напечатанный в оглавлении). Темы на сайте могут называться чуть иначе или идти в другом порядке: сопоставляй по смыслу. Если темы в оглавлении нет, не включай её.
@@ -120,6 +120,9 @@ const ANSKEY = `Тебе присылают картинки страниц с �
 const TRANSCRIBE = `Тебе присылают картинки страниц из сборника ОГЭ (инструкция по выполнению работы или справочные материалы). Перепиши их содержание точно и полностью, ничего не добавляя.
 Оформи в Markdown: заголовки, списки. Формулы пиши простым текстом (x², √x, a/b, π, ≤). Таблицы строками «a | b | c», первая строка — шапка. Рисунки и схемы опиши коротко в квадратных скобках: [рисунок: …].
 Ответь только этим текстом, без вступлений.`;
+
+const PAGENUM = `Тебе присылают картинки страниц книги по порядку. Для каждой найди номер страницы, напечатанный на ней (обычно внизу или вверху, у края). Не путай с номерами заданий и параграфов.
+Ответь ТОЛЬКО JSON без Markdown: {"pages":[<номер или null>, ...]} в том же порядке, что картинки.`;
 
 const INDEX = `Тебе дают текст страниц одного параграфа школьного учебника. Составь короткую карточку параграфа для учителя-репетитора.
 Ответь ТОЛЬКО JSON без Markdown:
@@ -311,7 +314,7 @@ Deno.serve(async (req) => {
     let system = SYSTEM, maxTokens = 4000;
     let history: Msg[] = [];
 
-    const SYS: Record<string, string> = { report: REPORT, quiz: QUIZ, quizcheck: QUIZCHECK, fill: FILL, cut: CUT, toc: TOC, index: INDEX, ogegen: OGEGEN, tocpages: TOCPAGES, anskey: ANSKEY, transcribe: TRANSCRIBE };
+    const SYS: Record<string, string> = { report: REPORT, quiz: QUIZ, quizcheck: QUIZCHECK, fill: FILL, cut: CUT, toc: TOC, index: INDEX, ogegen: OGEGEN, tocpages: TOCPAGES, anskey: ANSKEY, transcribe: TRANSCRIBE, pagenum: PAGENUM };
     if (SYS[mode]) system = SYS[mode];
     else {
       if (Array.isArray(pages) && pages.length) system += BOOK_RULES;
@@ -327,11 +330,11 @@ Deno.serve(async (req) => {
       maxTokens = 8000;
     } else if (mode === "index") {
       history = [{ role: "user", content: bookParts(pages ?? [], topic) }];
-    } else if (mode === "toc" || mode === "ogegen" || mode === "tocpages" || mode === "anskey" || mode === "transcribe") {
+    } else if (mode === "toc" || mode === "ogegen" || mode === "tocpages" || mode === "anskey" || mode === "transcribe" || mode === "pagenum") {
       const content: Part[] = [{ type: "text", text: String(body.text ?? "").slice(0, mode === "tocpages" ? 30000 : 4000) || "Вот страницы." }];
       for (const im of (Array.isArray(images) ? images : []).slice(0, 8)) content.push(img(String(im)));
       history = [{ role: "user", content }];
-      maxTokens = mode === "ogegen" || mode === "transcribe" ? 8000 : 6000;
+      maxTokens = mode === "toc" ? 16000 : mode === "ogegen" || mode === "transcribe" ? 8000 : 6000;
     } else if (mode === "fill") {
       const content: Part[] = [{ type: "text", text: `Сегодня: ${body.today ?? ""}. Предметы (id: название): ${JSON.stringify(body.subjects ?? [])}.\nТекст от пользователя:\n${String(body.text ?? "").slice(0, 20000)}` }];
       for (const im of (Array.isArray(images) ? images : []).slice(0, 8)) content.push(img(String(im)));
