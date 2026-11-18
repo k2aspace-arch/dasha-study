@@ -564,7 +564,7 @@ function renderStats(){
 
 /* ================= ВХОД ================= */
 function renderLogin(){
-  $("shelf").innerHTML = "";
+  $("shelf").innerHTML = ""; document.body.classList.add("is-login");
   $("main").innerHTML = `<section class="panel" style="max-width:440px"><h2>Вход</h2>
     <p class="hint" style="margin:0 0 14px">Войди, чтобы прогресс, оценки, учебники и доска синхронизировались на всех устройствах.</p>
     <form id="loginform" class="chatform" style="margin:0">
@@ -585,7 +585,7 @@ function renderLogin(){
 /* ================= МАРШРУТЫ ================= */
 let eNb = null;
 function emptyNb(e){ if(eNb) eNb.destroy(); eNb = Notebook.mount($("enb"), { bookId:e.id, key:"all", ruled: e.id==="rus", title:`Тетрадь · ${e.subject}`, sub: e.id==="rus" ? "В линейку, как школьная тетрадь по русскому." : "В клетку." }); }
-async function route(){
+async function route(){ document.body.classList.remove("is-login");
   Study.Dock.begin();
   await routeInner();
   if(Store.mode==="cloud" && !Store.user) Study.Dock.hide(); else Study.Dock.end(renderGeneralChat);

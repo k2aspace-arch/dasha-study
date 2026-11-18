@@ -810,3 +810,18 @@ table.grades .gcell.gcalc{color:var(--muted);opacity:.75;border-style:dashed}
 .savebox label{display:flex;gap:6px;align-items:center;cursor:pointer}
 .savebox textarea{font:inherit;padding:8px;border-radius:8px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);resize:vertical}
 .memonote{font-size:14px;margin:8px 0;padding:8px 10px;border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0}
+.ogeq{cursor:pointer}
+.ogedraft.open{margin-top:10px;cursor:default}
+.draftgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:8px 0}
+.draftcard{position:relative;margin:0;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;background:#fffefa}
+.draftcard img{width:100%;display:block;aspect-ratio:1200/1700;object-fit:cover}
+.draftcard figcaption{padding:4px 8px}
+.draftcard .ibtn{position:absolute;top:6px;right:6px}
+/* клетка на весь лист и вход по центру */
+html{min-height:100%;background:var(--paper)}
+body{min-height:100vh}
+body.is-login header.top{justify-content:center;text-align:center}
+body.is-login .layout{display:flex;justify-content:center}
+body.is-login #shelf{display:none}
+body.is-login .maincol{width:100%;max-width:440px}
+body.is-login #main .panel{margin:6vh auto 0}
