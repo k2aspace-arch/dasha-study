@@ -247,7 +247,7 @@ function drawQuiz(me, qs){
     <div class="btnrow"><button class="btn primary" type="submit">Сдать учителю</button></div></form>`;
   $("qbody").querySelectorAll("[data-sketch]").forEach(h=>sk[Number(h.dataset.sketch)] = Notebook.sketch(h));
   $("qform").addEventListener("submit", async e=>{
-    e.preventDefault(); const btn = $("qform").querySelector("[type=submit]"); btn.disabled = true; btn.textContent = "Учитель проверяет…";
+    e.preventDefault(); const btn = $("qform").querySelector("[type=submit]"); btn.disabled = true; btn.textContent = "Учитель проверяет…"; App.busy.start("Учитель проверяет тест");
     me.av.stop(); me.av.setMood("think"); me.av.say("Проверяю…");
     const given = qs.map((q,i)=> q.type==="choice" ? (($("qform").querySelector(`[name=q${i}]:checked`)||{}).value ?? "") : q.type==="draw" ? (sk[i] && !sk[i].empty() ? "рисунок" : "") : ($("qform").querySelector(`[data-short="${i}"]`).value.trim()));
     const res = qs.map((q,i)=> q.type==="choice" ? { ok: given[i]!=="" && Number(given[i])===Number(q.answer), comment: given[i]==="" ? "Нет ответа." : Number(given[i])===Number(q.answer) ? "Верно." : `Правильный ответ: ${(q.options||[])[q.answer]}` } : null);
@@ -261,6 +261,7 @@ function drawQuiz(me, qs){
         open.forEach(({i},j)=>{ const o = out[j] || {}; res[i] = given[i] ? { ok:!!o.ok, comment:o.comment || "" } : { ok:false, comment:"Нет ответа." }; });
       }
     }catch(err){ open.forEach(({q,i})=>{ if(!res[i]) res[i] = q.type==="short" && given[i] && given[i].toLowerCase().replace(/\s/g,"")===String(q.answer).toLowerCase().replace(/\s/g,"") ? {ok:true, comment:"Верно."} : {ok:false, comment:"Учитель не смог проверить этот ответ: " + err.message}; }); }
+    App.busy.end();
     if(cur!==me) return;
     const ok = res.filter(r=>r.ok).length, pct = ok/qs.length;
     // слабые темы: понижаем «знаю хорошо» до «надо повторить»

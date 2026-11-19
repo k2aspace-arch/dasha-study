@@ -290,7 +290,7 @@ function bindToc(root){
   $("tocadd").addEventListener("click", async()=>{ tocState.subj = $("tocsubj").value; const got = await Photo.pick(true); tocState.imgs = tocState.imgs.concat(got).slice(0,8); re(); });
   $("tocgo").addEventListener("click", async()=>{ tocState.subj = $("tocsubj").value; if(!tocState.imgs.length){ $("tocst").textContent = "Сначала добавь фото."; return; }
     $("tocgo").disabled = true; $("tocst").textContent = "ИИ читает оглавление…";
-    try{ const r = await Store.ask({ mode:"toc", images: tocState.imgs.map(x=>x.b64), text:`Учебник: ${ALLSUBJ().find(x=>x[0]===tocState.subj)[1]}, 9 класс.` });
+    try{ const r = await App.busy.run("Читаю оглавление по фото", ()=>Store.ask({ mode:"toc", images: tocState.imgs.map(x=>x.b64), text:`Учебник: ${ALLSUBJ().find(x=>x[0]===tocState.subj)[1]}, 9 класс.` }));
       const j = parseJson(r.text); if(!Array.isArray(j.chapters) || !j.chapters.length) throw new Error("оглавление не найдено"); tocState.result = j; re();
     }catch(e){ $("tocst").textContent = "Не получилось: " + e.message; $("tocgo").disabled = false; } });
   if($("tocdrop")) $("tocdrop").addEventListener("click", ()=>{ tocState.result = null; re(); });
@@ -399,10 +399,10 @@ const INFO_KINDS = { instr:"Инструкция по выполнению ра�
 const ogeInfo = b => Object.assign({}, Store.get("oinfo-"+b.id, {}) || {});
 function ogeInfoRows(){ return ""; }
 function bindOgeInfo(root, after){
-  root.querySelectorAll("[data-oiread]").forEach(btn=>btn.addEventListener("click", async()=>{ const [id, k] = btn.dataset.oiread.split(":"), b = OGE_BOOKS.find(x=>x.id===id), st = $(`status-oi-${id}-${k}`), say = t => { if(st) st.textContent = t; };
+  root.querySelectorAll("[data-oiread]").forEach(btn=>btn.addEventListener("click", async()=>{ const [id, k] = btn.dataset.oiread.split(":"), b = OGE_BOOKS.find(x=>x.id===id), st = $(`status-oi-${id}-${k}`), say = t => { if(st) st.textContent = t; App.busy.update(t); };
     let from = parseInt(root.querySelector(`[data-oifrom="${id}:${k}"]`).value,10), to = parseInt(root.querySelector(`[data-oito="${id}:${k}"]`).value,10);
     btn.disabled = true;
-    try{ await readInfo(b, k, from, to, say);
+    try{ await App.busy.run("Читаю " + INFO_KINDS[k].toLowerCase(), ()=>readInfo(b, k, from, to, say));
       after && after(b.id); }
     catch(e){ say("Не получилось: " + e.message); btn.disabled = false; } }));
 }
@@ -479,9 +479,9 @@ async function readKey(b, from, to, say){
   return Object.keys(key.v).length;
 }
 function bindOgeKey(root, after){
-  root.querySelectorAll("[data-okread]").forEach(btn=>btn.addEventListener("click", async()=>{ const b = OGE_BOOKS.find(x=>x.id===btn.dataset.okread), st = $("status-ok-"+b.id), say = t => { if(st) st.textContent = t; };
+  root.querySelectorAll("[data-okread]").forEach(btn=>btn.addEventListener("click", async()=>{ const b = OGE_BOOKS.find(x=>x.id===btn.dataset.okread), st = $("status-ok-"+b.id), say = t => { if(st) st.textContent = t; App.busy.update(t); };
     btn.disabled = true;
-    try{ const n = await readKey(b, parseInt(root.querySelector(`[data-okfrom="${b.id}"]`).value,10), parseInt(root.querySelector(`[data-okto="${b.id}"]`).value,10), say);
+    try{ const n = await App.busy.run("Читаю ответы сборника", ()=>readKey(b, parseInt(root.querySelector(`[data-okfrom="${b.id}"]`).value,10), parseInt(root.querySelector(`[data-okto="${b.id}"]`).value,10), say));
       after && after(b.id); const s2 = $("status-ok-"+b.id); if(s2) s2.textContent = n ? `Готово: ответы к ${pl(n,"варианту","вариантам","вариантам")}.` : "Ответов не нашлось: проверь страницы."; }
     catch(e){ say("Не получилось: " + e.message); btn.disabled = false; } }));
 }
@@ -526,7 +526,7 @@ function bindKnow(root){
   root.querySelectorAll("[data-classat]").forEach(s=>s.addEventListener("change", ()=>{ const d = classAt(); if(s.value) d[s.dataset.classat] = s.value; else delete d[s.dataset.classat]; Store.set("classAt", d, 0); }));
   root.querySelectorAll("[data-idx]").forEach(btn=>btn.addEventListener("click", ()=>{ const b = BOOKS.find(x=>x.id===btn.dataset.idx), st = $("status-"+b.id);
     if(building){ building.stop = true; return; }
-    btn.textContent = "Остановить"; buildIndex(b, t=>{ if(st) st.textContent = t; }, true).finally(()=>{ if(btn.isConnected) btn.textContent = "Дополнить карточки параграфов"; }); }));
+    btn.textContent = "Остановить"; App.busy.run("Составляю карточки параграфов", ()=>buildIndex(b, t=>{ if(st) st.textContent = t; App.busy.update(t); }, true)).catch(()=>{}).finally(()=>{ if(btn.isConnected) btn.textContent = "Дополнить карточки параграфов"; }); }));
 }
 
 /* ================= СРЕЗ ЗНАНИЙ ================= */

@@ -21,7 +21,7 @@ const S = {
   }
 };
 let done = {};
-window.App = { uploadPdf(b, f, sid, after){ sayTarget = sid; return handleFile(b, f, after).then(()=>{ sayTarget = sid; }).catch(e=>{ console.error(e); say("Не получилось загрузить файл: " + upErr(e), true); }); }, $, esc, pl, S, keysOf, get done(){ return done }, setDone(k, on){ if(on) done[k] = Date.now(); else delete done[k]; saveDone(); } };
+window.App = { get busy(){ return Busy; }, uploadPdf(b, f, sid, after){ sayTarget = sid; return Busy.run("Загружаю файл", ()=>handleFile(b, f, after)).then(()=>{ sayTarget = sid; }).catch(e=>{ console.error(e); say("Не получилось загрузить файл: " + upErr(e), true); }); }, $, esc, pl, S, keysOf, get done(){ return done }, setDone(k, on){ if(on) done[k] = Date.now(); else delete done[k]; saveDone(); } };
 function loadDone(){ done = Object.assign({}, S.progress().done || {}); }
 function saveDone(){ Store.set("progress", {done}); }
 const pct = b => { const k=keysOf(b); return k.length ? Math.round(100*k.filter(x=>done[x]).length/k.length) : 0 };
@@ -285,19 +285,19 @@ function renderAccount(openId){
   main.querySelectorAll("[data-up]").forEach(btn=>{ const id = btn.dataset.up, b = ACCB().find(x=>x.id===id), fi = $("file-"+id);
     btn.addEventListener("click",()=>fi.click());
     fi.addEventListener("change",()=>{ const f = fi.files && fi.files[0]; fi.value = ""; sayTarget = "status-"+id;
-      handleFile(b, f).catch(e=>{ console.error(e); say("Не получилось загрузить файл: " + upErr(e), true); }); });
+      Busy.run("Загружаю учебник", ()=>handleFile(b, f)).catch(e=>{ console.error(e); say("Не получилось загрузить файл: " + upErr(e), true); }); });
   });
   Study.bindOgeAdd(main, id=>{ renderShelf("account"); renderAccount(id); if(id){ const el = main.querySelector(`[data-book="${id}"]`); if(el) el.scrollIntoView({ block:"center" }); } });
   Study.bindOgeKey(main, id=>renderAccount(id));
   Study.bindOgeInfo(main, id=>renderAccount(id));
   main.querySelectorAll("[data-detoff]").forEach(btn=>btn.addEventListener("click", async()=>{ const b = ACCB().find(x=>x.id===btn.dataset.detoff); sayTarget = "status-"+b.id; btn.disabled = true; say("Сравниваю номера страниц в середине файла…");
-    const off = await detectOffset(b).catch(()=>null); btn.disabled = false;
+    const off = await Busy.run("Определяю сдвиг страниц", ()=>detectOffset(b)).catch(()=>null); btn.disabled = false;
     if(off === null){ say("Не получилось определить: на страницах не видно номеров. Впиши сдвиг вручную.", true); return; }
     const m = S.book(b.id); m.offset = off; await S.setBook(b.id, m); renderAccount(b.id); sayTarget = "status-"+b.id; say(`Сдвиг страниц: ${off}. Номера «стр.» теперь совпадают с книгой.`); }));
   Study.bindKnow(main);
   main.querySelectorAll("[data-open]").forEach(btn=>btn.addEventListener("click",()=>Reader.open(ACCB().find(x=>x.id===btn.dataset.open), 0, "")));
   main.querySelectorAll("[data-tocai]").forEach(btn=>btn.addEventListener("click",()=>{ const b = ACCB().find(x=>x.id===btn.dataset.tocai); sayTarget = "status-"+b.id; btn.disabled = true;
-    tocPagesAi(b, parseInt(main.querySelector(`[data-tocfrom="${b.id}"]`).value,10), parseInt(main.querySelector(`[data-tocto="${b.id}"]`).value,10))
+    Busy.run("Читаю оглавление", ()=>tocPagesAi(b, parseInt(main.querySelector(`[data-tocfrom="${b.id}"]`).value,10), parseInt(main.querySelector(`[data-tocto="${b.id}"]`).value,10)))
       .catch(e=>{ console.error(e); say("Не получилось: "+e.message, true); }).finally(()=>{ btn.disabled = false; }); }));
   main.querySelectorAll("section[data-book]").forEach(sec=>{ const id = sec.dataset.book;
     const save = () => { const m = S.book(id); m.pages = Object.assign({}, m.pages);
@@ -308,6 +308,28 @@ function renderAccount(openId){
   });
 }
 let sayTarget = "status";
+/* общая шкала для долгих дел (загрузка, оглавление, ответы, проверка): процент, текущий шаг и можно ли закрывать страницу */
+const Busy = (()=>{ let n = 0, cur = null, hideT = null;
+  const box = () => { let x = $("busy"); if(!x){ x = document.createElement("div"); x.id = "busy"; x.setAttribute("role","status"); x.setAttribute("aria-live","polite"); document.body.appendChild(x); } return x; };
+  const pctOf = t => { let m = /(\d+)\s*[–-]\s*(\d+)\s+из\s+(\d+)\s*[–-]\s*(\d+)/.exec(t); if(m && m[4] > m[3]) return Math.min(.98, (m[2]-m[3]+1)/(m[4]-m[3]+1));
+    m = /(\d+)\s+из\s+(\d+)/.exec(t); if(m && Number(m[2]) > 0 && Number(m[1]) <= Number(m[2])) return Math.min(.98, m[1]/m[2]); return null; };
+  function draw(){ if(!cur || cur.quiet) return; const x = box(); clearTimeout(hideT); x.hidden = false; x.className = "busy" + (cur.done ? (cur.err ? " err" : " ok") : "");
+    const p = cur.pct;
+    x.innerHTML = `<div class="busy-h">${cur.done ? "" : `<span class="spin" aria-hidden="true"></span>`}<b>${esc(cur.label)}</b><span style="flex:1"></span>${cur.done ? `<button class="ibtn" type="button" data-bx aria-label="Скрыть">✕</button>` : p!=null ? `<span class="sm">${Math.round(p*100)}%</span>` : ""}</div>
+      ${cur.text ? `<div class="busy-t">${esc(cur.text)}</div>` : ""}${cur.done ? "" : `<div class="busy-bar ${p==null?"ind":""}"><i style="width:${p==null?35:Math.max(3,Math.round(p*100))}%"></i></div>`}
+      <div class="busy-w">${cur.done ? (cur.err ? "Не получилось. Страницу можно обновлять и закрывать." : "✓ Готово. Страницу можно обновлять и закрывать.") : "⚠ Не закрывай и не обновляй страницу, пока идёт процесс: иначе он прервётся и его придётся запускать заново."}</div>`;
+    const bx = x.querySelector("[data-bx]"); if(bx) bx.onclick = () => { x.hidden = true; }; }
+  const B = {
+    active: () => n > 0,
+    // quiet: своя шкала на странице, здесь только защита от закрытия
+    start(label, quiet){ n++; cur = { label, text:"", pct:null, quiet:!!quiet }; draw(); },
+    update(text, pct){ if(!cur || cur.done || n <= 0) return; if(text) cur.text = String(text); const q = pct ?? (text ? pctOf(String(text)) : null); if(q != null) cur.pct = q; draw(); },
+    end(err){ n = Math.max(0, n-1); if(n || !cur) return; cur.done = true; cur.err = !!err; if(typeof err === "string") cur.text = err; else if(!err) cur.text = ""; draw();
+      hideT = setTimeout(()=>{ const x = $("busy"); if(x) x.hidden = true; }, err ? 9000 : 4500); },
+    async run(label, fn, quiet){ B.start(label, quiet); try{ const r = await fn(); B.end(); return r; }catch(e){ B.end("Не получилось: " + ((e && e.message) || e)); throw e; } }
+  };
+  return B; })();
+window.addEventListener("beforeunload", e=>{ if(Busy.active()){ e.preventDefault(); e.returnValue = ""; return ""; } });
 // Поиск страниц тем по тексту PDF: ищем заголовок каждой темы по порядку, пропуская оглавление.
 // главы, параграфы и страницы строго по оглавлению учебника: картинки страниц оглавления из PDF -> ИИ читает их
 async function tocPagesAi(b, from, to){
@@ -367,7 +389,7 @@ function upErr(e){ const m = String((e && (e.message || e.error)) || e || "");
   if(/too large|exceeded|413|maximum allowed size/i.test(m)) return "файл слишком большой для облака";
   if(/Failed to fetch|NetworkError|network|timeout/i.test(m)) return "оборвалось соединение, попробуй ещё раз";
   return m.slice(0, 200) || "неизвестная ошибка"; }
-function say(t, err){ const st = $(sayTarget); if(st){ st.textContent = t; st.classList.toggle("err", !!err); } }
+function say(t, err){ const st = $(sayTarget); if(st){ st.textContent = t; st.classList.toggle("err", !!err); } if(!err) Busy.update(t); }
 function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("script "+src)); document.head.appendChild(s); }); }
 
 async function handleFile(b, file, after){

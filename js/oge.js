@@ -543,7 +543,9 @@ function startBookTest(exam, v){
 }
 async function submitBookTest(){
   clearInterval(timer); confirmArmed = false;
-  const s = session; if(!s) return; await closeDraft(); session = null; Study.Dock.tip("");
+  const s = session; if(!s) return; await closeDraft(); session = null; Study.Dock.tip(""); App.busy.start("Проверка пробного", true);
+  try{ await submitBookTest2(s); App.busy.end(); }catch(e){ App.busy.end(String(e.message||e)); throw e; } }
+async function submitBookTest2(s){
   const pages = [...document.querySelectorAll("#vpages .vpage img")].map(im=>String(im.src).split(",")[1]).filter(Boolean);
   const b = bookOf(s.exam), now = Date.now();
   const rows = s.list.map((t,i)=>({ i, t, num:t.num, v:s.ans[i], long:t.long, max: t.long ? ((CAT[s.exam]||{})[t.num]||[])[1] || 2 : 1, inTime: !!s.ans[i].trim() && s.at[i] <= s.end }));
@@ -571,8 +573,10 @@ const STEPS = ["Ответы сборника", "Сверка кратких о�
 function progHtml(){ if(!prog) return "";
   return `<div class="ogeprog" id="ogeprog" role="status" aria-live="polite"><span class="spin" aria-hidden="true"></span><div class="pbody"><b id="ogestat">${esc(prog.text||"Проверяю…")}</b>
     <div class="pbar"><i style="width:${Math.round((prog.pct||0)*100)}%"></i></div>
+    <p class="busy-w" style="margin:6px 0 0">⚠ Не закрывай и не обновляй страницу, пока идёт проверка: иначе она прервётся.</p>
     <ol class="psteps">${STEPS.map((t,i)=>`<li class="${i+1<prog.step?"done":i+1===prog.step?"now":""}">${i+1<prog.step?"✓ ":""}${t}</li>`).join("")}</ol></div></div>`; }
 function status(t, step, pct){
+  if(t) App.busy.update(t);
   if(!t){ prog = null; const el = $("ogeprog"); if(el) el.remove(); return; }
   prog = Object.assign(prog || { step:1, pct:0 }, { text:t }, step ? { step } : {}, pct !== undefined ? { pct } : {});
   const m = /страницы (\d+)–(\d+) из (\d+)–(\d+)/.exec(t); if(m) prog.pct = Math.min(.95, (m[2]-m[3]+1) / (m[4]-m[3]+1));
@@ -744,7 +748,9 @@ function confirmInline(empty){
 }
 async function submitTest(){
   clearInterval(timer); confirmArmed = false;
-  const s = session; if(!s) return; await closeDraft(); session = null; Study.Dock.tip("");
+  const s = session; if(!s) return; await closeDraft(); session = null; Study.Dock.tip(""); App.busy.start("Проверка пробного", true);
+  try{ await submitTest2(s); App.busy.end(); }catch(e){ App.busy.end(String(e.message||e)); throw e; } }
+async function submitTest2(s){
   const now = Date.now(), rows = s.list.map((t,i)=>{ const v = s.ans[i], ok = !!v.trim() && check(t, v); return { i, t, num:t.num, v, max: maxOf(s.exam, t.num), ok, score: ok ? maxOf(s.exam, t.num) : 0, state: !v.trim() ? "empty" : ok ? "ok" : "bad", inTime: !!v.trim() && s.at[i] <= s.end }; });
   const tl = Object.assign({list:[]}, Store.get("ogeTests", {})); tl.list = tl.list.concat([{ ts:now, exam:s.exam, pending:true, spent: Math.round((now - s.start)/60e3), limit: EXAMS[s.exam].test.min, nb: draftSheets(s.nb).length ? s.nb : null, nums: s.list.map(t=>t.num) }]); Store.set("ogeTests", tl, 0);
   const o = { s, rows, head: EXAMS[s.exam].name, back:`#oge/${s.exam}`, backT:"← К заданиям", showTask:true }; prog = { step:2, pct:0.4, text:"Сверяю ответы…" };
@@ -795,9 +801,9 @@ function review(exam, ts){
       ${r.comment ? `<p class="hint revcomm">${esc(r.comment)}</p>` : ""}
       ${have.has("t"+r.i) || have.has("c"+r.i) ? `<div class="ogetools">${have.has("t"+r.i) ? `<button class="btn ictool has" type="button" data-revimg="t${r.i}">${IC_NB}<span>Черновик</span></button>` : ""}${have.has("c"+r.i) ? `<button class="btn ictool blank has" type="button" data-revimg="c${r.i}">${IC_BLANK}<span>Бланк №2</span></button>` : ""}</div><div class="revimgs" data-revbox="${r.i}"></div>` : ""}</div>`).join("")}</div>
     <p class="hint"><a href="#oge/${exam}">← К заданиям ОГЭ</a>. Ошибки и нерешённые задания уже в рекомендациях на главной.</p></section>`;
-  if($("revcheck")) $("revcheck").addEventListener("click", async()=>{ const btn = $("revcheck"), say = x => { const el = $("revst"); if(el) el.textContent = x; };
+  if($("revcheck")) $("revcheck").addEventListener("click", async()=>{ const btn = $("revcheck"), say = x => { const el = $("revst"); if(el) el.textContent = x; App.busy.update(x); };
     if(!Store.aiAvailable()){ say("Учитель пока не подключён."); return; }
-    btn.disabled = true;
+    btn.disabled = true; App.busy.start("Проверка пробного");
     try{
       if(b && Study.ogeSections(b).key && !Object.keys(K).length){ say("Учитель читает ответы сборника (один раз на весь сборник)…"); await Study.ogeReadKey(b, say); }
       const K2 = b && t.variant ? ((Study.ogeKey(b).v||{})[t.variant] || {}) : {};
@@ -812,8 +818,8 @@ function review(exam, ts){
       rerender = null; prog = null;
       await aiCheck({ exam, v:t.variant, nb:t.nb, mode: t.src==="book" ? "btest" : "test" }, rr, { pages });
       saveResult({ exam, mode: t.src==="book" ? "btest" : "test" }, rr, t.ts, {});
-      review(exam, ts);
-    }catch(e){ console.warn(e); say("Не получилось: " + e.message); btn.disabled = false; } });
+      App.busy.end(); review(exam, ts);
+    }catch(e){ console.warn(e); App.busy.end("Не получилось: " + e.message); const el = $("revst"); if(el) el.textContent = "Не получилось: " + e.message; btn.disabled = false; } });
   if($("revbook")) $("revbook").addEventListener("click", ()=>{ closeSide(); Reader.open(b, page, `Вариант ${t.variant}`, "right"); });
   if($("revkey")) $("revkey").addEventListener("click", ()=>{ const was = document.querySelector(".sidepane"); closeSide(); $("revkey").setAttribute("aria-pressed", "false"); if(was) return;
     if(window.Reader && Reader.state().open && !Reader.state().min) Reader.minimize();
