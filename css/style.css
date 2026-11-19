@@ -1079,3 +1079,14 @@ body.dock-open.nb-side{padding-right:calc((100vw - var(--dockw)) / 2 + var(--doc
 .busy.ok .busy-w{color:#2ea36b}
 @media (prefers-reduced-motion: reduce){ .busy-bar.ind i{animation:none;left:0;width:100%!important;opacity:.5} }
 .busy .spin{flex:none;width:16px;height:16px;border-radius:50%;border:2.5px solid var(--line);border-top-color:var(--accent);animation:ogespin 1s linear infinite}
+/* задание ОГЭ: какие темы нужно знать */
+.ogetype .num{display:flex;align-items:center;gap:4px}
+.needbtn{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line);background:var(--card);color:var(--muted);font:inherit;font-size:12px;font-weight:700;line-height:1;cursor:pointer;padding:0;flex:none}
+.needbtn:hover,.needbtn[aria-expanded="true"]{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.ogetype{grid-template-columns:52px minmax(0,1fr) auto auto}
+.ogeneed{margin:-2px 0 6px 52px;padding:10px 12px;border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 10px 10px 0}
+.needlist{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.needlist li{line-height:1.4}
+.needlist .knchip,.needlist .tchk{margin-left:4px}
+.sp-pages{display:flex;flex-direction:column;gap:10px}
+@media (max-width:560px){ .ogeneed{margin-left:0} }

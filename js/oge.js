@@ -278,6 +278,68 @@ const BUDGET = {
   math: [["Прочитать весь вариант и наметить порядок", 10], ["Перенести краткие ответы в бланк ответов №1", 10], ["Переписать решения развёрнутых заданий на бланк №2 (чистовик)", 25], ["Перепроверить себя: ответы, единицы, перенос в бланки", 30], ["Резерв на трудное задание", 15]],
   rus: [["Прочитать текст варианта (для заданий 2–13)", 10], ["Перенести краткие ответы в бланк ответов №1", 8], ["Переписать изложение и сочинение на бланк №2 (чистовик)", 30], ["Перепроверить себя: орфография, пунктуация, число слов", 20], ["Резерв", 15]]
 };
+/* какие темы нужно знать для задания: названия и основы слов для поиска в оглавлениях учебников */
+const NEED = {
+  math: {
+    1:[["Проценты и доли","процент|дол"],["Отношения и пропорции, масштаб","отношени|пропорц|масштаб"],["Площади фигур","площад"]],
+    2:[["Проценты и доли","процент|дол"],["Отношения и пропорции, масштаб","отношени|пропорц|масштаб"]],
+    3:[["Площади и периметры","площад|периметр"],["Теорема Пифагора","пифагор"]],
+    4:[["Теорема Пифагора","пифагор"],["Площади фигур","площад"],["Длина окружности","длина окружност|окружност"]],
+    5:[["Проценты","процент"],["Расчёты по формулам, округление","формул|приближен|округлен"]],
+    6:[["Обыкновенные и десятичные дроби","дроб"],["Действия с рациональными числами","рациональн|действительн"]],
+    7:[["Координатная прямая","координатн прям|числов прям"],["Сравнение чисел, модуль","сравнен|модул"],["Числовые промежутки","промежут|интервал"]],
+    8:[["Степень с целым показателем","степен"],["Квадратный корень и его свойства","корн|корень|радикал"]],
+    9:[["Линейные уравнения","линейн уравнен|уравнен"],["Квадратные уравнения","квадратн уравнен|дискриминант|виет"],["Рациональные уравнения","рациональн уравнен|дробн"]],
+    10:[["Вероятность случайных событий","вероятност|событи|случайн"],["Комбинаторика","комбинатор|перестанов|сочетан"]],
+    11:[["Линейная функция","линейн функц"],["Квадратичная функция, парабола","квадратичн|парабол"],["Обратная пропорциональность, гипербола","гипербол|обратн пропорц"],["Свойства функций","функц|график"]],
+    12:[["Буквенные выражения, подстановка в формулы","выражен|формул|подстанов"]],
+    13:[["Линейные неравенства","линейн неравенств|неравенств"],["Квадратные неравенства, метод интервалов","квадратн неравенств|интервал"],["Системы неравенств","систем неравенств"]],
+    14:[["Арифметическая прогрессия","арифметическ прогресси"],["Геометрическая прогрессия","геометрическ прогресси"],["Последовательности","последовательн|прогресси"]],
+    15:[["Треугольники и их свойства","треугольник"],["Теорема Пифагора","пифагор"],["Синус, косинус, тангенс","синус|косинус|тангенс|тригонометр"],["Подобие треугольников","подоби"]],
+    16:[["Окружность и круг","окружност|круг"],["Вписанные и центральные углы","вписан|центральн угл"],["Касательная и хорда","касательн|хорд"]],
+    17:[["Параллелограмм и его виды","параллелограмм|ромб|прямоугольник|квадрат"],["Трапеция","трапеци"],["Четырёхугольники","четырехугольник|многоугольник"]],
+    18:[["Площади фигур","площад"],["Координаты и векторы","координат|вектор"]],
+    19:[["Признаки и свойства фигур","признак|свойств"],["Параллельные прямые","параллельн"],["Треугольники и окружность","треугольник|окружност"]],
+    20:[["Рациональные выражения","рациональн|дробн|выражен"],["Уравнения и системы уравнений","систем уравнен|уравнен"],["Неравенства","неравенств"]],
+    21:[["Текстовые задачи: движение, работа, проценты","текстов|задач|движени|процент"],["Решение задач с помощью уравнений","уравнен"]],
+    22:[["Функции и их графики","функц|график"],["Квадратичная функция","квадратичн|парабол"],["Гипербола","гипербол"]],
+    23:[["Подобие треугольников","подоби"],["Площади","площад"],["Окружность","окружност"],["Тригонометрия в треугольнике","синус|косинус|тангенс"]],
+    24:[["Признаки равенства треугольников","равенств треугольник|признак"],["Признаки подобия","подоби"],["Свойства параллелограмма и окружности","параллелограмм|окружност"]],
+    25:[["Подобие","подоби"],["Окружность, вписанные и описанные фигуры","вписан|описан|окружност"],["Площади","площад"],["Трапеция","трапеци"]]
+  },
+  rus: {
+    1:[["Текст, микротемы, абзацы","текст|микротем|абзац"],["Приёмы сжатия текста","сжат|изложен"]],
+    2:[["Грамматическая основа: подлежащее и сказуемое","подлежащ|сказуем|грамматическ основ"],["Односоставные предложения","односоставн"]],
+    3:[["Сложное предложение: виды связи","сложн предложен|сложносочин|сложноподчин|бессоюзн"],["Синтаксический анализ","синтакси"]],
+    4:[["Пунктуация в простом предложении","обособлен|вводн|обращени|однородн"],["Знаки препинания","знак препинан|пунктуац"]],
+    5:[["Запятые в сложном предложении","сложносочин|сложноподчин|бессоюзн|сложн предложен"],["Обособленные члены, вводные слова","обособлен|вводн"]],
+    6:[["Орфография: приставки, суффиксы, Н и НН","правописан|приставк|суффикс|орфограф"],["Не с разными частями речи","не с"]],
+    7:[["Правописание гласных и согласных","правописан|гласн|согласн|орфограф"]],
+    8:[["Грамматические нормы, формы слов","норм|форм слов|морфологи"],["Части речи","част речи|причаст|деепричаст"]],
+    9:[["Языковые нормы","норм|ударени"]],
+    10:[["Текст и его смысл","текст|смысл"]],
+    11:[["Средства выразительности","выразительн|троп|метафор|эпитет|сравнен"]],
+    12:[["Лексика: синонимы, стили","лексик|синоним|стил|фразеолог"]],
+    13:[["Сочинение-рассуждение","сочинен|рассуждени"],["Аргументы, тезис, вывод","аргумент|тезис"]]
+  }
+};
+const NEED_SUBJ = { math:/алгебр|геометр|вероятн|математ/i, rus:/русск/i };
+const nrmT = t => String(t||"").toLowerCase().replace(/ё/g,"е");
+// темы учебников под задание: поиск по оглавлению, рядом — как изучено (тест, оценка учителя)
+function needHtml(exam, n){
+  const L = (NEED[exam]||{})[n]; if(!L) return "";
+  const books = (window.BOOKS||[]).filter(b=>NEED_SUBJ[exam] && NEED_SUBJ[exam].test(b.subject||"") && b.groups && b.groups.length), hits = [];
+  books.forEach(b=>b.groups.forEach((g,gi)=>g.chapters.forEach((c,ci)=>c.p.forEach((p,pi)=>{ const t = nrmT(p), ct = nrmT(c.t);
+    const by = L.filter(([, kw])=>kw.split("|").some(w=>w.split(" ").every(part=>t.includes(part)))); const byCh = by.length ? [] : L.filter(([, kw])=>kw.split("|").some(w=>w.split(" ").every(part=>ct.includes(part))));
+    if(by.length || byCh.length) hits.push({ b, key:`${b.id}.${gi}.${ci}.${pi}`, href:`#t/${b.id}/${gi}.${ci}.${pi}`, title:p, ch:c.t, score: by.length*2 + byCh.length }); }))));
+  hits.sort((a,c)=>c.score-a.score); const top = hits.slice(0, 12);
+  const kd = Topic.know().k, chipOf = k => { const r = Topic.testOf(k), v = kd[k];
+    return (r && r.pass ? `<span class="tchk" title="Тема освоена: тест пройден">✓</span>` : "") + (v!==undefined ? `<span class="knchip kn${v}">${esc(Topic.KNOW[v])}</span>` : (r && r.pass ? "" : `<span class="knchip">не проверено</span>`)); };
+  const good = top.filter(h=>(Topic.testOf(h.key)||{}).pass || kd[h.key]===3).length;
+  return `<div class="ogeneed"><p class="sm" style="margin:0 0 6px"><b>Что нужно знать:</b> ${L.map(x=>esc(x[0])).join(" · ")}</p>
+    ${top.length ? `<p class="sm" style="margin:0 0 6px">В учебниках ${pl(top.length,"тема","темы","тем")}, изучено хорошо ${good} из ${top.length}:</p><ul class="needlist">${top.map(h=>`<li><a class="tlink" href="${h.href}">${esc(h.title)}</a> <span class="sm">${esc(h.b.subject)} · ${esc(h.ch)}</span> ${chipOf(h.key)}</li>`).join("")}</ul>`
+      : `<p class="sm" style="margin:0">В оглавлениях учебников таких тем не нашлось${books.length ? "" : ": учебник по предмету ещё не добавлен"}. Спроси учителя на тренировке.</p>`}</div>`;
+}
 const tgt = (exam, n) => ((TARGET[exam]||{})[n] || 0) * 60;
 const mmss = sec => { sec = Math.max(0, Math.round(sec)); return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,"0")}`; };
 // время решения на тренировках: { "math:6": [[ts, сек, верно], …] }
@@ -353,7 +415,7 @@ function renderMenu(only){
       ${selfHtml(id)}
       ${hasBook(id) ? "" : `<button class="btn primary" type="button" data-test="${id}">${E.test.title}, ${E.test.min} минут</button>`}
       <div class="oge-types">${Object.entries(C).map(([n,[t,max]])=>{ const auto = !!E.tasks[n], c = (oc[id]||{})[n] || 0;
-        return `<div class="ogetype"><span class="num">${n}</span><span class="nm">${esc(t)} <span class="chip ${max>1?"warn":""}">${pl(max,"балл","балла","баллов")}</span>${tchip(id,n)}${auto?"":` <span class="chip">с учителем</span>`}</span>${bar(id,n)}<span class="sm ${c>=goal?"okc":""}" title="Цель: 30 верных из 33 последних">${c}/30</span><button class="btn" type="button" data-train="${id}:${n}">${auto?"Тренировать":"Решать"}</button></div>`; }).join("")}</div>
+        return `<div class="ogetype"><span class="num">${n}<button class="needbtn" type="button" data-need="${id}:${n}" aria-expanded="false" title="Какие темы нужно знать" aria-label="Какие темы нужно знать для задания ${n}">?</button></span><span class="nm">${esc(t)} <span class="chip ${max>1?"warn":""}">${pl(max,"балл","балла","баллов")}</span>${tchip(id,n)}${auto?"":` <span class="chip">с учителем</span>`}</span>${bar(id,n)}<span class="sm ${c>=goal?"okc":""}" title="Цель: 30 верных из 33 последних">${c}/30</span><button class="btn" type="button" data-train="${id}:${n}">${auto?"Тренировать":"Решать"}</button></div>`; }).join("")}</div>
       </section>`; };
   $("main").innerHTML = `<div class="stack">
     <section class="panel"><h2>${only ? "ОГЭ: " + EXAMS[only].name.toLowerCase() : "ОГЭ"}</h2></section>
@@ -365,6 +427,9 @@ function renderMenu(only){
       <p class="hint">У каждого задания полоска из 33 последних решений: зелёные — верно, красные — ошибки (тренировки, задания с учителем и пробные вместе; решения из пробных — с тёмной риской снизу). Рядом с заданием ⏱ целевое время с запасом и твоё среднее время на тренировках. Цель на ноутбук: у каждого задания 30 верных из 33 последних. Чем больше красного, тем дольше стоит решать.</p>
     </details></div>`;
   $("main").querySelectorAll("[data-train]").forEach(b=>b.addEventListener("click",()=>{ const [e,n] = b.dataset.train.split(":"); EXAMS[e].tasks[n] ? startTrain(e, Number(n)) : startPractice(e, Number(n)); }));
+  $("main").querySelectorAll("[data-need]").forEach(b=>b.addEventListener("click", ()=>{ const row = b.closest(".ogetype"), nx = row.nextElementSibling;
+    if(nx && nx.classList.contains("ogeneed")){ nx.remove(); b.setAttribute("aria-expanded","false"); return; }
+    const [e, n] = b.dataset.need.split(":"); row.insertAdjacentHTML("afterend", needHtml(e, Number(n))); b.setAttribute("aria-expanded","true"); }));
   $("main").querySelectorAll("[data-test]").forEach(b=>b.addEventListener("click",()=>startTest(b.dataset.test)));
   bindBookBlock(); bindSelf();
   $("main").querySelectorAll("[data-hdraft]").forEach(b=>b.addEventListener("click",()=>{ const ts = b.dataset.hdraft, row = $("main").querySelector(`[data-hrow="${ts}"]`); row.hidden = !row.hidden;
@@ -787,7 +852,7 @@ function review(exam, ts){
   const late = rows.filter(r=>r.late);
   const head = `${esc(exName(exam))}${t.variant ? `: вариант ${esc(t.variant)}` : ": пробный вариант"}`;
   $("main").innerHTML = `<section class="panel oge-run review"><div class="oge-top"><a href="#oge/${exam}" class="btn">← К ОГЭ</a><b>${head}</b><span class="chip ${t.pts!==undefined && fullMax(t) && t.pts/fullMax(t) >= .5 ? "ok" : ""}">${t.pts!==undefined ? `${t.pts} из ${fullMax(t)} баллов` : `${t.ok} из ${t.n}`}</span>
-      ${page ? `<button class="btn" type="button" id="revbook" title="Сборник откроется справа">📖 Сборник, стр. ${page} ⇥</button>` : ""}${b && t.variant && (rows.some(r=>r.right!==undefined && String(r.right).trim()) || Study.ogeSections(b).key) ? `<button class="btn" type="button" id="revkey" aria-pressed="false" title="Ответы этого варианта справа, экран делится пополам">🔑 Ответы варианта ⇥</button>` : ""}</div>
+      ${page ? `<button class="btn" type="button" id="revbook" title="Сборник откроется справа">📖 Сборник, стр. ${page} ⇥</button>` : ""}${b && Study.ogeSections(b).key ? `<button class="btn" type="button" id="revkey" aria-pressed="false" title="Ответы сборника справа, экран делится пополам">🔑 Ответы ⇥</button>` : ""}</div>
     <p class="sm" style="margin:0 0 10px">${D.format(new Date(t.ts))}${t.spent!==undefined ? ` · решала ${t.spent} из ${t.limit} мин` : ""}${t.answered!==undefined ? ` · вписано ${t.answered} из ${rows.length}` : ""}</p>
     ${late.length ? `<p class="note">После окончания времени вписаны ответы к ${late.length===1?"заданию":"заданиям"} ${late.map(r=>"№"+r.num).join(", ")}. В итоговые баллы они не вошли, но в разборе видно, верны ли они.</p>` : ""}
     ${rows.some(r=>r.state==="nokey" || (r.long && r.score===undefined && r.state!=="empty")) ? `<div class="note revnote"><p style="margin:0 0 8px">Часть заданий не проверена: ${Object.keys(K).length ? "учитель ещё не смотрел развёрнутые" : "ответы сборника к этому варианту ещё не прочитаны"}. Учитель может проверить сейчас: ${b && Study.ogeSections(b).key ? "прочитает ответы сборника и сверит," : "решит задания по листам варианта и сверит,"} а развёрнутые оценит по бланкам.</p><button class="btn primary" type="button" id="revcheck">Проверить сейчас</button> <span class="sm" id="revst" aria-live="polite"></span></div>` : ""}
@@ -821,17 +886,20 @@ function review(exam, ts){
       App.busy.end(); review(exam, ts);
     }catch(e){ console.warn(e); App.busy.end("Не получилось: " + e.message); const el = $("revst"); if(el) el.textContent = "Не получилось: " + e.message; btn.disabled = false; } });
   if($("revbook")) $("revbook").addEventListener("click", ()=>{ closeSide(); Reader.open(b, page, `Вариант ${t.variant}`, "right"); });
+  // ответы сборника целиком, как книга: все листы раздела «Ответы» (краткие ответы и решения развёрнутых)
   if($("revkey")) $("revkey").addEventListener("click", ()=>{ const was = document.querySelector(".sidepane"); closeSide(); $("revkey").setAttribute("aria-pressed", "false"); if(was) return;
+    const sec = Study.ogeSections(b).key; if(!sec) return;
     if(window.Reader && Reader.state().open && !Reader.state().min) Reader.minimize();
-    const sec = b ? Study.ogeSections(b).key : null, pane = document.createElement("aside"); pane.className = "sidepane"; pane.setAttribute("aria-label", "Ответы варианта");
-    pane.innerHTML = `<div class="sp-head"><b>Ответы варианта ${esc(t.variant||"")}</b><span style="flex:1"></span><button class="ibtn" type="button" data-spclose aria-label="Закрыть">✕</button></div>
-      <table class="grades revkey"><thead><tr><th>№</th><th>Ответ сборника</th><th>Твой</th><th>Баллы</th></tr></thead><tbody>${rows.map(r=>`<tr class="${r.state==="ok"?"rv-ok":r.state==="bad"||r.state==="empty"?"rv-bad":""}"><td>${r.num}</td><td>${r.long ? "развёрнутый" : r.right!==undefined && String(r.right).trim() ? esc(String(r.right)) : "?"}</td><td>${r.long ? (r.blank ? "бланк" : "—") : esc(r.v||"—")}${r.late?" ⏰":""}</td><td>${r.score!==undefined ? `${r.score}/${r.max}` : "—"}</td></tr>`).join("")}</tbody></table>
-      ${rows.some(r=>!r.long && !(r.right!==undefined && String(r.right).trim())) ? `<p class="sm">? — ответ сборника ещё не прочитан. Нажми «Проверить сейчас» или открой страницу ответов ниже.</p>` : ""}
-      ${late.length ? `<p class="sm">⏰ — вписано после окончания времени.</p>` : ""}
-      ${sec ? `<button class="btn" type="button" data-spbook>Открыть страницу ответов в сборнике, стр. ${sec[0]}</button>` : ""}`;
+    const pane = document.createElement("aside"); pane.className = "sidepane"; pane.setAttribute("aria-label", "Ответы сборника");
+    pane.innerHTML = `<div class="sp-head"><b>Ответы сборника · стр. ${sec[0]}–${sec[1]}</b><span style="flex:1"></span><button class="btn" type="button" data-spbook title="Открыть в сборнике, листать как книгу">📖 В сборнике</button><button class="ibtn" type="button" data-spclose aria-label="Закрыть">✕</button></div><div class="sp-pages"><p class="sm">Загружаю листы ответов…</p></div>`;
     document.body.appendChild(pane); document.body.classList.add("nb-side"); $("revkey").setAttribute("aria-pressed", "true");
     pane.querySelector("[data-spclose]").addEventListener("click", ()=>{ closeSide(); const k = $("revkey"); if(k) k.setAttribute("aria-pressed","false"); });
-    const sb = pane.querySelector("[data-spbook]"); if(sb) sb.addEventListener("click", ()=>{ closeSide(); Reader.open(b, sec[0], `Ответы · вариант ${t.variant}`, "right"); }); });
+    pane.querySelector("[data-spbook]").addEventListener("click", ()=>{ closeSide(); Reader.open(b, sec[0], "Ответы", "right"); });
+    (async()=>{ const box = pane.querySelector(".sp-pages"), m = App.S.book(b.id), off = Number(m.offset)||0, total = m.totalPages || 999, end = Math.min(sec[1], sec[0] + 39); box.innerHTML = "";
+      for(let pg = sec[0]; pg <= end && pg + off <= total; pg++){ if(!pane.isConnected) return;
+        try{ const b64 = await Reader.pageImage(b, pg + off, 1300); const fig = document.createElement("figure"); fig.className = "vpage";
+          fig.innerHTML = `<img alt="Ответы, стр. ${pg}" src="data:image/jpeg;base64,${b64}"><figcaption class="sm">стр. ${pg}</figcaption>`; box.appendChild(fig); }catch(e){ break; } }
+      if(!box.children.length) box.innerHTML = `<p class="note">Не получилось показать листы. Открой ответы кнопкой «📖 В сборнике».</p>`; })(); });
   $("main").querySelectorAll("[data-revimg]").forEach(btn=>btn.addEventListener("click", async()=>{ const k = btn.dataset.revimg, box = $("main").querySelector(`[data-revbox="${k.slice(1)}"]`);
     if(box.dataset.k === k){ box.innerHTML = ""; box.dataset.k = ""; btn.setAttribute("aria-pressed","false"); return; }
     box.dataset.k = k; btn.parentNode.querySelectorAll("[data-revimg]").forEach(x=>x.setAttribute("aria-pressed", x===btn)); box.innerHTML = `<p class="sm">Загружаю…</p>`;
