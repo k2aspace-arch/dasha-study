@@ -231,7 +231,7 @@ function renderAccountHome(){
     <a class="acctile" href="#account/books" style="--c:#2a4fd6">${ICON_BOOK}<b>Учебники</b><span class="sm">PDF, оглавления, страницы, сборники ОГЭ, добавить документ</span></a>
     <a class="acctile" href="#account/settings" style="--c:#5a5f73">${ICON_GEAR}<b>Настройки</b><span class="sm">Оформление, учитель, цвета учебников</span></a>
   </div></div>`;
-  const lo = $("acclogout"); if(lo) lo.addEventListener("click", ()=>$("logout").click());
+  const lo = $("acclogout"); if(lo) lo.addEventListener("click", ()=>$("logout").click()); Study.checkAdmin();
   Study.drawMe();
 }
 function renderAccountProfile(){

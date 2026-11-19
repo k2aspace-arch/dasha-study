@@ -719,10 +719,13 @@ function bindProfile(root){
     }catch(err){ rs.textContent = "Не получилось: " + err.message; }
   });
   const ud = $("resetundo"); if(ud) ud.addEventListener("click", ()=>{ const b = Store.get("backup"); Object.entries(b.data||{}).forEach(([k,v])=>{ if(v!==undefined && v!==null) Store.set(k, v, 0); }); location.reload(); });
-  if(Store.mode==="cloud" && Store.aiAvailable()){
-    const show = () => { const a = $("adminlink"); if(a) a.hidden = !isAdmin; };
-    if(isAdmin===null) Store.admin({ action:"whoami" }).then(r=>{ isAdmin = !!(r && r.admin); show(); }).catch(()=>{ isAdmin = false; }); else show();
-  }
+  checkAdmin();
+}
+// кнопка «Админка» в профиле: видна только администратору (проверка на сервере, один раз за сеанс)
+function checkAdmin(){
+  if(Store.mode!=="cloud" || !Store.aiAvailable()) return;
+  const show = () => { const a = $("adminlink"); if(a) a.hidden = !isAdmin; };
+  if(isAdmin===null) Store.admin({ action:"whoami" }).then(r=>{ isAdmin = !!(r && r.admin); show(); }).catch(()=>{ isAdmin = null; }); else show();
 }
 
 /* ================= АДМИНКА ================= */
@@ -821,5 +824,5 @@ function accountPanels(){ return profilePanel() + themePanel(); }
 function bindAccount(root){ bindProfile(root); bindTheme(root); }
 function apply(){ applyTheme(); syncOge(); syncMyBooks(); applyToc(); applyColors(); drawMe(); }
 
-window.Study = { activityReport, ogeReadKey: async (b, say) => { const sec = ogeSections(b); if(!sec.key) return 0; return readKey(b, sec.key[0], Math.min(sec.key[1], sec.key[0]+39), say); }, syncMyBooks, applyColors, colorsPanel, bindColors, profilePanel, bindProfile, themePanel, bindTheme, ogeAutoPrep, ogeSections, ogeInfoRows, bindOgeInfo, ogeInfoFor, ogePage, syncOge, ogeAddHtml, bindOgeAdd, ogeKey, ogeVariants, ogeKeyRow, bindOgeKey, ogeSubjects, tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, idxButton, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
+window.Study = { checkAdmin, activityReport, ogeReadKey: async (b, say) => { const sec = ogeSections(b); if(!sec.key) return 0; return readKey(b, sec.key[0], Math.min(sec.key[1], sec.key[0]+39), say); }, syncMyBooks, applyColors, colorsPanel, bindColors, profilePanel, bindProfile, themePanel, bindTheme, ogeAutoPrep, ogeSections, ogeInfoRows, bindOgeInfo, ogeInfoFor, ogePage, syncOge, ogeAddHtml, bindOgeAdd, ogeKey, ogeVariants, ogeKeyRow, bindOgeKey, ogeSubjects, tocPanel(id){ if(id) tocState.subj = id; return tocPanel(); }, bindToc, bookKnowHtml, bindKnow, idxButton, applyToc, drawMe, siteTitle, renderAdmin, Dock, renderMemos, apply, applyTheme, Teacher, marks, recoHome, classIdx, topicsOf, cardText, exercisesHtml, renderCut, leaveCut, accountPanels, bindAccount, ogeBooksHtml, bindOgeBooks, ogeBook, OGE_BOOKS, nums };
 })();
